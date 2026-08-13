@@ -120,3 +120,5 @@ backend/prisma/dev.db-journal
 **/.roo/
 
 .github/copilot/
+
+.env
