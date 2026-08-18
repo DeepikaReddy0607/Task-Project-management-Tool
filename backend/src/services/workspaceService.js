@@ -1,0 +1,50 @@
+import prisma from "../config/prisma.js";
+
+const createWorkspace = async (userId, name, description) => {
+    // Verify that the logged-in user exists
+    const user = await prisma.users.findUnique({
+        where: {
+            id: userId
+        }
+    });
+
+    if (!user) {
+        throw new Error("User not found");
+    }
+
+    // Create workspace and owner membership together
+    const workspace = await prisma.workspaces.create({
+        data: {
+            name,
+            description: description || null,
+            owner_id: userId,
+
+            workspace_members: {
+                create: {
+                    user_id: userId,
+                    workspace_role: "Owner"
+                }
+            }
+        },
+        include: {
+            workspace_members: {
+                include: {
+                    users: {
+                        select: {
+                            id: true,
+                            first_name: true,
+                            last_name: true,
+                            email: true
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    return workspace;
+};
+
+export {
+    createWorkspace
+};
