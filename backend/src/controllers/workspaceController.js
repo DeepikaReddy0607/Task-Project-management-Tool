@@ -2,7 +2,8 @@ import {
     createWorkspace,
     getUserWorkspaces,
     getWorkspaceById,
-    addWorkspaceMember
+    addWorkspaceMember,
+    getWorkspaceMembers
 } from "../services/workspaceService.js";
 
 const create = async (req, res, next) => {
@@ -170,9 +171,46 @@ const addMember = async (req, res, next) => {
     }
 };
 
+const getMembers = async (req, res, next) => {
+    try {
+
+        const {
+            id
+        } = req.params;
+
+        // Validate workspace ID
+        if (!id) {
+            return res.status(400).json({
+                message: "Workspace ID is required"
+            });
+        }
+
+        const members = await getWorkspaceMembers(
+            id,
+            req.user.userId
+        );
+
+        return res.status(200).json({
+            message: "Workspace members retrieved successfully",
+            members
+        });
+
+    } catch (error) {
+
+        if (error.message === "Workspace access denied") {
+            return res.status(403).json({
+                message: error.message
+            });
+        }
+
+        next(error);
+    }
+};
+
 export {
     create,
     getAll,
     getOne,
-    addMember
+    addMember,
+    getMembers
 };

@@ -207,9 +207,64 @@ const addWorkspaceMember = async (
     return membership;
 };
 
+const getWorkspaceMembers = async (workspaceId, requesterId) => {
+
+    // 1. Check whether requester belongs to the workspace
+    const requesterMembership =
+        await prisma.workspace_members.findUnique({
+            where: {
+                workspace_id_user_id: {
+                    workspace_id: workspaceId,
+                    user_id: requesterId
+                }
+            }
+        });
+
+    if (!requesterMembership) {
+        throw new Error("Workspace access denied");
+    }
+
+    // 2. Get all workspace members
+    const members = await prisma.workspace_members.findMany({
+        where: {
+            workspace_id: workspaceId
+        },
+        include: {
+            users: {
+                select: {
+                    id: true,
+                    first_name: true,
+                    last_name: true,
+                    email: true,
+                    roles: {
+                        select: {
+                            role_name: true
+                        }
+                    }
+                }
+            }
+        },
+        orderBy: {
+            joined_at: "asc"
+        }
+    });
+
+    // 3. Return clean response
+    return members.map((member) => ({
+        id: member.users.id,
+        firstName: member.users.first_name,
+        lastName: member.users.last_name,
+        email: member.users.email,
+        globalRole: member.users.roles.role_name,
+        workspaceRole: member.workspace_role,
+        joinedAt: member.joined_at
+    }));
+};
+
 export {
     createWorkspace,
     getUserWorkspaces,
     getWorkspaceById,
-    addWorkspaceMember
+    addWorkspaceMember,
+    getWorkspaceMembers
 };
