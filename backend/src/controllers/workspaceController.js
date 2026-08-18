@@ -1,7 +1,7 @@
 import {
-    createWorkspace
+    createWorkspace,
+    getUserWorkspaces
 } from "../services/workspaceService.js";
-
 
 const create = async (req, res, next) => {
     try {
@@ -36,7 +36,24 @@ const create = async (req, res, next) => {
     }
 };
 
+const getAll = async (req, res, next) => {
+    try {
+
+        const workspaces = await getUserWorkspaces(
+            req.user.userId
+        );
+
+        return res.status(200).json({
+            message: "Workspaces retrieved successfully",
+            workspaces
+        });
+
+    } catch (error) {
+        next(error);
+    }
+};
 
 export {
-    create
+    create,
+    getAll
 };

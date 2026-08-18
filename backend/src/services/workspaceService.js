@@ -45,6 +45,32 @@ const createWorkspace = async (userId, name, description) => {
     return workspace;
 };
 
+const getUserWorkspaces = async (userId) => {
+
+    const memberships = await prisma.workspace_members.findMany({
+        where: {
+            user_id: userId
+        },
+        include: {
+            workspaces: true
+        },
+        orderBy: {
+            joined_at: "desc"
+        }
+    });
+
+    return memberships.map((membership) => ({
+        id: membership.workspaces.id,
+        name: membership.workspaces.name,
+        description: membership.workspaces.description,
+        ownerId: membership.workspaces.owner_id,
+        workspaceRole: membership.workspace_role,
+        createdAt: membership.workspaces.created_at,
+        updatedAt: membership.workspaces.updated_at
+    }));
+};
+
 export {
-    createWorkspace
+    createWorkspace,
+    getUserWorkspaces
 };
