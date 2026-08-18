@@ -1,0 +1,77 @@
+:root {
+  /* Color */
+  --color-canvas: #f8f3e9;
+  --color-canvas-soft: #fcf8f1;
+  --color-surface: #fffdf8;
+  --color-surface-muted: #f3ecdf;
+  --color-surface-sage: #edf2e6;
+  --color-border: #e7dece;
+  --color-border-strong: #d9cfbd;
+
+  --color-brand: #789565;
+  --color-brand-hover: #658151;
+  --color-brand-soft: #dfe9d5;
+  --color-brand-contrast: #ffffff;
+  --color-info: #7599bd;
+  --color-info-soft: #e2edf5;
+  --color-peach: #edb197;
+  --color-peach-soft: #fae5db;
+  --color-sun: #eec96d;
+  --color-sun-soft: #fbf1d5;
+
+  --color-text: #344333;
+  --color-text-muted: #687565;
+  --color-text-subtle: #899382;
+  --color-success: #6d9871;
+  --color-danger: #bd6e65;
+  --color-danger-soft: #f8e3df;
+  --color-focus: #789565;
+
+  /* Typography */
+  --font-sans: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Aptos Display", "Aptos", "Segoe UI", sans-serif;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+  --line-height-tight: 1.15;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.65;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Shape and depth */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-pill: 9999px;
+  --shadow-xs: 0 1px 2px rgb(75 61 40 / 0.05);
+  --shadow-sm: 0 3px 10px rgb(75 61 40 / 0.06);
+  --shadow-md: 0 10px 26px rgb(75 61 40 / 0.08);
+  --shadow-lg: 0 18px 45px rgb(75 61 40 / 0.1);
+  --shadow-brand: 0 10px 22px rgb(120 149 101 / 0.2);
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+  --duration-slow: 360ms;
+  --duration-ambient: 12s;
+}

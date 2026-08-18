@@ -1,0 +1,90 @@
+@import "./tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--color-canvas);
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  position: relative;
+  isolation: isolate;
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(ellipse 72% 52% at 108% -8%, rgb(226 237 245 / 0.48), transparent 74%),
+    radial-gradient(ellipse 66% 48% at 58% 108%, rgb(250 229 219 / 0.38), transparent 76%),
+    radial-gradient(ellipse 62% 54% at -10% 92%, rgb(237 242 230 / 0.58), transparent 76%),
+    var(--color-canvas);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  line-height: var(--line-height-normal);
+  overflow-x: hidden;
+}
+
+body::before,
+body::after {
+  position: fixed;
+  z-index: 0;
+  pointer-events: none;
+  content: "";
+}
+
+body::before {
+  inset: -12rem;
+  background:
+    radial-gradient(ellipse 48% 34% at 86% 24%, rgb(226 237 245 / 0.28), transparent 76%),
+    radial-gradient(ellipse 42% 32% at 48% 73%, rgb(250 229 219 / 0.25), transparent 78%);
+  filter: blur(28px);
+}
+
+body::after {
+  inset: -10rem;
+  background: radial-gradient(ellipse 42% 36% at 16% 84%, rgb(223 233 213 / 0.3), transparent 78%);
+  filter: blur(32px);
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: var(--color-brand-soft);
+  color: var(--color-text);
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-focus) 45%, transparent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+}
