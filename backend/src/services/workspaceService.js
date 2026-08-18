@@ -101,8 +101,115 @@ const getWorkspaceById = async (workspaceId, userId) => {
     };
 };
 
+const addWorkspaceMember = async (
+    workspaceId,
+    requesterId,
+    userId,
+    workspaceRole
+) => {
+
+    // 1. Check whether the workspace exists
+    const workspace = await prisma.workspaces.findUnique({
+        where: {
+            id: workspaceId
+        }
+    });
+
+    if (!workspace) {
+        throw new Error("Workspace not found");
+    }
+
+    // 2. Check the requester's workspace membership
+    const requesterMembership =
+        await prisma.workspace_members.findUnique({
+            where: {
+                workspace_id_user_id: {
+                    workspace_id: workspaceId,
+                    user_id: requesterId
+                }
+            }
+        });
+
+    // Requester must belong to the workspace
+    if (!requesterMembership) {
+        throw new Error("Workspace access denied");
+    }
+
+    // 3. Only Owner or Admin can add members
+    if (
+        requesterMembership.workspace_role !== "Owner" &&
+        requesterMembership.workspace_role !== "Admin"
+    ) {
+        throw new Error(
+            "Only workspace Owner or Admin can add members"
+        );
+    }
+
+    // 4. Validate workspace role
+    const allowedRoles = [
+        "Owner",
+        "Admin",
+        "Member"
+    ];
+
+    if (!allowedRoles.includes(workspaceRole)) {
+        throw new Error("Invalid workspace role");
+    }
+
+    // 5. Check whether the target user exists
+    const user = await prisma.users.findUnique({
+        where: {
+            id: userId
+        }
+    });
+
+    if (!user) {
+        throw new Error("User not found");
+    }
+
+    // 6. Check whether user is already a member
+    const existingMembership =
+        await prisma.workspace_members.findUnique({
+            where: {
+                workspace_id_user_id: {
+                    workspace_id: workspaceId,
+                    user_id: userId
+                }
+            }
+        });
+
+    if (existingMembership) {
+        throw new Error(
+            "User is already a member of this workspace"
+        );
+    }
+
+    // 7. Add the user to the workspace
+    const membership =
+        await prisma.workspace_members.create({
+            data: {
+                workspace_id: workspaceId,
+                user_id: userId,
+                workspace_role: workspaceRole
+            },
+            include: {
+                users: {
+                    select: {
+                        id: true,
+                        first_name: true,
+                        last_name: true,
+                        email: true
+                    }
+                }
+            }
+        });
+
+    return membership;
+};
+
 export {
     createWorkspace,
     getUserWorkspaces,
-    getWorkspaceById
+    getWorkspaceById,
+    addWorkspaceMember
 };
