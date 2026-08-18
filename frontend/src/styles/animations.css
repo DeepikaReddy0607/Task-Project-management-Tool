@@ -1,0 +1,222 @@
+@import "./tokens.css";
+
+@keyframes taskflow-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes taskflow-fade-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes taskflow-ambient-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0.75rem, -0.5rem, 0);
+  }
+}
+
+@keyframes taskflow-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-0.4rem);
+  }
+}
+
+@keyframes taskflow-success-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+
+  70% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes taskflow-login-intro-frame {
+  from {
+    opacity: 0;
+    transform: translateY(0.45rem) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes taskflow-login-intro-beanie-falling {
+  from {
+    transform: translateY(-32%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes taskflow-login-intro-drop-in {
+  from {
+    transform: translateY(-12%) scale(0.96);
+  }
+
+  to {
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes taskflow-login-card-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes taskflow-login-welcome-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes taskflow-login-welcome-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-0.4rem) scale(0.99);
+  }
+}
+
+.taskflow-page-enter {
+  animation: taskflow-page-enter var(--duration-slow) var(--ease-emphasized) both;
+}
+
+.taskflow-fade-slide-in {
+  animation: taskflow-fade-slide-in var(--duration-base) var(--ease-standard) both;
+}
+
+.taskflow-ambient-drift {
+  animation: taskflow-ambient-drift var(--duration-ambient) ease-in-out infinite;
+}
+
+.taskflow-float {
+  animation: taskflow-float 5s ease-in-out infinite;
+}
+
+.taskflow-success-pop {
+  animation: taskflow-success-pop var(--duration-slow) var(--ease-emphasized) both;
+}
+
+.taskflow-login-intro-mascot {
+  animation: taskflow-login-mascot-enter 620ms var(--ease-emphasized) both;
+}
+
+.taskflow-login-intro-greeting {
+  animation: taskflow-login-mascot-greeting 380ms var(--ease-emphasized) both;
+}
+
+.taskflow-login-card-reveal {
+  animation: taskflow-login-card-reveal 600ms var(--ease-emphasized) both;
+}
+
+.taskflow-login-card-pending {
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(0.75rem) scale(0.985);
+}
+
+.taskflow-login-intro-welcome {
+  animation: taskflow-login-welcome-enter 420ms var(--ease-emphasized) both;
+}
+
+.taskflow-login-intro-welcome-exit {
+  animation: taskflow-login-welcome-exit 380ms var(--ease-emphasized) both;
+}
+
+.taskflow-login-intro-frame {
+  animation: taskflow-login-intro-frame 360ms var(--ease-emphasized) both;
+}
+
+.taskflow-login-intro-layer {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(0.45rem) scale(0.985);
+  transition: opacity 180ms var(--ease-emphasized), transform 180ms var(--ease-emphasized);
+}
+
+.taskflow-login-intro-layer-visible {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.taskflow-login-intro-beanie-falling {
+  animation: taskflow-login-intro-beanie-falling 650ms var(--ease-emphasized) both;
+}
+
+.taskflow-login-intro-drop-in {
+  animation: taskflow-login-intro-drop-in 620ms var(--ease-emphasized) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .taskflow-page-enter,
+  .taskflow-fade-slide-in,
+  .taskflow-ambient-drift,
+  .taskflow-float,
+  .taskflow-success-pop,
+  .taskflow-login-card-pending,
+  .taskflow-login-card-reveal,
+  .taskflow-login-intro-welcome,
+  .taskflow-login-intro-welcome-exit,
+  .taskflow-login-intro-frame,
+  .taskflow-login-intro-layer-visible,
+  .taskflow-login-intro-beanie-falling,
+  .taskflow-login-intro-drop-in {
+    animation: none;
+  }
+}
