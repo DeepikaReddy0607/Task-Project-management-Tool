@@ -70,7 +70,39 @@ const getUserWorkspaces = async (userId) => {
     }));
 };
 
+const getWorkspaceById = async (workspaceId, userId) => {
+
+    // Check whether the user is a member of this workspace
+    const membership = await prisma.workspace_members.findUnique({
+        where: {
+            workspace_id_user_id: {
+                workspace_id: workspaceId,
+                user_id: userId
+            }
+        },
+        include: {
+            workspaces: true
+        }
+    });
+
+    // User is not a member of this workspace
+    if (!membership) {
+        throw new Error("Workspace access denied");
+    }
+
+    return {
+        id: membership.workspaces.id,
+        name: membership.workspaces.name,
+        description: membership.workspaces.description,
+        ownerId: membership.workspaces.owner_id,
+        workspaceRole: membership.workspace_role,
+        createdAt: membership.workspaces.created_at,
+        updatedAt: membership.workspaces.updated_at
+    };
+};
+
 export {
     createWorkspace,
-    getUserWorkspaces
+    getUserWorkspaces,
+    getWorkspaceById
 };
