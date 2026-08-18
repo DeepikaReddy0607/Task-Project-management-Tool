@@ -261,10 +261,93 @@ const getWorkspaceMembers = async (workspaceId, requesterId) => {
     }));
 };
 
+const removeWorkspaceMember = async (
+    workspaceId,
+    requesterId,
+    userId
+) => {
+
+    // 1. Check whether the workspace exists
+    const workspace = await prisma.workspaces.findUnique({
+        where: {
+            id: workspaceId
+        }
+    });
+
+    if (!workspace) {
+        throw new Error("Workspace not found");
+    }
+
+    // 2. Check the requester's workspace membership
+    const requesterMembership =
+        await prisma.workspace_members.findUnique({
+            where: {
+                workspace_id_user_id: {
+                    workspace_id: workspaceId,
+                    user_id: requesterId
+                }
+            }
+        });
+
+    if (!requesterMembership) {
+        throw new Error("Workspace access denied");
+    }
+
+    // 3. Only Owner or Admin can remove members
+    if (
+        requesterMembership.workspace_role !== "Owner" &&
+        requesterMembership.workspace_role !== "Admin"
+    ) {
+        throw new Error(
+            "Only workspace Owner or Admin can remove members"
+        );
+    }
+
+    // 4. Check whether target user is a member
+    const targetMembership =
+        await prisma.workspace_members.findUnique({
+            where: {
+                workspace_id_user_id: {
+                    workspace_id: workspaceId,
+                    user_id: userId
+                }
+            }
+        });
+
+    if (!targetMembership) {
+        throw new Error(
+            "User is not a member of this workspace"
+        );
+    }
+
+    // 5. Prevent removal of workspace owner
+    if (workspace.owner_id === userId) {
+        throw new Error(
+            "Workspace owner cannot be removed"
+        );
+    }
+
+    // 6. Remove the membership
+    await prisma.workspace_members.delete({
+        where: {
+            workspace_id_user_id: {
+                workspace_id: workspaceId,
+                user_id: userId
+            }
+        }
+    });
+
+    return {
+        userId,
+        workspaceId
+    };
+};
+
 export {
     createWorkspace,
     getUserWorkspaces,
     getWorkspaceById,
     addWorkspaceMember,
-    getWorkspaceMembers
+    getWorkspaceMembers,
+    removeWorkspaceMember
 };

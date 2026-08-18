@@ -5,7 +5,8 @@ import {
     getAll,
     getOne,
     addMember,
-    getMembers
+    getMembers,
+    removeMember
 } from "../controllers/workspaceController.js";
 
 const router = express.Router();
@@ -20,6 +21,8 @@ router.get("/:id", authMiddleware, getOne);
 router.post("/:id/members", authMiddleware, addMember);
 // Get workspace members
 router.get("/:id/members", authMiddleware, getMembers);
+// Remove a member from a workspace
+router.delete("/:id/members/:userId", authMiddleware, removeMember);
 
 
 export default router;

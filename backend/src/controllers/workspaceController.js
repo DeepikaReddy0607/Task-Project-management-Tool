@@ -3,7 +3,8 @@ import {
     getUserWorkspaces,
     getWorkspaceById,
     addWorkspaceMember,
-    getWorkspaceMembers
+    getWorkspaceMembers,
+    removeWorkspaceMember
 } from "../services/workspaceService.js";
 
 const create = async (req, res, next) => {
@@ -207,10 +208,79 @@ const getMembers = async (req, res, next) => {
     }
 };
 
+const removeMember = async (req, res, next) => {
+    try {
+
+        const {
+            id,
+            userId
+        } = req.params;
+
+        // Validate workspace ID
+        if (!id) {
+            return res.status(400).json({
+                message: "Workspace ID is required"
+            });
+        }
+
+        // Validate target user ID
+        if (!userId) {
+            return res.status(400).json({
+                message: "User ID is required"
+            });
+        }
+
+        const result = await removeWorkspaceMember(
+            id,
+            req.user.userId,
+            userId
+        );
+
+        return res.status(200).json({
+            message: "Workspace member removed successfully",
+            result
+        });
+
+    } catch (error) {
+
+        if (
+            error.message === "Workspace not found" ||
+            error.message ===
+                "User is not a member of this workspace"
+        ) {
+            return res.status(404).json({
+                message: error.message
+            });
+        }
+
+        if (
+            error.message === "Workspace access denied" ||
+            error.message ===
+                "Only workspace Owner or Admin can remove members"
+        ) {
+            return res.status(403).json({
+                message: error.message
+            });
+        }
+
+        if (
+            error.message ===
+            "Workspace owner cannot be removed"
+        ) {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
+        next(error);
+    }
+};
+
 export {
     create,
     getAll,
     getOne,
     addMember,
-    getMembers
+    getMembers,
+    removeMember
 };
