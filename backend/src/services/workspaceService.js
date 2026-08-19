@@ -147,7 +147,6 @@ const addWorkspaceMember = async (
 
     // 4. Validate workspace role
     const allowedRoles = [
-        "Owner",
         "Admin",
         "Member"
     ];
@@ -343,11 +342,130 @@ const removeWorkspaceMember = async (
     };
 };
 
+const updateWorkspaceMemberRole = async (
+    workspaceId,
+    requesterId,
+    userId,
+    workspaceRole
+) => {
+
+    // 1. Check whether the workspace exists
+    const workspace = await prisma.workspaces.findUnique({
+        where: {
+            id: workspaceId
+        }
+    });
+
+    if (!workspace) {
+        throw new Error("Workspace not found");
+    }
+
+    // 2. Check the requester's workspace membership
+    const requesterMembership =
+        await prisma.workspace_members.findUnique({
+            where: {
+                workspace_id_user_id: {
+                    workspace_id: workspaceId,
+                    user_id: requesterId
+                }
+            }
+        });
+
+    if (!requesterMembership) {
+        throw new Error("Workspace access denied");
+    }
+
+    // 3. Only Owner can update member roles
+    if (
+        requesterMembership.workspace_role !== "Owner"
+    ) {
+        throw new Error(
+            "Only workspace Owner can update member roles"
+        );
+    }
+
+    // 4. Only Admin and Member can be assigned
+    const allowedRoles = [
+        "Admin",
+        "Member"
+    ];
+
+    if (!allowedRoles.includes(workspaceRole)) {
+        throw new Error(
+            "Invalid workspace role"
+        );
+    }
+
+    // 5. Find target membership
+    const targetMembership =
+        await prisma.workspace_members.findUnique({
+            where: {
+                workspace_id_user_id: {
+                    workspace_id: workspaceId,
+                    user_id: userId
+                }
+            }
+        });
+
+    if (!targetMembership) {
+        throw new Error(
+            "User is not a member of this workspace"
+        );
+    }
+
+    // 6. Prevent changing the workspace owner's role
+    if (workspace.owner_id === userId) {
+        throw new Error(
+            "Workspace owner role cannot be changed"
+        );
+    }
+
+    // 7. Update workspace role
+    const updatedMembership =
+        await prisma.workspace_members.update({
+            where: {
+                workspace_id_user_id: {
+                    workspace_id: workspaceId,
+                    user_id: userId
+                }
+            },
+            data: {
+                workspace_role: workspaceRole
+            },
+            include: {
+                users: {
+                    select: {
+                        id: true,
+                        first_name: true,
+                        last_name: true,
+                        email: true,
+                        roles: {
+                            select: {
+                                role_name: true
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+    return {
+        id: updatedMembership.users.id,
+        firstName: updatedMembership.users.first_name,
+        lastName: updatedMembership.users.last_name,
+        email: updatedMembership.users.email,
+        globalRole: updatedMembership.users.roles.role_name,
+        workspaceRole: updatedMembership.workspace_role,
+        joinedAt: updatedMembership.joined_at
+    };
+};
+
 export {
     createWorkspace,
     getUserWorkspaces,
     getWorkspaceById,
     addWorkspaceMember,
     getWorkspaceMembers,
-    removeWorkspaceMember
+    removeWorkspaceMember,
+    updateWorkspaceMemberRole
 };

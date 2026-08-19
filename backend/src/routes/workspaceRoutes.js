@@ -6,7 +6,8 @@ import {
     getOne,
     addMember,
     getMembers,
-    removeMember
+    removeMember,
+    updateMemberRole
 } from "../controllers/workspaceController.js";
 
 const router = express.Router();
@@ -23,6 +24,11 @@ router.post("/:id/members", authMiddleware, addMember);
 router.get("/:id/members", authMiddleware, getMembers);
 // Remove a member from a workspace
 router.delete("/:id/members/:userId", authMiddleware, removeMember);
-
+// Update workspace member role
+router.patch(
+    "/:id/members/:userId",
+    authMiddleware,
+    updateMemberRole
+);
 
 export default router;

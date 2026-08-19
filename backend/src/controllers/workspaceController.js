@@ -4,7 +4,8 @@ import {
     getWorkspaceById,
     addWorkspaceMember,
     getWorkspaceMembers,
-    removeWorkspaceMember
+    removeWorkspaceMember,
+    updateWorkspaceMemberRole
 } from "../services/workspaceService.js";
 
 const create = async (req, res, next) => {
@@ -276,11 +277,93 @@ const removeMember = async (req, res, next) => {
     }
 };
 
+const updateMemberRole = async (req, res, next) => {
+    try {
+
+        const {
+            id,
+            userId
+        } = req.params;
+
+        const {
+            workspaceRole
+        } = req.body;
+
+        // Validate workspace ID
+        if (!id) {
+            return res.status(400).json({
+                message: "Workspace ID is required"
+            });
+        }
+
+        // Validate target user ID
+        if (!userId) {
+            return res.status(400).json({
+                message: "User ID is required"
+            });
+        }
+
+        // Validate workspace role
+        if (!workspaceRole) {
+            return res.status(400).json({
+                message: "Workspace role is required"
+            });
+        }
+
+        const updatedMember = await updateWorkspaceMemberRole(
+            id,
+            req.user.userId,
+            userId,
+            workspaceRole
+        );
+
+        return res.status(200).json({
+            message: "Workspace member role updated successfully",
+            member: updatedMember
+        });
+
+    } catch (error) {
+
+        if (
+            error.message === "Workspace not found" ||
+            error.message ===
+                "User is not a member of this workspace"
+        ) {
+            return res.status(404).json({
+                message: error.message
+            });
+        }
+
+        if (
+            error.message === "Workspace access denied" ||
+            error.message ===
+                "Only workspace Owner can update member roles"
+        ) {
+            return res.status(403).json({
+                message: error.message
+            });
+        }
+
+        if (
+            error.message === "Invalid workspace role" ||
+            error.message ===
+                "Workspace owner role cannot be changed"
+        ) {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
+        next(error);
+    }
+};
+
 export {
     create,
     getAll,
     getOne,
     addMember,
     getMembers,
-    removeMember
+    removeMember,
+    updateMemberRole
 };
