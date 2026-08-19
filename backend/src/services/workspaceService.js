@@ -460,6 +460,80 @@ const updateWorkspaceMemberRole = async (
     };
 };
 
+const updateWorkspace = async (
+    workspaceId,
+    requesterId,
+    name,
+    description
+) => {
+
+    // 1. Check whether the workspace exists
+    const workspace = await prisma.workspaces.findUnique({
+        where: {
+            id: workspaceId
+        }
+    });
+
+    if (!workspace) {
+        throw new Error("Workspace not found");
+    }
+
+    // 2. Check requester's workspace membership
+    const requesterMembership =
+        await prisma.workspace_members.findUnique({
+            where: {
+                workspace_id_user_id: {
+                    workspace_id: workspaceId,
+                    user_id: requesterId
+                }
+            }
+        });
+
+    if (!requesterMembership) {
+        throw new Error("Workspace access denied");
+    }
+
+    // 3. Only Owner can update workspace details
+    if (requesterMembership.workspace_role !== "Owner") {
+        throw new Error(
+            "Only workspace Owner can update workspace"
+        );
+    }
+
+    // 4. Validate workspace name if provided
+    if (name !== undefined && !name.trim()) {
+        throw new Error(
+            "Workspace name cannot be empty"
+        );
+    }
+
+    // 5. Update workspace
+    const updatedWorkspace = await prisma.workspaces.update({
+        where: {
+            id: workspaceId
+        },
+        data: {
+            ...(name !== undefined && {
+                name: name.trim()
+            }),
+
+            ...(description !== undefined && {
+                description: description || null
+            })
+        }
+    });
+
+    // 6. Return clean response
+    return {
+        id: updatedWorkspace.id,
+        name: updatedWorkspace.name,
+        description: updatedWorkspace.description,
+        ownerId: updatedWorkspace.owner_id,
+        createdAt: updatedWorkspace.created_at,
+        updatedAt: updatedWorkspace.updated_at
+    };
+};
+
 export {
     createWorkspace,
     getUserWorkspaces,
@@ -467,5 +541,6 @@ export {
     addWorkspaceMember,
     getWorkspaceMembers,
     removeWorkspaceMember,
-    updateWorkspaceMemberRole
+    updateWorkspaceMemberRole,
+    updateWorkspace
 };

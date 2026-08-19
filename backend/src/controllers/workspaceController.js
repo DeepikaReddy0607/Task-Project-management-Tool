@@ -5,7 +5,8 @@ import {
     addWorkspaceMember,
     getWorkspaceMembers,
     removeWorkspaceMember,
-    updateWorkspaceMemberRole
+    updateWorkspaceMemberRole,
+    updateWorkspace
 } from "../services/workspaceService.js";
 
 const create = async (req, res, next) => {
@@ -358,6 +359,76 @@ const updateMemberRole = async (req, res, next) => {
     }
 };
 
+const update = async (req, res, next) => {
+    try {
+
+        const {
+            id
+        } = req.params;
+
+        const {
+            name,
+            description
+        } = req.body;
+
+        // Validate workspace ID
+        if (!id) {
+            return res.status(400).json({
+                message: "Workspace ID is required"
+            });
+        }
+
+        // At least one field must be provided
+        if (name === undefined && description === undefined) {
+            return res.status(400).json({
+                message: "Name or description is required"
+            });
+        }
+
+        const workspace = await updateWorkspace(
+            id,
+            req.user.userId,
+            name,
+            description
+        );
+
+        return res.status(200).json({
+            message: "Workspace updated successfully",
+            workspace
+        });
+
+    } catch (error) {
+
+        if (
+            error.message === "Workspace not found"
+        ) {
+            return res.status(404).json({
+                message: error.message
+            });
+        }
+
+        if (
+            error.message === "Workspace access denied" ||
+            error.message ===
+                "Only workspace Owner can update workspace"
+        ) {
+            return res.status(403).json({
+                message: error.message
+            });
+        }
+
+        if (
+            error.message === "Workspace name cannot be empty"
+        ) {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
+        next(error);
+    }
+};
+
 export {
     create,
     getAll,
@@ -365,5 +436,6 @@ export {
     addMember,
     getMembers,
     removeMember,
-    updateMemberRole
+    updateMemberRole,
+    update
 };

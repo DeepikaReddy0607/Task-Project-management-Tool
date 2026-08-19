@@ -7,7 +7,8 @@ import {
     addMember,
     getMembers,
     removeMember,
-    updateMemberRole
+    updateMemberRole,
+    update
 } from "../controllers/workspaceController.js";
 
 const router = express.Router();
@@ -18,6 +19,8 @@ router.post("/", authMiddleware, create);
 router.get("/", authMiddleware, getAll);
 // Get a single workspace
 router.get("/:id", authMiddleware, getOne);
+// Update workspace details
+router.patch("/:id", authMiddleware, update);
 // Add a member to a workspace
 router.post("/:id/members", authMiddleware, addMember);
 // Get workspace members
