@@ -6,7 +6,8 @@ import {
     getWorkspaceMembers,
     removeWorkspaceMember,
     updateWorkspaceMemberRole,
-    updateWorkspace
+    updateWorkspace,
+    deleteWorkspace
 } from "../services/workspaceService.js";
 
 const create = async (req, res, next) => {
@@ -83,6 +84,12 @@ const getOne = async (req, res, next) => {
         });
 
     } catch (error) {
+
+        if (error.message === "Workspace not found") {
+            return res.status(404).json({
+                message: error.message
+            });
+        }
 
         if (error.message === "Workspace access denied") {
             return res.status(403).json({
@@ -429,6 +436,52 @@ const update = async (req, res, next) => {
     }
 };
 
+const remove = async (req, res, next) => {
+    try {
+
+        const {
+            id
+        } = req.params;
+
+        // Validate workspace ID
+        if (!id) {
+            return res.status(400).json({
+                message: "Workspace ID is required"
+            });
+        }
+
+        const result = await deleteWorkspace(
+            id,
+            req.user.userId
+        );
+
+        return res.status(200).json({
+            message: "Workspace deleted successfully",
+            result
+        });
+
+    } catch (error) {
+
+        if (error.message === "Workspace not found") {
+            return res.status(404).json({
+                message: error.message
+            });
+        }
+
+        if (
+            error.message === "Workspace access denied" ||
+            error.message ===
+                "Only workspace Owner can delete workspace"
+        ) {
+            return res.status(403).json({
+                message: error.message
+            });
+        }
+
+        next(error);
+    }
+};
+
 export {
     create,
     getAll,
@@ -437,5 +490,6 @@ export {
     getMembers,
     removeMember,
     updateMemberRole,
-    update
+    update,
+    remove
 };

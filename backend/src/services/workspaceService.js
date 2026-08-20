@@ -72,6 +72,17 @@ const getUserWorkspaces = async (userId) => {
 
 const getWorkspaceById = async (workspaceId, userId) => {
 
+    // Check whether the workspace exists
+    const workspace = await prisma.workspaces.findUnique({
+        where: {
+            id: workspaceId
+        }
+    });
+
+    if (!workspace) {
+        throw new Error("Workspace not found");
+    }
+    
     // Check whether the user is a member of this workspace
     const membership = await prisma.workspace_members.findUnique({
         where: {
@@ -534,6 +545,57 @@ const updateWorkspace = async (
     };
 };
 
+const deleteWorkspace = async (
+    workspaceId,
+    requesterId
+) => {
+
+    // 1. Check whether the workspace exists
+    const workspace = await prisma.workspaces.findUnique({
+        where: {
+            id: workspaceId
+        }
+    });
+
+    if (!workspace) {
+        throw new Error("Workspace not found");
+    }
+
+    // 2. Check requester's workspace membership
+    const requesterMembership =
+        await prisma.workspace_members.findUnique({
+            where: {
+                workspace_id_user_id: {
+                    workspace_id: workspaceId,
+                    user_id: requesterId
+                }
+            }
+        });
+
+    // Requester must belong to the workspace
+    if (!requesterMembership) {
+        throw new Error("Workspace access denied");
+    }
+
+    // 3. Only Owner can delete the workspace
+    if (requesterMembership.workspace_role !== "Owner") {
+        throw new Error(
+            "Only workspace Owner can delete workspace"
+        );
+    }
+
+    // 4. Delete the workspace
+    await prisma.workspaces.delete({
+        where: {
+            id: workspaceId
+        }
+    });
+
+    return {
+        workspaceId
+    };
+};
+
 export {
     createWorkspace,
     getUserWorkspaces,
@@ -542,5 +604,6 @@ export {
     getWorkspaceMembers,
     removeWorkspaceMember,
     updateWorkspaceMemberRole,
-    updateWorkspace
+    updateWorkspace,
+    deleteWorkspace
 };
