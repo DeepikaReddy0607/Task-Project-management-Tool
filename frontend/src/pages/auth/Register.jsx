@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   FiArrowRight,
   FiEye,
@@ -16,11 +16,13 @@ import Quackie from "../../components/brand/Quackie";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
+import api from "../../services/api/axios";
 
 const passwordInputClasses = (hasError) =>
   `w-full rounded-[var(--radius-md)] border bg-[var(--color-surface)] py-2.5 pl-10 pr-12 text-sm text-[var(--color-text)] shadow-[var(--shadow-xs)] outline-none transition duration-[var(--duration-base)] placeholder:text-[var(--color-text-subtle)] focus:border-[var(--color-brand)] focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-focus)_18%,transparent)] ${hasError ? "border-[var(--color-danger)] focus:border-[var(--color-danger)] focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-danger)_16%,transparent)]" : "border-[var(--color-border)]"}`;
 
 function Register() {
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -102,15 +104,38 @@ function Register() {
     onChange(event);
   };
 
-  const onSubmit = async () => {
+  const onSubmit = async (data) => {
     setIsSubmitting(true);
     setHasMockSuccess(false);
 
-    // Backend registration integration will be added once the API contract is ready.
-    await Promise.resolve();
+    try {
+      const response = await api.post("/auth/register", {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        password: data.password,
+        phone: data.phone || null,
+      });
 
-    setIsSubmitting(false);
-    setHasMockSuccess(true);
+      console.log("Registration successful:", response.data);
+
+      navigate("/login", {
+        state: {
+          message: "Registration successful. Please log in.",
+          skipIntro: true,
+        },
+      });
+    } catch (error) {
+      const message =
+        error.response?.data?.message ||
+        "Registration failed. Please try again.";
+
+      console.error("Registration failed:", message);
+
+      alert(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

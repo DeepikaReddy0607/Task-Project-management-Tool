@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link, useLocation, useNavigationType } from "react-router-dom";
+import { Link, useLocation, useNavigationType, useNavigate } from "react-router-dom";
 import { FiArrowRight, FiEye, FiEyeOff, FiLock, FiMail } from "react-icons/fi";
 import beanieFallingImage from "../../assets/brand/intro/quackie-intro-beanie-falling.png";
 import dropInImage from "../../assets/brand/intro/quackie-intro-drop-in.png";
@@ -13,6 +13,7 @@ import Input from "../../components/ui/Input";
 import Card from "../../components/ui/Card";
 import TaskFlowMark from "../../components/brand/TaskFlowMark";
 import Quackie from "../../components/brand/Quackie";
+import api from "../../services/api/axios";
 
 const getInitialIntroPhase = (skipIntro) => (
   skipIntro || (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches)
@@ -21,6 +22,7 @@ const getInitialIntroPhase = (skipIntro) => (
 );
 
 function Login() {
+  const navigate = useNavigate();
   const location = useLocation();
   const navigationType = useNavigationType();
   const shouldSkipIntro = Boolean(location.state?.skipIntro) && navigationType === "PUSH";
@@ -133,15 +135,39 @@ function Login() {
     onChange(event);
   };
 
-  const onSubmit = async () => {
+  const onSubmit = async (data) => {
     setIsSubmitting(true);
     setHasMockSuccess(false);
 
-    // Backend authentication integration will be added once the API contract is ready.
-    await Promise.resolve();
+    try {
+      const response = await api.post("/auth/login", {
+        email: data.email,
+        password: data.password,
+      });
 
-    setIsSubmitting(false);
-    setHasMockSuccess(true);
+      const { token, user } = response.data;
+
+      localStorage.setItem("taskflow_token", token);
+      localStorage.setItem("taskflow_user", JSON.stringify(user));
+
+      console.log("Login successful:", user);
+
+      setHasMockSuccess(true);
+
+      navigate("/", {
+        replace: true,
+      });
+    } catch (error) {
+      const message =
+        error.response?.data?.message ||
+        "Login failed. Please check your credentials.";
+
+      console.error("Login failed:", message);
+
+      alert(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
