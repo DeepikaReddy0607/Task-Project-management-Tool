@@ -1,9 +1,11 @@
-import { FiBell, FiCalendar, FiCheckSquare, FiFolder, FiGrid, FiLogOut, FiSettings, FiX } from "react-icons/fi";
+import { FiBell, FiCalendar, FiCheckSquare, FiFolder, FiGrid, FiLayers, FiLogOut, FiSettings, FiX } from "react-icons/fi";
+import { useLocation, useNavigate } from "react-router-dom";
 import TaskFlowMark from "../components/brand/TaskFlowMark";
 import NavItem from "../components/navigation/NavItem";
 
 const primaryNavigation = [
-  { label: "Dashboard", icon: FiGrid, active: true },
+  { label: "Dashboard", icon: FiGrid, path: "/" },
+  { label: "Workspaces", icon: FiLayers, path: "/workspaces" },
   { label: "My Tasks", icon: FiCheckSquare },
   { label: "Projects", icon: FiFolder },
   { label: "Calendar", icon: FiCalendar },
@@ -15,6 +17,13 @@ const secondaryNavigation = [
 ];
 
 function Sidebar({ isOpen = false, onClose }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const navigateTo = (path) => {
+    if (path) navigate(path);
+    onClose();
+  };
+
   return (
     <>
       {isOpen && <button type="button" aria-label="Close navigation" onClick={onClose} className="fixed inset-0 z-40 bg-[rgb(52_67_51/0.16)] backdrop-blur-[2px] lg:hidden" />}
@@ -22,7 +31,7 @@ function Sidebar({ isOpen = false, onClose }) {
         <div className="flex h-[4.75rem] items-center justify-between border-b border-[var(--color-border)] px-5"><TaskFlowMark /><button type="button" onClick={onClose} aria-label="Close navigation" className="flex h-9 w-9 items-center justify-center rounded-xl text-[var(--color-text-muted)] transition hover:bg-white hover:text-[var(--color-text)] lg:hidden"><FiX size={19} /></button></div>
         <nav className="flex-1 overflow-y-auto px-4 py-6" aria-label="Primary navigation">
           <p className="mb-3 px-3 text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-[var(--color-text-subtle)]">Workspace</p>
-          <div className="space-y-1">{primaryNavigation.map((item) => <NavItem key={item.label} {...item} onClick={onClose} />)}</div>
+          <div className="space-y-1">{primaryNavigation.map((item) => <NavItem key={item.label} {...item} active={location.pathname === item.path} onClick={() => navigateTo(item.path)} />)}</div>
           <p className="mb-3 mt-8 px-3 text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-[var(--color-text-subtle)]">Account</p>
           <div className="space-y-1">{secondaryNavigation.map((item) => <NavItem key={item.label} {...item} onClick={onClose} />)}</div>
         </nav>
