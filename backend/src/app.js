@@ -3,6 +3,8 @@ import cors from "cors";
 
 import testRoutes from "./routes/testRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+import riskRoutes from "./routes/riskRoutes.js";
+import projectRoutes from "./routes/projectRoutes.js";
 
 import workspaceRoutes from "./routes/workspaceRoutes.js";
 const app = express();
@@ -20,5 +22,7 @@ app.get("/api/health", (req, res) => {
 app.use("/api/test", testRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/workspaces", workspaceRoutes);
+app.use("/api", riskRoutes);
+app.use("/api", projectRoutes);
 
 export default app;
