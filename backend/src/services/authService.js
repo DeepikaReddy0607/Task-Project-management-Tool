@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import prisma from "../config/prisma.js";
 
 const registerUser = async (data) => {
@@ -122,5 +123,96 @@ const loginUser = async (email, password) => {
     };
 };
 
+const forgotPassword = async (email) => {
+    const normalizedEmail = email.toLowerCase();
 
-export { registerUser, loginUser };
+    // Find user
+    const user = await prisma.users.findUnique({
+        where: {
+            email: normalizedEmail
+        }
+    });
+
+    // Don't reveal whether the email exists
+    if (!user) {
+        return null;
+    }
+
+    // Delete any previous reset tokens for this user
+    await prisma.password_reset_tokens.deleteMany({
+        where: {
+            user_id: user.id
+        }
+    });
+
+    // Generate secure random token
+    const token = crypto.randomBytes(32).toString("hex");
+
+    // Token expires in 15 minutes
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    // Store token
+    await prisma.password_reset_tokens.create({
+        data: {
+            user_id: user.id,
+            token,
+            expires_at: expiresAt
+        }
+    });
+
+    return {
+        token,
+        expiresAt
+    };
+};
+
+const resetPassword = async (token, newPassword) => {
+    // Find the reset token
+    const resetToken = await prisma.password_reset_tokens.findUnique({
+        where: {
+            token
+        }
+    });
+
+    // Token doesn't exist
+    if (!resetToken) {
+        throw new Error("Invalid or expired reset token");
+    }
+
+    // Check whether token has expired
+    if (new Date() > resetToken.expires_at) {
+        // Delete expired token
+        await prisma.password_reset_tokens.delete({
+            where: {
+                id: resetToken.id
+            }
+        });
+
+        throw new Error("Invalid or expired reset token");
+    }
+
+    // Hash the new password
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    // Update user's password
+    await prisma.users.update({
+        where: {
+            id: resetToken.user_id
+        },
+        data: {
+            password_hash: passwordHash,
+            updated_at: new Date()
+        }
+    });
+
+    // Delete token so it cannot be reused
+    await prisma.password_reset_tokens.delete({
+        where: {
+            id: resetToken.id
+        }
+    });
+
+    return true;
+};
+
+export { registerUser, loginUser, forgotPassword, resetPassword };

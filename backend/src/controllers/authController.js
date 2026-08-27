@@ -1,6 +1,8 @@
 import {
     registerUser,
-    loginUser
+    loginUser,
+    forgotPassword,
+    resetPassword
 } from "../services/authService.js";
 
 
@@ -93,8 +95,74 @@ const login = async (req, res, next) => {
     }
 };
 
+const forgotPasswordController = async (req, res, next) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                message: "Email is required"
+            });
+        }
+
+        const result = await forgotPassword(email);
+
+        // Don't reveal whether the email exists
+        if (!result) {
+            return res.status(200).json({
+                message:
+                    "If an account with that email exists, a password reset link has been sent."
+            });
+        }
+
+        return res.status(200).json({
+            message: "Password reset token generated successfully",
+            resetToken: result.token,
+            expiresAt: result.expiresAt
+        });
+
+    } catch (error) {
+        next(error);
+    }
+};
+
+const resetPasswordController = async (req, res, next) => {
+    try {
+        const { token, newPassword } = req.body;
+
+        if (!token || !newPassword) {
+            return res.status(400).json({
+                message: "Token and new password are required"
+            });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                message: "Password must be at least 6 characters"
+            });
+        }
+
+        await resetPassword(token, newPassword);
+
+        return res.status(200).json({
+            message: "Password reset successfully"
+        });
+
+    } catch (error) {
+
+        if (error.message === "Invalid or expired reset token") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
+        next(error);
+    }
+};
 
 export {
     register,
-    login
+    login,
+    forgotPasswordController,
+    resetPasswordController
 };
