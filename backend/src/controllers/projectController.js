@@ -4,7 +4,10 @@ import {
     getProject,
     updateProject,
     archiveProject,
-    addMember
+    addProjectMember,
+    getProjectMembers,
+    updateProjectMemberRole,
+    removeProjectMember
 } from "../services/projectService.js";
 
 
@@ -298,6 +301,15 @@ const addMember = async (req, res, next) => {
             });
         }
 
+        if (
+            error.message ===
+            "User is not a member of the workspace"
+        ) {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
         if (error.message === "Workspace access denied") {
             return res.status(403).json({
                 message: error.message
@@ -320,11 +332,182 @@ const addMember = async (req, res, next) => {
     }
 };
 
+const getMembers = async (req, res, next) => {
+    try {
+
+        const {
+            id: projectId
+        } = req.params;
+
+        if (!projectId) {
+            return res.status(400).json({
+                message: "Project ID is required"
+            });
+        }
+
+        const members = await getProjectMembers(
+            projectId,
+            req.user.userId
+        );
+
+        return res.status(200).json({
+            message: "Project members retrieved successfully",
+            members
+        });
+
+    } catch (error) {
+
+        if (error.message === "Project not found") {
+            return res.status(404).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Project access denied") {
+            return res.status(403).json({
+                message: error.message
+            });
+        }
+
+        next(error);
+    }
+};
+
+const updateMemberRole = async (req, res, next) => {
+    try {
+
+        const {
+            id: projectId,
+            userId
+        } = req.params;
+
+        const {
+            role
+        } = req.body;
+
+        if (!projectId) {
+            return res.status(400).json({
+                message: "Project ID is required"
+            });
+        }
+
+        if (!userId) {
+            return res.status(400).json({
+                message: "User ID is required"
+            });
+        }
+
+        if (!role || !role.trim()) {
+            return res.status(400).json({
+                message: "Project role is required"
+            });
+        }
+
+        const updatedMember =
+            await updateProjectMemberRole(
+                projectId,
+                req.user.userId,
+                userId,
+                role.trim()
+            );
+
+        return res.status(200).json({
+            message: "Project member role updated successfully",
+            member: updatedMember
+        });
+
+    } catch (error) {
+
+        if (error.message === "Project not found") {
+            return res.status(404).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Project access denied") {
+            return res.status(403).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Project member not found") {
+            return res.status(404).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Invalid project role") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
+        next(error);
+    }
+};
+
+const removeMember = async (req, res, next) => {
+    try {
+
+        const {
+            id: projectId,
+            userId
+        } = req.params;
+
+        if (!projectId) {
+            return res.status(400).json({
+                message: "Project ID is required"
+            });
+        }
+
+        if (!userId) {
+            return res.status(400).json({
+                message: "User ID is required"
+            });
+        }
+
+        await removeProjectMember(
+            projectId,
+            req.user.userId,
+            userId
+        );
+
+        return res.status(200).json({
+            message: "Project member removed successfully"
+        });
+
+    } catch (error) {
+
+        if (error.message === "Project not found") {
+            return res.status(404).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Project access denied") {
+            return res.status(403).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Project member not found") {
+            return res.status(404).json({
+                message: error.message
+            });
+        }
+
+        next(error);
+    }
+};
+
 export {
     create,
     getAll,
     getOne,
     update,
     archive,
-    addMember
+    addMember,
+    getMembers,
+    updateMemberRole,
+    removeMember
 };

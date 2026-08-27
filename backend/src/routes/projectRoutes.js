@@ -8,7 +8,10 @@ import {
     getOne, 
     update, 
     archive, 
-    addMember
+    addMember,
+    getMembers,
+    updateMemberRole,
+    removeMember
 } from "../controllers/projectController.js";
 
 const router = express.Router();
@@ -53,6 +56,30 @@ router.post(
     "/projects/:id/members",
     authMiddleware,
     addMember
+);
+
+// Get project members
+
+router.get(
+    "/projects/:id/members",
+    authMiddleware,
+    getMembers
+);
+
+// Update project member role
+
+router.patch(
+    "/projects/:id/members/:userId",
+    authMiddleware,
+    updateMemberRole
+);
+
+// Remove project member
+
+router.delete(
+    "/projects/:id/members/:userId",
+    authMiddleware,
+    removeMember
 );
 
 export default router;
