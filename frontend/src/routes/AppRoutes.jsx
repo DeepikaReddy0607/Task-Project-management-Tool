@@ -5,6 +5,7 @@ import Register from "../pages/auth/Register";
 import ForgotPassword from "../pages/auth/ForgotPassword";
 import ResetPassword from "../pages/auth/ResetPassword";
 import Workspaces from "../pages/workspaces/Workspaces";
+import Projects from "../pages/projects/Projects";
 function AppRoutes() {
   return (
     <BrowserRouter>
@@ -15,6 +16,7 @@ function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/workspaces" element={<Workspaces />} />
+        <Route path="/projects" element={<Projects />} />
       </Routes>
     </BrowserRouter>
   );

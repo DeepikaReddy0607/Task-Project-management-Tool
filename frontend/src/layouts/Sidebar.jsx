@@ -7,7 +7,7 @@ const primaryNavigation = [
   { label: "Dashboard", icon: FiGrid, path: "/" },
   { label: "Workspaces", icon: FiLayers, path: "/workspaces" },
   { label: "My Tasks", icon: FiCheckSquare },
-  { label: "Projects", icon: FiFolder },
+  { label: "Projects", icon: FiFolder, path: "/projects" },
   { label: "Calendar", icon: FiCalendar },
 ];
 
