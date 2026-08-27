@@ -59,8 +59,8 @@ function ForgotPassword() {
     setSubmitError("");
 
     try {
-      // Frontend-only mock: no reset request is sent until the API contract exists.
-      await Promise.resolve();
+      // Local UI-only delay. Backend delivery and account checks are not connected yet.
+      await new Promise((resolve) => window.setTimeout(resolve, 450));
       setSubmittedEmail(email);
     } catch {
       setSubmitError("We could not prepare reset instructions. Please try again.");
@@ -95,7 +95,7 @@ function ForgotPassword() {
               <div className="taskflow-success-pop text-center">
                 <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-surface-sage)] text-[var(--color-brand)]" aria-hidden="true"><FiCheckCircle size={28} /></span>
                 <h1 id="forgot-password-title" className="mt-5 font-[var(--font-display)] text-3xl font-semibold leading-[var(--line-height-tight)] tracking-[-0.04em] text-[var(--color-text)]">Check your inbox</h1>
-                <p className="mt-3 text-sm leading-[var(--line-height-relaxed)] text-[var(--color-text-muted)]">Demo mode: reset instructions would be sent to <span className="font-semibold text-[var(--color-text)]">{submittedEmail}</span> when the authentication API is available.</p>
+                <p className="mt-3 text-sm leading-[var(--line-height-relaxed)] text-[var(--color-text-muted)]">Frontend preview: reset instructions will be available for <span className="font-semibold text-[var(--color-text)]">{submittedEmail}</span> after password-reset delivery is connected.</p>
                 <Link to="/login" className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-[var(--color-brand-hover)] transition hover:text-[var(--color-brand)] hover:underline"><FiArrowLeft size={16} aria-hidden="true" /> Back to sign in</Link>
               </div>
             ) : (

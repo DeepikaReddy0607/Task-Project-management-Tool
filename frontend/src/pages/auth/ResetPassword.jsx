@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { FiAlertCircle, FiArrowLeft, FiArrowRight, FiCheckCircle, FiEye, FiEyeOff, FiLock } from "react-icons/fi";
 import winterBackgroundImage from "../../assets/brand/taskflow-login-winter-background.png";
 import TaskFlowMark from "../../components/brand/TaskFlowMark";
@@ -12,9 +12,11 @@ const passwordInputClasses = (hasError) =>
   `w-full rounded-[var(--radius-md)] border bg-[var(--color-surface)] py-2.5 pl-10 pr-12 text-sm text-[var(--color-text)] shadow-[var(--shadow-xs)] outline-none transition duration-[var(--duration-base)] placeholder:text-[var(--color-text-subtle)] focus:border-[var(--color-brand)] focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-focus)_18%,transparent)] ${hasError ? "border-[var(--color-danger)] focus:border-[var(--color-danger)] focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-danger)_16%,transparent)]" : "border-[var(--color-border)]"}`;
 
 function ResetPassword() {
+  const [searchParams] = useSearchParams();
+  const resetToken = searchParams.get("token");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [screenState, setScreenState] = useState("initial");
+  const [screenState, setScreenState] = useState(() => (resetToken ? "initial" : "missingToken"));
   const [activeField, setActiveField] = useState(null);
   const {
     register,
@@ -27,7 +29,7 @@ function ResetPassword() {
 
   const passwordRegistration = register("password", {
     required: "Password is required.",
-    minLength: { value: 8, message: "Password must be at least 8 characters." },
+    minLength: { value: 6, message: "Password must be at least 6 characters." },
   });
   const confirmPasswordRegistration = register("confirmPassword", {
     required: "Please confirm your password.",
@@ -61,8 +63,8 @@ function ResetPassword() {
     setScreenState("submitting");
 
     try {
-      // Frontend-only mock: no reset request, token validation, or password update happens here.
-      await Promise.resolve();
+      // Local UI-only delay. Token validation and password updates are not connected yet.
+      await new Promise((resolve) => window.setTimeout(resolve, 450));
       setScreenState("success");
     } catch {
       setScreenState("expired");
@@ -97,11 +99,11 @@ function ResetPassword() {
                 <p className="mt-3 text-sm leading-[var(--line-height-relaxed)] text-[var(--color-text-muted)]">Demo mode: your new password has not been saved. The authentication API will perform the actual reset once its contract is available.</p>
                 <Link to="/login" className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-[var(--color-brand-hover)] transition hover:text-[var(--color-brand)] hover:underline"><FiArrowLeft size={16} aria-hidden="true" /> Back to sign in</Link>
               </div>
-            ) : screenState === "expired" ? (
+            ) : screenState === "expired" || screenState === "missingToken" ? (
               <div className="text-center">
                 <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-danger-soft)] text-[var(--color-danger)]" aria-hidden="true"><FiAlertCircle size={28} /></span>
-                <h1 id="reset-password-title" className={headingClasses}>Reset link preview unavailable</h1>
-                <p className="mt-3 text-sm leading-[var(--line-height-relaxed)] text-[var(--color-text-muted)]">Frontend preview only: the eventual API will determine whether a reset link is valid or expired.</p>
+                <h1 id="reset-password-title" className={headingClasses}>{screenState === "missingToken" ? "Reset link required" : "Reset link preview unavailable"}</h1>
+                <p className="mt-3 text-sm leading-[var(--line-height-relaxed)] text-[var(--color-text-muted)]">{screenState === "missingToken" ? "Open this page from a password reset link to continue." : "Frontend preview only: the eventual API will determine whether a reset link is valid or expired."}</p>
                 <Link to="/login" className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-[var(--color-brand-hover)] transition hover:text-[var(--color-brand)] hover:underline"><FiArrowLeft size={16} aria-hidden="true" /> Back to sign in</Link>
               </div>
             ) : (
