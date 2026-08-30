@@ -6,7 +6,7 @@ import NavItem from "../components/navigation/NavItem";
 const primaryNavigation = [
   { label: "Dashboard", icon: FiGrid, path: "/" },
   { label: "Workspaces", icon: FiLayers, path: "/workspaces" },
-  { label: "My Tasks", icon: FiCheckSquare },
+  { label: "My Tasks", icon: FiCheckSquare, path: "/tasks" },
   { label: "Projects", icon: FiFolder, path: "/projects" },
   { label: "Calendar", icon: FiCalendar },
 ];
