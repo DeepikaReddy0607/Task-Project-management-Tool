@@ -1,4 +1,4 @@
-import { FiBell, FiCalendar, FiCheckSquare, FiFolder, FiGrid, FiLayers, FiLogOut, FiSettings, FiX } from "react-icons/fi";
+import { FiBell, FiCalendar, FiCheckSquare, FiFolder, FiGrid, FiLayers, FiLogOut, FiSettings, FiUser, FiX } from "react-icons/fi";
 import { useLocation, useNavigate } from "react-router-dom";
 import TaskFlowMark from "../components/brand/TaskFlowMark";
 import NavItem from "../components/navigation/NavItem";
@@ -12,6 +12,7 @@ const primaryNavigation = [
 ];
 
 const secondaryNavigation = [
+  { label: "Profile", icon: FiUser, path: "/profile" },
   { label: "Notifications", icon: FiBell },
   { label: "Settings", icon: FiSettings },
 ];
@@ -33,7 +34,7 @@ function Sidebar({ isOpen = false, onClose }) {
           <p className="mb-3 px-3 text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-[var(--color-text-subtle)]">Workspace</p>
           <div className="space-y-1">{primaryNavigation.map((item) => <NavItem key={item.label} {...item} active={location.pathname === item.path} onClick={() => navigateTo(item.path)} />)}</div>
           <p className="mb-3 mt-8 px-3 text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-[var(--color-text-subtle)]">Account</p>
-          <div className="space-y-1">{secondaryNavigation.map((item) => <NavItem key={item.label} {...item} onClick={onClose} />)}</div>
+          <div className="space-y-1">{secondaryNavigation.map((item) => <NavItem key={item.label} {...item} active={item.path ? location.pathname === item.path || location.pathname.startsWith(`${item.path}/`) : false} onClick={() => navigateTo(item.path)} />)}</div>
         </nav>
         <div className="border-t border-[var(--color-border)] p-4"><button type="button" className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--color-text-muted)] transition hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[color-mix(in_srgb,var(--color-focus)_20%,transparent)]"><FiLogOut size={18} aria-hidden="true" />Logout</button></div>
       </aside>
