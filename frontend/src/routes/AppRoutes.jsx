@@ -8,6 +8,7 @@ import Workspaces from "../pages/workspaces/Workspaces";
 import Projects from "../pages/projects/Projects";
 import Profile from "../pages/profile/Profile";
 import ChangePassword from "../pages/profile/ChangePassword";
+import Tasks from "../pages/tasks/Tasks";
 function AppRoutes() {
   return (
     <BrowserRouter>
@@ -21,6 +22,7 @@ function AppRoutes() {
         <Route path="/projects" element={<Projects />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/profile/change-password" element={<ChangePassword />} />
+        <Route path="/tasks" element={<Tasks />} />
       </Routes>
     </BrowserRouter>
   );
