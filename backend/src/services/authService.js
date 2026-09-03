@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../config/prisma.js";
+import { sendPasswordResetEmail } from "./mailService.js";
 
 const registerUser = async (data) => {
     const {
@@ -122,5 +123,112 @@ const loginUser = async (email, password) => {
     };
 };
 
+const requestPasswordReset = async (email) => {
 
-export { registerUser, loginUser };
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const user = await prisma.users.findUnique({
+        where: {
+            email: normalizedEmail
+        }
+    });
+
+    // Do not reveal whether the email exists
+    if (!user) {
+        return;
+    }
+
+    if (!user.is_active) {
+        return;
+    }
+
+    const resetToken = jwt.sign(
+        {
+            userId: user.id,
+            purpose: "password-reset"
+        },
+        process.env.RESET_PASSWORD_SECRET,
+        {
+            expiresIn: "15m"
+        }
+    );
+
+    const resetLink =
+        `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+    await sendPasswordResetEmail(
+        user.email,
+        resetLink
+    );
+};
+
+
+const resetPassword = async (token, newPassword) => {
+
+    let decoded;
+
+    try {
+        decoded = jwt.verify(
+            token,
+            process.env.RESET_PASSWORD_SECRET
+        );
+    } catch (error) {
+
+        const resetError = new Error(
+            "Reset link is invalid or expired"
+        );
+
+        resetError.statusCode = 400;
+
+        throw resetError;
+    }
+
+    if (
+        decoded.purpose !== "password-reset" ||
+        !decoded.userId
+    ) {
+        const resetError = new Error(
+            "Invalid password reset token"
+        );
+
+        resetError.statusCode = 400;
+
+        throw resetError;
+    }
+
+    const user = await prisma.users.findUnique({
+        where: {
+            id: decoded.userId
+        }
+    });
+
+    if (!user || !user.is_active) {
+        const resetError = new Error(
+            "Invalid password reset request"
+        );
+
+        resetError.statusCode = 400;
+
+        throw resetError;
+    }
+
+    const passwordHash = await bcrypt.hash(
+        newPassword,
+        10
+    );
+
+    await prisma.users.update({
+        where: {
+            id: user.id
+        },
+        data: {
+            password_hash: passwordHash
+        }
+    });
+
+    return {
+        message: "Password reset successful"
+    };
+};
+
+export { registerUser, loginUser, requestPasswordReset, resetPassword };

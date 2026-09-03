@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FiAlertTriangle, FiArchive, FiArrowDown, FiArrowUp, FiCheck, FiChevronRight, FiEdit2, FiFolder, FiPlus, FiShield, FiUserMinus, FiUserPlus, FiX } from "react-icons/fi";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -6,6 +6,24 @@ import Input from "../../components/ui/Input";
 import PageHeader from "../../components/ui/PageHeader";
 import { initialProjects, projectOptions, projectUsers, projectWorkspaces } from "../../data/projectMockData";
 import MainLayout from "../../layouts/MainLayout";
+import { getWorkspaces } from "../../services/api/workspaceApi";
+import {
+  getProjects,
+  createProject as createProjectApi,
+  updateProject as updateProjectApi,
+  archiveProject as archiveProjectApi,
+  addProjectMember as addProjectMemberApi,
+  getProjectMembers,
+  updateProjectMemberRole,
+  removeProjectMember as removeProjectMemberApi,
+} from "../../services/api/projectApi";
+
+import {
+  getProjectRisks,
+  createRisk as createRiskApi,
+  updateRisk as updateRiskApi,
+  closeRisk as closeRiskApi,
+} from "../../services/api/riskApi";
 
 const priorityClasses = { Low: "bg-[var(--color-surface-sage)] text-[var(--color-brand-hover)]", Medium: "bg-[var(--color-info-soft)] text-[var(--color-info)]", High: "bg-[var(--color-peach-soft)] text-[var(--color-peach)]", Critical: "bg-[var(--color-danger-soft)] text-[var(--color-danger)]" };
 const statusClasses = { Planning: "bg-[var(--color-surface-muted)] text-[var(--color-text-muted)]", "In Progress": "bg-[var(--color-info-soft)] text-[var(--color-info)]", "On Track": "bg-[var(--color-surface-sage)] text-[var(--color-brand-hover)]", "At Risk": "bg-[var(--color-peach-soft)] text-[var(--color-peach)]", Complete: "bg-[var(--color-surface-sage)] text-[var(--color-brand-hover)]", Open: "bg-[var(--color-peach-soft)] text-[var(--color-peach)]", Closed: "bg-[var(--color-surface-sage)] text-[var(--color-brand-hover)]" };
@@ -25,8 +43,9 @@ function FieldSelect({ children, id, label, value, onChange }) {
 }
 
 function Projects() {
-  const [projects, setProjects] = useState(initialProjects);
-  const [workspaceId, setWorkspaceId] = useState(projectWorkspaces[0].id);
+  const [projects, setProjects] = useState([]);
+  const [workspaces, setWorkspaces] = useState([]);
+  const [workspaceId, setWorkspaceId] = useState(null);
   const [includeArchived, setIncludeArchived] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [dialog, setDialog] = useState(null);
@@ -36,9 +55,9 @@ function Projects() {
   const [riskSort, setRiskSort] = useState({ key: "severity", direction: "desc" });
   const [memberUserId, setMemberUserId] = useState("user-noah");
 
-  const workspace = projectWorkspaces.find((item) => item.id === workspaceId);
+  const workspace = workspaces.find((item) => item.id === workspaceId);
   const selectedProject = projects.find((project) => project.id === selectedProjectId);
-  const canManage = workspace.currentUserRole === "Owner" || workspace.currentUserRole === "Admin";
+  const canManage = workspace?.currentUserRole === "Owner" || workspace?.currentUserRole === "Admin";
   const visibleProjects = projects.filter((project) => project.workspaceId === workspaceId && (includeArchived || !project.isArchived));
   const getUser = (id) => projectUsers.find((user) => user.id === id);
   const closeDialog = () => { setDialog(null); setFormError(""); };
@@ -68,9 +87,77 @@ function Projects() {
   const sortedRisks = useMemo(() => { if (!selectedProject) return []; const getValue = (risk) => riskSort.key === "severity" ? severityRank[risk.severity] : riskSort.key === "probability" ? probabilityRank[risk.probability] : riskSort.key === "status" ? risk.status : risk.createdAt; return [...selectedProject.risks].sort((a, b) => { const left = getValue(a); const right = getValue(b); const comparison = left > right ? 1 : left < right ? -1 : 0; return riskSort.direction === "asc" ? comparison : -comparison; }); }, [selectedProject, riskSort]);
   const changeRiskSort = (key) => setRiskSort((current) => current.key === key ? { key, direction: current.direction === "asc" ? "desc" : "asc" } : { key, direction: "desc" });
   const addableUsers = selectedProject ? projectUsers.filter((user) => !selectedProject.members.some((member) => member.userId === user.id)) : [];
+  const loadWorkspaces = async () => {
+  try {
+    const response = await getWorkspaces();
 
+    setWorkspaces(response.workspaces || []);
+
+    if (response.workspaces?.length > 0) {
+      setWorkspaceId(response.workspaces[0].id);
+    }
+  } catch (error) {
+    console.error("Failed to load workspaces:", error);
+
+    setFormError(
+      error.response?.data?.message ||
+      "Failed to load workspaces."
+    );
+  }
+};
+
+  useEffect(() => {
+    loadWorkspaces();
+  }, []);
+  const loadProjects = async () => {
+  try {
+    setFormError("");
+
+    const response = await getProjects(workspaceId);
+
+    const normalizedProjects = response.projects.map((project) => ({
+      ...project,
+      workspaceId: project.workspace_id,
+      managerId: project.manager_id,
+      isArchived: project.is_archived,
+      startDate: project.start_date
+        ? project.start_date.slice(0, 10)
+        : "",
+      endDate: project.end_date
+        ? project.end_date.slice(0, 10)
+        : "",
+      createdAt: project.created_at,
+      members: [],
+      risks: [],
+    }));
+
+    setProjects(normalizedProjects);
+  } catch (error) {
+    console.error("Failed to load projects:", error)
+    setFormError(
+      error.response?.data?.message ||
+      "Failed to load projects."
+    );
+  }
+};
+useEffect(() => {
+  if(workspaceId){
+    loadProjects()
+  }
+}, [workspaceId]);
+if (!workspaceId || !workspace) {
+  return (
+    <MainLayout>
+      <div className="flex min-h-[400px] items-center justify-center">
+        <p className="text-sm text-[var(--color-text-muted)]">
+          Loading workspace...
+        </p>
+      </div>
+    </MainLayout>
+  );
+}
   return <MainLayout><div className="space-y-6 sm:space-y-8"><PageHeader title="Projects" description="Plan focused work, keep collaborators aligned, and surface risks before they slow the team down." actions={canManage && <Button onClick={() => openProjectForm("create")}><FiPlus size={17} /> Create project</Button>} />
-    <section className="flex flex-col gap-4 rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[color-mix(in_srgb,var(--color-surface)_78%,transparent)] p-4 shadow-[var(--shadow-xs)] sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--color-text-subtle)]">Workspace</p><h2 className="mt-1 font-[var(--font-display)] text-lg font-semibold text-[var(--color-text)]">{workspace.name}</h2></div><div className="flex flex-wrap items-center gap-3"><label className="sr-only" htmlFor="project-workspace">Select workspace</label><select id="project-workspace" value={workspaceId} onChange={(event) => { setWorkspaceId(event.target.value); setSelectedProjectId(null); }} className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-medium text-[var(--color-text)] outline-none focus:border-[var(--color-brand)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--color-focus)_15%,transparent)]">{projectWorkspaces.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-[var(--color-text-muted)]"><input type="checkbox" checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} className="h-4 w-4 accent-[var(--color-brand)]" /> Show archived</label><span className="rounded-full bg-[var(--color-info-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--color-info)]">{workspace.currentUserRole} preview</span></div></section>
+    <section className="flex flex-col gap-4 rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[color-mix(in_srgb,var(--color-surface)_78%,transparent)] p-4 shadow-[var(--shadow-xs)] sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--color-text-subtle)]">Workspace</p><h2 className="mt-1 font-[var(--font-display)] text-lg font-semibold text-[var(--color-text)]">{workspace.name || "Loading workspace"}</h2></div><div className="flex flex-wrap items-center gap-3"><label className="sr-only" htmlFor="project-workspace">Select workspace</label><select id="project-workspace" value={workspaceId} onChange={(event) => { setWorkspaceId(event.target.value); setSelectedProjectId(null); }} className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-medium text-[var(--color-text)] outline-none focus:border-[var(--color-brand)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--color-focus)_15%,transparent)]">{workspaces.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-[var(--color-text-muted)]"><input type="checkbox" checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} className="h-4 w-4 accent-[var(--color-brand)]" /> Show archived</label><span className="rounded-full bg-[var(--color-info-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--color-info)]">{workspace.currentUserRole} preview</span></div></section>
     {visibleProjects.length ? <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{visibleProjects.map((project) => { const manager = getUser(project.managerId); return <Card key={project.id} hoverable className="flex min-h-[16rem] cursor-pointer flex-col p-5" onClick={() => setSelectedProjectId(project.id)}><div className="flex items-start justify-between gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-surface-sage)] text-[var(--color-brand)]"><FiFolder size={19} /></span><div className="flex flex-wrap justify-end gap-1.5"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${priorityClasses[project.priority]}`}>{project.priority}</span>{project.isArchived && <span className="rounded-full bg-[var(--color-surface-muted)] px-2 py-1 text-xs font-semibold text-[var(--color-text-muted)]">Archived</span>}</div></div><h2 className="mt-5 font-[var(--font-display)] text-xl font-semibold tracking-[-0.02em] text-[var(--color-text)]">{project.title}</h2><p className="mt-2 line-clamp-2 text-sm leading-relaxed text-[var(--color-text-muted)]">{project.description || "No project description yet."}</p><div className="mt-auto pt-5"><div className="flex items-center justify-between gap-3 text-xs text-[var(--color-text-subtle)]"><span>{project.category}</span><span>{project.startDate ? `${formatDate(project.startDate)} – ${formatDate(project.endDate)}` : "Dates to be planned"}</span></div><div className="mt-3 flex items-center justify-between"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClasses[project.status]}`}>{project.status}</span><span className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">{manager?.name}<FiChevronRight size={15} /></span></div></div></Card>; })}</section> : <Card className="py-14 text-center"><FiFolder className="mx-auto text-[var(--color-brand)]" size={32} /><h2 className="mt-4 font-[var(--font-display)] text-xl font-semibold text-[var(--color-text)]">No active projects yet</h2><p className="mx-auto mt-2 max-w-md text-sm text-[var(--color-text-muted)]">Create a project to bring plans, people, and risks into one clear place.</p>{canManage && <Button className="mt-6" onClick={() => openProjectForm("create")}><FiPlus size={16} /> Create project</Button>}</Card>}
   </div>
 

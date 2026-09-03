@@ -7,6 +7,7 @@ import TaskFlowMark from "../../components/brand/TaskFlowMark";
 import Quackie from "../../components/brand/Quackie";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
+import { resetPassword } from "../../services/api/authApi";
 
 const passwordInputClasses = (hasError) =>
   `w-full rounded-[var(--radius-md)] border bg-[var(--color-surface)] py-2.5 pl-10 pr-12 text-sm text-[var(--color-text)] shadow-[var(--shadow-xs)] outline-none transition duration-[var(--duration-base)] placeholder:text-[var(--color-text-subtle)] focus:border-[var(--color-brand)] focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-focus)_18%,transparent)] ${hasError ? "border-[var(--color-danger)] focus:border-[var(--color-danger)] focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-danger)_16%,transparent)]" : "border-[var(--color-border)]"}`;
@@ -59,17 +60,25 @@ function ResetPassword() {
     onChange(event);
   };
 
-  const onSubmit = async () => {
+const onSubmit = async ({ password }) => {
+
     setScreenState("submitting");
 
     try {
-      // Local UI-only delay. Token validation and password updates are not connected yet.
-      await new Promise((resolve) => window.setTimeout(resolve, 450));
-      setScreenState("success");
-    } catch {
-      setScreenState("expired");
+
+        await resetPassword(
+            resetToken,
+            password
+        );
+
+        setScreenState("success");
+
+    } catch (error) {
+
+        setScreenState("expired");
+
     }
-  };
+};
 
   const headingClasses = "mt-5 font-[var(--font-display)] text-3xl font-semibold leading-[var(--line-height-tight)] tracking-[-0.04em] text-[var(--color-text)]";
 
