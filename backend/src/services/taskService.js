@@ -86,7 +86,7 @@ const createTask = async (
                 estimatedHours !== null
                     ? estimatedHours
                     : null,
-            assigned_to: assignedTo || null,
+            assigned_to: assignedTo || userId,
             created_by: userId
         },
         include: {

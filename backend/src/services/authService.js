@@ -231,4 +231,42 @@ const resetPassword = async (token, newPassword) => {
     };
 };
 
-export { registerUser, loginUser, requestPasswordReset, resetPassword };
+const changePassword = async (userId, currentPassword, newPassword) => {
+  const user = await prisma.users.findUnique({
+    where: { id: userId }
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  const isCurrentPasswordValid = await bcrypt.compare(
+    currentPassword,
+    user.password_hash
+  );
+
+  if (!isCurrentPasswordValid) {
+    throw new Error("Current password is incorrect");
+  }
+
+  if (currentPassword === newPassword) {
+    throw new Error(
+      "New password must be different from your current password"
+    );
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  await prisma.users.update({
+    where: { id: userId },
+    data: {
+      password_hash: hashedPassword
+    }
+  });
+
+  return {
+    message: "Password updated successfully"
+  };
+};
+
+export { registerUser, loginUser, requestPasswordReset, resetPassword, changePassword };

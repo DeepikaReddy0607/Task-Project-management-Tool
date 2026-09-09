@@ -2,7 +2,8 @@ import {
     registerUser,
     loginUser,
     requestPasswordReset,
-    resetPassword
+    resetPassword,
+    changePassword as changePasswordService
 } from "../services/authService.js";
 
 
@@ -173,9 +174,67 @@ const reset = async (req, res, next) => {
     }
 };
 
+const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        message: "Current password and new password are required"
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        message: "New password must be at least 6 characters"
+      });
+    }
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({
+        message: "New password must be different from your current password"
+      });
+    }
+
+    await changePasswordService(
+      req.user.userId,
+      currentPassword,
+      newPassword
+    );
+
+    return res.status(200).json({
+      message: "Password updated successfully"
+    });
+  } catch (error) {
+    if (error.message === "User not found") {
+      return res.status(404).json({
+        message: error.message
+      });
+    }
+
+    if (error.message === "Current password is incorrect") {
+      return res.status(401).json({
+        message: error.message
+      });
+    }
+
+    if (
+      error.message ===
+      "New password must be different from your current password"
+    ) {
+      return res.status(400).json({
+        message: error.message
+      });
+    }
+
+    next(error);
+  }
+};
+
 export {
     register,
     login,
     forgotPassword,
-    reset
+    reset,
+    changePassword
 };
