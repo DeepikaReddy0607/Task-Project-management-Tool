@@ -8,6 +8,7 @@ import projectRoutes from "./routes/projectRoutes.js";
 import taskRoutes from "./routes/taskRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import workspaceRoutes from "./routes/workspaceRoutes.js";
+import calendarRoutes from "./routes/calendarRoutes.js";
 const app = express();
 
 app.use(cors());
@@ -27,5 +28,6 @@ app.use("/api", riskRoutes);
 app.use("/api", projectRoutes);
 app.use("/api", taskRoutes);
 app.use("/api/users", userRoutes);
-
+app.use("/api", projectRoutes);
+app.use("/api/calendar", calendarRoutes);
 export default app;
