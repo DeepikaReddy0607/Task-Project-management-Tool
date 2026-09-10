@@ -5,7 +5,8 @@ import testRoutes from "./routes/testRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import riskRoutes from "./routes/riskRoutes.js";
 import projectRoutes from "./routes/projectRoutes.js";
-
+import taskRoutes from "./routes/taskRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
 import workspaceRoutes from "./routes/workspaceRoutes.js";
 const app = express();
 
@@ -24,5 +25,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/workspaces", workspaceRoutes);
 app.use("/api", riskRoutes);
 app.use("/api", projectRoutes);
+app.use("/api", taskRoutes);
+app.use("/api/users", userRoutes);
 
 export default app;

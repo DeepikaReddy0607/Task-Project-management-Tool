@@ -1,6 +1,9 @@
 import {
     registerUser,
-    loginUser
+    loginUser,
+    requestPasswordReset,
+    resetPassword,
+    changePassword as changePasswordService
 } from "../services/authService.js";
 
 
@@ -94,7 +97,144 @@ const login = async (req, res, next) => {
 };
 
 
+const forgotPassword = async (req, res, next) => {
+    try {
+
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                message: "Email address is required"
+            });
+        }
+
+        await requestPasswordReset(email);
+
+        return res.status(200).json({
+            message:
+                "If an account exists for this email, password reset instructions have been sent."
+        });
+
+    } catch (error) {
+        next(error);
+    }
+};
+
+
+const reset = async (req, res, next) => {
+    try {
+
+        const {
+            token,
+            password
+        } = req.body;
+
+        if (!token || !password) {
+            return res.status(400).json({
+                message:
+                    "Reset token and password are required"
+            });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({
+                message:
+                    "Password must be at least 6 characters"
+            });
+        }
+
+        const result = await resetPassword(
+            token,
+            password
+        );
+
+        return res.status(200).json(result);
+
+    } catch (error) {
+
+        if (
+            error.message ===
+            "Reset link is invalid or expired"
+        ) {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
+        if (
+            error.message ===
+            "Invalid password reset token"
+        ) {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
+        next(error);
+    }
+};
+
+const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        message: "Current password and new password are required"
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        message: "New password must be at least 6 characters"
+      });
+    }
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({
+        message: "New password must be different from your current password"
+      });
+    }
+
+    await changePasswordService(
+      req.user.userId,
+      currentPassword,
+      newPassword
+    );
+
+    return res.status(200).json({
+      message: "Password updated successfully"
+    });
+  } catch (error) {
+    if (error.message === "User not found") {
+      return res.status(404).json({
+        message: error.message
+      });
+    }
+
+    if (error.message === "Current password is incorrect") {
+      return res.status(401).json({
+        message: error.message
+      });
+    }
+
+    if (
+      error.message ===
+      "New password must be different from your current password"
+    ) {
+      return res.status(400).json({
+        message: error.message
+      });
+    }
+
+    next(error);
+  }
+};
+
 export {
     register,
-    login
+    login,
+    forgotPassword,
+    reset,
+    changePassword
 };
