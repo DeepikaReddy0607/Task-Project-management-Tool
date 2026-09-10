@@ -1,4 +1,6 @@
 import { FiAlertCircle, FiArrowUpRight, FiCalendar, FiCheckCircle, FiClipboard, FiClock, FiPlus } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
+import Quackie from "../../components/brand/Quackie";
 import DashboardTaskRow from "../../components/dashboard/DashboardTaskRow";
 import StatCard from "../../components/dashboard/StatCard";
 import UpcomingItem from "../../components/dashboard/UpcomingItem";
@@ -28,13 +30,17 @@ const upcomingItems = [
 ];
 
 function Dashboard() {
+  const navigate = useNavigate();
+
   return (
     <MainLayout>
       <div className="space-y-6 sm:space-y-8">
-        <PageHeader title="Good morning, Geethika" description="Here is a clear view of the work that needs your attention today." actions={<Button><FiPlus size={17} aria-hidden="true" /> Add task</Button>} />
+        <PageHeader title="Good morning, Geethika" description="Here is a clear view of the work that needs your attention today." actions={<Button onClick={() => navigate("/tasks")}><FiPlus size={17} aria-hidden="true" /> Add task</Button>} />
+
+        <Card className="flex items-center gap-3 p-4"><Quackie emotion="happy" decorative size="sm" /><p className="text-sm text-[var(--color-text-muted)]"><strong className="text-[var(--color-text)]">You&apos;re making good progress.</strong> Three tasks still need your attention today.</p><Button variant="soft" className="ml-auto shrink-0" onClick={() => navigate("/tasks")}>View tasks</Button></Card>
 
         <section aria-label="Task summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {statistics.map((statistic) => <StatCard key={statistic.title} {...statistic} />)}
+          {statistics.map((statistic) => <StatCard key={statistic.title} {...statistic} onClick={() => navigate(statistic.title === "Total tasks" || statistic.title === "Completed" || statistic.title === "In progress" || statistic.title === "Overdue" ? "/tasks" : "/projects")} />)}
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(17rem,0.82fr)]">
@@ -48,7 +54,7 @@ function Dashboard() {
             ) : (
               <div className="mt-6 rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] px-5 py-10 text-center"><FiCheckCircle className="mx-auto text-[var(--color-brand)]" size={28} aria-hidden="true" /><p className="mt-3 font-semibold text-[var(--color-text)]">Nothing is due right now</p><p className="mt-1 text-sm text-[var(--color-text-muted)]">Add a task when you are ready to plan the next step.</p></div>
             )}
-            <Button variant="soft" className="mt-5 w-full sm:w-auto"><FiPlus size={17} aria-hidden="true" /> Add a task</Button>
+            <Button variant="soft" className="mt-5 w-full sm:w-auto" onClick={() => navigate("/tasks")}><FiPlus size={17} aria-hidden="true" /> Add a task</Button>
           </Card>
 
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-1">

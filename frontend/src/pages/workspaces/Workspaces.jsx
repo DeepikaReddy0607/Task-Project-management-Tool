@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { FiAlertTriangle, FiCheck, FiChevronRight, FiEdit2, FiLayers, FiPlus, FiTrash2, FiUserMinus, FiUserPlus, FiUsers, FiX } from "react-icons/fi";
+import { FiAlertTriangle, FiCheck, FiChevronRight, FiEdit2, FiLayers, FiPlus, FiSearch, FiTrash2, FiUserMinus, FiUserPlus, FiUsers, FiX } from "react-icons/fi";
+import Quackie from "../../components/brand/Quackie";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
@@ -34,6 +35,8 @@ function Workspaces() {
   const [formValues, setFormValues] = useState({ name: "", description: "" });
   const [formError, setFormError] = useState("");
   const [memberToAdd, setMemberToAdd] = useState(availableMembers[0].id);
+  const [workspaceSearch, setWorkspaceSearch] = useState("");
+  const [workspaceNotice, setWorkspaceNotice] = useState("");
 
   const selectedWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId) || workspaces[0];
   const currentRole = rolePreview;
@@ -41,6 +44,7 @@ function Workspaces() {
   const canManageMembers = currentRole === "Owner" || currentRole === "Admin";
   const canManageRoles = currentRole === "Owner";
   const unaddedMembers = useMemo(() => selectedWorkspace ? availableMembers.filter((member) => !selectedWorkspace.members.some((workspaceMember) => workspaceMember.id === member.id)) : [], [selectedWorkspace]);
+  const filteredWorkspaces = useMemo(() => workspaces.filter((workspace) => workspace.name.toLowerCase().includes(workspaceSearch.trim().toLowerCase())), [workspaceSearch, workspaces]);
 
   const closeDialog = () => { setDialog(null); setFormError(""); };
   const openWorkspaceDialog = (mode) => {
@@ -58,8 +62,10 @@ function Workspaces() {
       setWorkspaces((current) => [...current, workspace]);
       setSelectedWorkspaceId(id);
       setRolePreview("Owner");
+      setWorkspaceNotice(`Workspace "${workspace.name}" is ready to use.`);
     } else {
       setWorkspaces((current) => current.map((workspace) => workspace.id === selectedWorkspace.id ? { ...workspace, name, description: formValues.description.trim() || "No description yet." } : workspace));
+      setWorkspaceNotice("Workspace details saved locally.");
     }
     closeDialog();
   };
@@ -67,24 +73,27 @@ function Workspaces() {
     const remaining = workspaces.filter((workspace) => workspace.id !== selectedWorkspace.id);
     setWorkspaces(remaining);
     setSelectedWorkspaceId(remaining[0]?.id || "");
+    setWorkspaceNotice("Workspace removed from this local preview.");
     closeDialog();
   };
   const addMember = () => {
     const member = availableMembers.find((candidate) => candidate.id === memberToAdd);
     if (!member) return;
     setWorkspaces((current) => current.map((workspace) => workspace.id === selectedWorkspace.id ? { ...workspace, members: [...workspace.members, { ...member, workspaceRole: "Member", joinedAt: new Date().toISOString().slice(0, 10) }] } : workspace));
+    setWorkspaceNotice(`${member.firstName} ${member.lastName} was added to the workspace.`);
     closeDialog();
   };
   const removeMember = (memberId) => {
     setWorkspaces((current) => current.map((workspace) => workspace.id === selectedWorkspace.id ? { ...workspace, members: workspace.members.filter((member) => member.id !== memberId) } : workspace));
+    setWorkspaceNotice("Member removed from this local workspace preview.");
     closeDialog();
   };
-  const changeMemberRole = (memberId, workspaceRole) => setWorkspaces((current) => current.map((workspace) => workspace.id === selectedWorkspace.id ? { ...workspace, members: workspace.members.map((member) => member.id === memberId ? { ...member, workspaceRole } : member) } : workspace));
+  const changeMemberRole = (memberId, workspaceRole) => { setWorkspaces((current) => current.map((workspace) => workspace.id === selectedWorkspace.id ? { ...workspace, members: workspace.members.map((member) => member.id === memberId ? { ...member, workspaceRole } : member) } : workspace)); setWorkspaceNotice("Member role updated locally."); };
 
   if (!selectedWorkspace) {
     return (
       <MainLayout>
-        <Card className="mx-auto max-w-xl text-center"><FiLayers className="mx-auto text-[var(--color-brand)]" size={32} /><h1 className="mt-4 text-xl font-semibold">Create your first workspace</h1><p className="mt-2 text-sm text-[var(--color-text-muted)]">Workspaces help keep teams, projects, and planning in one focused place.</p><Button className="mt-6" onClick={() => openWorkspaceDialog("create")}><FiPlus size={17} /> Create workspace</Button></Card>
+        <Card className="mx-auto max-w-xl text-center"><Quackie emotion="curious" decorative className="mx-auto h-20 w-20 object-contain" /><h1 className="mt-4 text-xl font-semibold">Create your first workspace</h1><p className="mt-2 text-sm text-[var(--color-text-muted)]">Looks like this space is waiting for its first project. Start by creating a workspace for your team.</p><Button className="mt-6" onClick={() => openWorkspaceDialog("create")}><FiPlus size={17} /> Create workspace</Button></Card>
         {dialog === "create" && <Dialog title="Create workspace" onClose={closeDialog}><form onSubmit={submitWorkspace} className="space-y-4"><Input id="workspace-name" label="Workspace name" value={formValues.name} onChange={(event) => setFormValues((current) => ({ ...current, name: event.target.value }))} error={formError} autoFocus /><div><label htmlFor="workspace-description" className="mb-2 block text-sm font-medium text-[var(--color-text)]">Description</label><textarea id="workspace-description" value={formValues.description} onChange={(event) => setFormValues((current) => ({ ...current, description: event.target.value }))} rows={4} className="w-full resize-y rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2.5 text-sm text-[var(--color-text)] outline-none transition focus:border-[var(--color-brand)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--color-focus)_18%,transparent)]" /></div><div className="flex justify-end gap-2 pt-2"><Button variant="secondary" onClick={closeDialog}>Cancel</Button><Button type="submit"><FiCheck size={16} /> Create workspace</Button></div></form></Dialog>}
       </MainLayout>
     );
@@ -94,11 +103,13 @@ function Workspaces() {
     <MainLayout>
       <div className="space-y-6 sm:space-y-8">
         <PageHeader title="Workspaces" description="Organize the people and planning spaces that move your work forward." actions={<Button onClick={() => openWorkspaceDialog("create")}><FiPlus size={17} aria-hidden="true" /> Create workspace</Button>} />
+        {workspaceNotice && <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] bg-[var(--color-surface-sage)] px-4 py-3 text-sm text-[var(--color-brand-hover)]" role="status"><span>{workspaceNotice}</span><button type="button" onClick={() => setWorkspaceNotice("")} className="rounded p-1 transition hover:bg-white/60" aria-label="Dismiss workspace update"><FiX size={16} /></button></div>}
 
         <section className="grid gap-5 xl:grid-cols-[17rem_minmax(0,1fr)]">
           <Card className="h-fit p-3 sm:p-4">
             <div className="flex items-center justify-between px-2 pb-3"><h2 className="text-sm font-semibold text-[var(--color-text)]">Your workspaces</h2><span className="rounded-full bg-[var(--color-surface-sage)] px-2 py-0.5 text-xs font-semibold text-[var(--color-brand-hover)]">{workspaces.length}</span></div>
-            <div className="space-y-1.5">{workspaces.map((workspace) => <button key={workspace.id} type="button" onClick={() => { setSelectedWorkspaceId(workspace.id); setRolePreview(workspace.workspaceRole); }} className={`group flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-3 text-left transition ${workspace.id === selectedWorkspace.id ? "bg-[var(--color-brand-soft)] text-[var(--color-brand-hover)] shadow-[var(--shadow-xs)]" : "text-[var(--color-text-muted)] hover:bg-[var(--color-canvas-soft)]"}`}><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[var(--color-brand)] shadow-[var(--shadow-xs)]"><FiLayers size={17} /></span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{workspace.name}</span><span className="mt-0.5 block text-xs text-[var(--color-text-subtle)]">{workspace.members.length} members</span></span><FiChevronRight size={16} className="opacity-50" /></button>)}</div>
+            {workspaces.length > 1 && <div className="relative mb-3 px-1"><FiSearch className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--color-text-subtle)]" size={15} /><input value={workspaceSearch} onChange={(event) => setWorkspaceSearch(event.target.value)} placeholder="Find a workspace" aria-label="Find a workspace" className="w-full rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-canvas-soft)] py-2 pl-8 pr-3 text-xs text-[var(--color-text)] outline-none transition focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--color-focus)_18%,transparent)]" /></div>}
+            <div className="space-y-1.5">{filteredWorkspaces.length ? filteredWorkspaces.map((workspace) => <button key={workspace.id} type="button" onClick={() => { setSelectedWorkspaceId(workspace.id); setRolePreview(workspace.workspaceRole); setWorkspaceNotice(`Viewing ${workspace.name}.`); }} aria-pressed={workspace.id === selectedWorkspace.id} className={`group flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${workspace.id === selectedWorkspace.id ? "bg-[var(--color-brand-soft)] text-[var(--color-brand-hover)] shadow-[var(--shadow-xs)]" : "text-[var(--color-text-muted)] hover:bg-[var(--color-canvas-soft)]"}`}><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[var(--color-brand)] shadow-[var(--shadow-xs)]"><FiLayers size={17} /></span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{workspace.name}</span><span className="mt-0.5 block text-xs text-[var(--color-text-subtle)]">{workspace.members.length} members</span></span>{workspace.id === selectedWorkspace.id ? <FiCheck size={16} aria-label="Selected workspace" /> : <FiChevronRight size={16} className="opacity-50" />}</button>) : <p className="px-3 py-5 text-center text-xs text-[var(--color-text-muted)]">No workspaces match “{workspaceSearch}”.</p>}</div>
             <Button variant="soft" className="mt-4 w-full" onClick={() => openWorkspaceDialog("create")}><FiPlus size={16} /> New workspace</Button>
           </Card>
 
