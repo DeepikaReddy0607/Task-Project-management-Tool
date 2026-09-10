@@ -8,6 +8,20 @@ const VALID_TASK_STATUSES = [
     "Completed"
 ];
 
+const calculateSubtaskProgress = (subtasks) => {
+    if (!subtasks || subtasks.length === 0) {
+        return 0;
+    }
+
+    const completedSubtasks = subtasks.filter(
+        (subtask) => subtask.status === "Completed"
+    ).length;
+
+    return Math.round(
+        (completedSubtasks / subtasks.length) * 100
+    );
+};
+
 const createTask = async (
     projectId,
     userId,
@@ -173,8 +187,13 @@ const getProjectTasks = async (
                     last_name: true,
                     email: true
                 }
-            }
+            },
+            subtasks: true
         }
+    });
+
+    tasks.forEach((task) => {
+        task.progress = calculateSubtaskProgress(task.subtasks);
     });
 
     return tasks;
@@ -240,6 +259,8 @@ const getTask = async (
     if (!workspaceMembership) {
         throw new Error("Workspace access denied");
     }
+
+    task.progress = calculateSubtaskProgress(task.subtasks);
 
     return task;
 };

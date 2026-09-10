@@ -190,11 +190,15 @@ model subtasks {
   description String?
   status      String    @default("To Do") @db.VarChar(20)
   due_date    DateTime? @db.Date
+  assigned_to String?   @db.Uuid
   created_at  DateTime  @default(now()) @db.Timestamptz(6)
-  tasks       tasks     @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_subtasks_task")
+
+  tasks tasks  @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_subtasks_task")
+  users users? @relation(fields: [assigned_to], references: [id], onUpdate: NoAction, map: "fk_subtasks_assigned_to")
 
   @@index([due_date], map: "idx_subtasks_due_date")
   @@index([task_id], map: "idx_subtasks_task_id")
+  @@index([assigned_to], map: "idx_subtasks_assigned_to")
 }
 
 model task_dependencies {
@@ -275,6 +279,7 @@ model users {
   risks                          risks[]
   tasks_tasks_assigned_toTousers tasks[]                 @relation("tasks_assigned_toTousers")
   tasks_tasks_created_byTousers  tasks[]                 @relation("tasks_created_byTousers")
+  subtasks_assigned_to           subtasks[]
   roles                          roles                   @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_users_role")
   workspace_members              workspace_members[]
   workspaces                     workspaces[]
