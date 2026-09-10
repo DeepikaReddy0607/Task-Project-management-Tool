@@ -53,3 +53,8 @@ export const changePassword = async (
 
     return response.data;
 };
+
+export const logoutUser = () => {
+    localStorage.removeItem("taskflow_token");
+    localStorage.removeItem("taskflow_user");
+};
