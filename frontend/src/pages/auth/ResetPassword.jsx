@@ -73,7 +73,7 @@ const onSubmit = async ({ password }) => {
 
         setScreenState("success");
 
-    } catch (error) {
+    } catch {
 
         setScreenState("expired");
 

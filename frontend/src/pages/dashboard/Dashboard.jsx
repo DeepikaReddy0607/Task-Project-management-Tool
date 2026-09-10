@@ -8,8 +8,10 @@ import {
   FiPlus,
 } from "react-icons/fi";
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import DashboardTaskRow from "../../components/dashboard/DashboardTaskRow";
+import Quackie from "../../components/brand/Quackie";
 import StatCard from "../../components/dashboard/StatCard";
 import UpcomingItem from "../../components/dashboard/UpcomingItem";
 import Button from "../../components/ui/Button";
@@ -190,8 +192,8 @@ const getFirstName = (user) => {
 // ---------------------------------------------------------
 
 function Dashboard() {
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
-  const [workspaces, setWorkspaces] = useState([]);
   const [projects, setProjects] = useState([]);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -270,8 +272,6 @@ function Dashboard() {
         ? workspaceData
         : [];
 
-      setWorkspaces(normalizedWorkspaces);
-
       if (normalizedWorkspaces.length > 0) {
         const workspaceId = normalizedWorkspaces[0]?.id;
 
@@ -312,7 +312,6 @@ function Dashboard() {
       );
 
       if (isMounted) {
-        setWorkspaces([]);
         setProjects([]);
       }
     }
@@ -596,7 +595,7 @@ function Dashboard() {
           title={`Good morning, ${userName}`}
           description="Here is a clear view of the work that needs your attention today."
           actions={
-            <Button>
+            <Button onClick={() => navigate("/tasks")}>
               <FiPlus
                 size={17}
                 aria-hidden="true"
@@ -605,6 +604,25 @@ function Dashboard() {
             </Button>
           }
         />
+
+        {!isLoading && (
+          <Card className="flex items-center gap-3 p-4">
+            <Quackie emotion="happy" decorative size="sm" />
+            <p className="text-sm text-[var(--color-text-muted)]">
+              <strong className="text-[var(--color-text)]">
+                You&apos;re making good progress.
+              </strong>{" "}
+              Keep the next task clear and manageable.
+            </p>
+            <Button
+              variant="soft"
+              className="ml-auto shrink-0"
+              onClick={() => navigate("/tasks")}
+            >
+              View tasks
+            </Button>
+          </Card>
+        )}
 
 
         {/* -------------------------------------------------
@@ -619,6 +637,7 @@ function Dashboard() {
             <StatCard
               key={statistic.title}
               {...statistic}
+              onClick={() => navigate("/tasks")}
             />
           ))}
         </section>
@@ -697,6 +716,7 @@ function Dashboard() {
             <Button
               variant="soft"
               className="mt-5 w-full sm:w-auto"
+              onClick={() => navigate("/tasks")}
             >
               <FiPlus
                 size={17}

@@ -25,7 +25,6 @@ import {
   createWorkspace,
   updateWorkspace,
   deleteWorkspace as deleteWorkspaceApi,
-  addWorkspaceMember,
   updateWorkspaceMemberRole,
   removeWorkspaceMember,
 } from "../../services/api/workspaceApi";
@@ -113,10 +112,6 @@ function Workspaces() {
 
   const [formError, setFormError] = useState("");
 
-  const [memberToAdd, setMemberToAdd] = useState("");
-  const [memberRoleToAdd, setMemberRoleToAdd] =
-    useState("Member");
-
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] =
     useState(false);
@@ -193,7 +188,10 @@ function Workspaces() {
   };
 
   useEffect(() => {
-    loadWorkspaces();
+    const load = async () => {
+      await loadWorkspaces();
+    };
+    void load();
   }, []);
 
   /* ==========================================================
@@ -243,8 +241,6 @@ function Workspaces() {
   const closeDialog = () => {
     setDialog(null);
     setFormError("");
-    setMemberToAdd("");
-    setMemberRoleToAdd("Member");
   };
 
   const openWorkspaceDialog = (mode) => {
@@ -377,59 +373,6 @@ function Workspaces() {
   /* ==========================================================
      ADD MEMBER
   ========================================================== */
-
-  const handleAddMember = async () => {
-    if (!selectedWorkspaceId) {
-      setFormError(
-        "No workspace selected."
-      );
-      return;
-    }
-
-    if (!memberToAdd) {
-      setFormError(
-        "Please select a user."
-      );
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-      setFormError("");
-
-      await addWorkspaceMember(
-        selectedWorkspaceId,
-        {
-          userId: memberToAdd,
-          workspaceRole:
-            memberRoleToAdd,
-        }
-      );
-
-      const response =
-        await getWorkspaceMembers(
-          selectedWorkspaceId
-        );
-
-      setSelectedWorkspaceMembers(
-        response?.members || []
-      );
-
-      closeDialog();
-    } catch (error) {
-      console.error(
-        "Failed to add workspace member:",
-        error
-      );
-
-      setFormError(
-        error.response?.data?.message ||
-          "Failed to add workspace member."
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   /* ==========================================================
      REMOVE MEMBER

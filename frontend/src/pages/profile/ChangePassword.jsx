@@ -31,6 +31,7 @@ function PasswordField({
   registration,
   show,
   setShow,
+  onValueChange,
 }) {
   return (
     <div>
@@ -59,6 +60,10 @@ function PasswordField({
           aria-invalid={error ? "true" : undefined}
           aria-describedby={error ? `${name}-error` : undefined}
           {...registration}
+          onChange={(event) => {
+            registration.onChange(event);
+            onValueChange?.(event.target.value);
+          }}
         />
 
         <button
@@ -95,6 +100,10 @@ function ChangePassword() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [newPasswordPreview, setNewPasswordPreview] = useState("");
+  const [confirmPasswordPreview, setConfirmPasswordPreview] = useState("");
+  const strengthScore = [newPasswordPreview.length >= 6, newPasswordPreview.length >= 10, /[A-Z]/.test(newPasswordPreview), /[0-9]/.test(newPasswordPreview), /[^A-Za-z0-9]/.test(newPasswordPreview)].filter(Boolean).length;
+  const strength = !newPasswordPreview ? null : strengthScore <= 2 ? { label: "Weak", color: "bg-[var(--color-danger)]" } : strengthScore <= 3 ? { label: "Fair", color: "bg-[var(--color-sun)]" } : { label: "Strong", color: "bg-[var(--color-brand)]" };
 
   const {
     register,
@@ -239,7 +248,9 @@ function ChangePassword() {
                   error={errors.newPassword?.message}
                   show={showNew}
                   setShow={setShowNew}
+                  onValueChange={setNewPasswordPreview}
                 />
+                {strength && <div className="rounded-[var(--radius-md)] bg-[var(--color-canvas-soft)] px-3.5 py-3" aria-live="polite"><div className="flex items-center justify-between text-xs"><span className="font-semibold text-[var(--color-text)]">Password strength</span><span className="font-semibold text-[var(--color-text-muted)]">{strength.label}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--color-surface-muted)]"><div className={`${strength.color} h-full rounded-full transition-all duration-200`} style={{ width: `${Math.max(25, strengthScore * 20)}%` }} /></div></div>}
 
                 <PasswordField
                   name="confirmPassword"
@@ -248,7 +259,9 @@ function ChangePassword() {
                   error={errors.confirmPassword?.message}
                   show={showConfirm}
                   setShow={setShowConfirm}
+                  onValueChange={setConfirmPasswordPreview}
                 />
+                {confirmPasswordPreview && <p className={`-mt-2 text-xs font-medium ${confirmPasswordPreview === newPasswordPreview ? "text-[var(--color-brand-hover)]" : "text-[var(--color-danger)]"}`} aria-live="polite">{confirmPasswordPreview === newPasswordPreview ? "Passwords match." : "Passwords do not match yet."}</p>}
 
                 <div className="flex flex-wrap justify-end gap-2 pt-2">
                   <Link to="/profile">

@@ -268,8 +268,6 @@ function Tasks() {
 
   const [projects, setProjects] = useState([]);
 
-  const [workspaces, setWorkspaces] = useState([]);
-
   const [membersByProject, setMembersByProject] = useState({});
 
   const [selectedWorkspaceId, setSelectedWorkspaceId] =
@@ -621,10 +619,6 @@ function Tasks() {
           workspaceResponse ||
           [];
 
-        setWorkspaces(
-          workspaceList
-        );
-
         if (!workspaceList.length) {
           setProjects([]);
           setSelectedWorkspaceId("");
@@ -733,7 +727,7 @@ function Tasks() {
         ]);
       };
 
-    loadPage();
+    void loadPage();
   }, []);
 
   /* ==========================================================

@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { FiAlertTriangle, FiArchive, FiArrowDown, FiArrowUp, FiCheck, FiChevronRight, FiEdit2, FiFolder, FiPlus, FiShield, FiUserMinus, FiUserPlus, FiX } from "react-icons/fi";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
 import PageHeader from "../../components/ui/PageHeader";
-import { initialProjects, projectOptions, projectUsers, projectWorkspaces } from "../../data/projectMockData";
+import { projectOptions, projectUsers } from "../../data/projectMockData";
 import MainLayout from "../../layouts/MainLayout";
 import { getWorkspaces } from "../../services/api/workspaceApi";
 import {
@@ -29,7 +29,6 @@ const priorityClasses = { Low: "bg-[var(--color-surface-sage)] text-[var(--color
 const statusClasses = { Planning: "bg-[var(--color-surface-muted)] text-[var(--color-text-muted)]", "In Progress": "bg-[var(--color-info-soft)] text-[var(--color-info)]", "On Track": "bg-[var(--color-surface-sage)] text-[var(--color-brand-hover)]", "At Risk": "bg-[var(--color-peach-soft)] text-[var(--color-peach)]", Complete: "bg-[var(--color-surface-sage)] text-[var(--color-brand-hover)]", Open: "bg-[var(--color-peach-soft)] text-[var(--color-peach)]", Closed: "bg-[var(--color-surface-sage)] text-[var(--color-brand-hover)]" };
 const severityRank = { Low: 1, Medium: 2, High: 3, Critical: 4 };
 const probabilityRank = { Low: 1, Medium: 2, High: 3 };
-const today = () => new Date().toISOString().slice(0, 10);
 const formatDate = (value) => new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(new Date(`${value}T00:00:00`));
 const emptyProjectForm = { title: "", description: "", category: "Product", priority: "Medium", status: "Planning", startDate: "", endDate: "" };
 const emptyRiskForm = { title: "", description: "", severity: "Medium", probability: "Medium", ownerId: "user-geethika", mitigationPlan: "" };
@@ -156,15 +155,24 @@ function Projects() {
     );
   }
 };
-  const archiveProject = () => { setProjects((current) => current.map((project) => project.id === selectedProject.id ? { ...project, isArchived: true } : project)); setSelectedProjectId(null); closeDialog(); };
+  const archiveProject = async () => {
+    try {
+      await archiveProjectApi(selectedProject.id);
+      setProjects((current) => current.map((project) => project.id === selectedProject.id ? { ...project, isArchived: true } : project));
+      setSelectedProjectId(null);
+      closeDialog();
+    } catch (error) {
+      setFormError(error.response?.data?.message || "Failed to archive project.");
+    }
+  };
   const updateSelectedProject = (updater) => setProjects((current) => current.map((project) => project.id === selectedProject.id ? updater(project) : project));
-  const addMember = () => { if (!selectedProject.members.some((member) => member.userId === memberUserId)) updateSelectedProject((project) => ({ ...project, members: [...project.members, { userId: memberUserId, role: "Contributor" }] })); closeDialog(); };
-  const removeMember = (userId) => { updateSelectedProject((project) => ({ ...project, members: project.members.filter((member) => member.userId !== userId) })); closeDialog(); };
-  const setMemberRole = (userId, role) => updateSelectedProject((project) => ({ ...project, members: project.members.map((member) => member.userId === userId ? { ...member, role } : member) }));
-  const saveRisk = (event) => { event.preventDefault(); if (!riskForm.title.trim()) { setFormError("Risk title is required."); return; } const id = `risk-${Date.now()}`; updateSelectedProject((project) => ({ ...project, risks: [...project.risks, { ...riskForm, id, title: riskForm.title.trim(), description: riskForm.description.trim(), mitigationPlan: riskForm.mitigationPlan.trim(), status: "Open", createdAt: today() }] })); closeDialog(); };
-  const updateRisk = (event) => { event.preventDefault(); if (!riskForm.title.trim()) { setFormError("Risk title is required."); return; } updateSelectedProject((project) => ({ ...project, risks: project.risks.map((risk) => risk.id === dialog.risk.id ? { ...risk, ...riskForm, title: riskForm.title.trim(), description: riskForm.description.trim(), mitigationPlan: riskForm.mitigationPlan.trim() } : risk) })); closeDialog(); };
-  const closeRisk = () => { updateSelectedProject((project) => ({ ...project, risks: project.risks.map((risk) => risk.id === dialog.risk.id ? { ...risk, status: "Closed" } : risk) })); closeDialog(); };
-  const sortedRisks = useMemo(() => { if (!selectedProject) return []; const getValue = (risk) => riskSort.key === "severity" ? severityRank[risk.severity] : riskSort.key === "probability" ? probabilityRank[risk.probability] : riskSort.key === "status" ? risk.status : risk.createdAt; return [...selectedProject.risks].sort((a, b) => { const left = getValue(a); const right = getValue(b); const comparison = left > right ? 1 : left < right ? -1 : 0; return riskSort.direction === "asc" ? comparison : -comparison; }); }, [selectedProject, riskSort]);
+  const addMember = async () => { try { await addProjectMemberApi(selectedProject.id, { userId: memberUserId, role: "Contributor" }); const response = await getProjectMembers(selectedProject.id); updateSelectedProject((project) => ({ ...project, members: response.members || [] })); closeDialog(); } catch (error) { setFormError(error.response?.data?.message || "Failed to add member."); } };
+  const removeMember = async (userId) => { try { await removeProjectMemberApi(selectedProject.id, userId); updateSelectedProject((project) => ({ ...project, members: project.members.filter((member) => member.userId !== userId) })); closeDialog(); } catch (error) { setFormError(error.response?.data?.message || "Failed to remove member."); } };
+  const setMemberRole = async (userId, role) => { try { await updateProjectMemberRole(selectedProject.id, userId, role); updateSelectedProject((project) => ({ ...project, members: project.members.map((member) => member.userId === userId ? { ...member, role } : member) })); } catch (error) { setFormError(error.response?.data?.message || "Failed to update member role."); } };
+  const saveRisk = async (event) => { event.preventDefault(); if (!riskForm.title.trim()) { setFormError("Risk title is required."); return; } try { const response = await createRiskApi(selectedProject.id, riskForm); updateSelectedProject((project) => ({ ...project, risks: [...project.risks, response.risk] })); closeDialog(); } catch (error) { setFormError(error.response?.data?.message || "Failed to add risk."); } };
+  const updateRisk = async (event) => { event.preventDefault(); if (!riskForm.title.trim()) { setFormError("Risk title is required."); return; } try { const response = await updateRiskApi(dialog.risk.id, riskForm); updateSelectedProject((project) => ({ ...project, risks: project.risks.map((risk) => risk.id === dialog.risk.id ? response.risk : risk) })); closeDialog(); } catch (error) { setFormError(error.response?.data?.message || "Failed to update risk."); } };
+  const closeRisk = async () => { try { await closeRiskApi(dialog.risk.id); updateSelectedProject((project) => ({ ...project, risks: project.risks.map((risk) => risk.id === dialog.risk.id ? { ...risk, status: "Closed" } : risk) })); closeDialog(); } catch (error) { setFormError(error.response?.data?.message || "Failed to close risk."); } };
+  const sortedRisks = !selectedProject ? [] : [...selectedProject.risks].sort((a, b) => { const getValue = (risk) => riskSort.key === "severity" ? severityRank[risk.severity] : riskSort.key === "probability" ? probabilityRank[risk.probability] : riskSort.key === "status" ? risk.status : risk.createdAt; const comparison = getValue(a) > getValue(b) ? 1 : getValue(a) < getValue(b) ? -1 : 0; return riskSort.direction === "asc" ? comparison : -comparison; });
   const changeRiskSort = (key) => setRiskSort((current) => current.key === key ? { key, direction: current.direction === "asc" ? "desc" : "asc" } : { key, direction: "desc" });
   const addableUsers = selectedProject ? projectUsers.filter((user) => !selectedProject.members.some((member) => member.userId === user.id)) : [];
   const loadWorkspaces = async () => {
@@ -187,7 +195,10 @@ function Projects() {
 };
 
   useEffect(() => {
-    loadWorkspaces();
+    const load = async () => {
+      await loadWorkspaces();
+    };
+    void load();
   }, []);
   const loadProjects = async () => {
   try {
@@ -221,10 +232,31 @@ function Projects() {
   }
 };
 useEffect(() => {
-  if(workspaceId){
-    loadProjects()
-  }
+  if (!workspaceId) return;
+  const load = async () => {
+    await loadProjects();
+  };
+  void load();
 }, [workspaceId]);
+useEffect(() => {
+  if (!selectedProjectId) return;
+  const loadDetails = async () => {
+    try {
+      const [membersResponse, risksResponse] = await Promise.all([
+        getProjectMembers(selectedProjectId),
+        getProjectRisks(selectedProjectId, riskSort.key, riskSort.direction),
+      ]);
+      setProjects((current) => current.map((project) => project.id === selectedProjectId ? {
+        ...project,
+        members: membersResponse.members || [],
+        risks: risksResponse.risks || [],
+      } : project));
+    } catch (error) {
+      setFormError(error.response?.data?.message || "Failed to load project details.");
+    }
+  };
+  void loadDetails();
+}, [selectedProjectId, riskSort.direction, riskSort.key]);
 if (!workspaceId || !workspace) {
   return (
     <MainLayout>
