@@ -23,7 +23,7 @@ const create = async (req, res, next) => {
 
         const risk = await createRisk(
             projectId,
-            req.user.id,
+            req.user.userId,
             title,
             description,
             severity,
@@ -56,7 +56,7 @@ const getAll = async (req, res, next) => {
 
         const risks = await getProjectRisks(
             projectId,
-            req.user.id,
+            req.user.userId,
             sort || "severity",
             order || "desc"
         );
@@ -79,7 +79,7 @@ const update = async (req, res, next) => {
 
         const risk = await updateRisk(
             id,
-            req.user.id,
+            req.user.userId,
             req.body
         );
 
@@ -101,7 +101,7 @@ const close = async (req, res, next) => {
 
         const risk = await closeRisk(
             id,
-            req.user.id
+            req.user.userId
         );
 
         res.status(200).json({

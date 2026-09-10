@@ -7,8 +7,9 @@ import riskRoutes from "./routes/riskRoutes.js";
 import projectRoutes from "./routes/projectRoutes.js";
 import taskRoutes from "./routes/taskRoutes.js";
 import subtaskRoutes from "./routes/subtaskRoutes.js";
-
+import userRoutes from "./routes/userRoutes.js";
 import workspaceRoutes from "./routes/workspaceRoutes.js";
+
 const app = express();
 
 app.use(cors());
@@ -28,5 +29,6 @@ app.use("/api", riskRoutes);
 app.use("/api", projectRoutes);
 app.use("/api", taskRoutes);
 app.use("/api", subtaskRoutes);
+app.use("/api/users", userRoutes);
 
 export default app;

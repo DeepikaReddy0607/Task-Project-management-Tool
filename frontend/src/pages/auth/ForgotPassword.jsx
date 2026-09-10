@@ -8,6 +8,7 @@ import Quackie from "../../components/brand/Quackie";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
+import { forgotPassword } from "../../services/api/authApi";
 
 function ForgotPassword() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,20 +56,28 @@ function ForgotPassword() {
   };
 
   const onSubmit = async ({ email }) => {
-    setIsSubmitting(true);
-    setSubmitError("");
+      setIsSubmitting(true);
+      setSubmitError("");
 
-    try {
-      // Local UI-only delay. Backend delivery and account checks are not connected yet.
-      await new Promise((resolve) => window.setTimeout(resolve, 450));
-      setSubmittedEmail(email);
-    } catch {
-      setSubmitError("We could not prepare reset instructions. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
+      try {
+
+          await forgotPassword(email);
+
+          setSubmittedEmail(email);
+
+      } catch (error) {
+
+          setSubmitError(
+              error.response?.data?.message ||
+              "Unable to send password reset instructions."
+          );
+
+      } finally {
+
+          setIsSubmitting(false);
+
+      }
   };
-
   return (
     <main
       className="relative min-h-screen overflow-x-hidden bg-cover bg-center bg-no-repeat px-4 py-6 sm:px-6 lg:flex lg:items-center lg:px-10 lg:py-10"
@@ -95,7 +104,13 @@ function ForgotPassword() {
               <div className="taskflow-success-pop text-center">
                 <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-surface-sage)] text-[var(--color-brand)]" aria-hidden="true"><FiCheckCircle size={28} /></span>
                 <h1 id="forgot-password-title" className="mt-5 font-[var(--font-display)] text-3xl font-semibold leading-[var(--line-height-tight)] tracking-[-0.04em] text-[var(--color-text)]">Check your inbox</h1>
-                <p className="mt-3 text-sm leading-[var(--line-height-relaxed)] text-[var(--color-text-muted)]">Frontend preview: reset instructions will be available for <span className="font-semibold text-[var(--color-text)]">{submittedEmail}</span> after password-reset delivery is connected.</p>
+                <p className="mt-3 text-sm leading-[var(--line-height-relaxed)] text-[var(--color-text-muted)]">
+                  If an account exists for{" "}
+                  <span className="font-semibold text-[var(--color-text)]">
+                    {submittedEmail}
+                  </span>
+                  , password reset instructions have been sent to your email.
+                </p>
                 <Link to="/login" className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-[var(--color-brand-hover)] transition hover:text-[var(--color-brand)] hover:underline"><FiArrowLeft size={16} aria-hidden="true" /> Back to sign in</Link>
               </div>
             ) : (
