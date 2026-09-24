@@ -10,6 +10,7 @@ import Profile from "../pages/profile/Profile";
 import ChangePassword from "../pages/profile/ChangePassword";
 import Tasks from "../pages/tasks/Tasks";
 import Calendar from "../pages/calendar/Calendar";
+import Kanban from "../pages/kanban/Kanban";
 function AppRoutes() {
   return (
     <BrowserRouter>
@@ -25,6 +26,7 @@ function AppRoutes() {
         <Route path="/profile/change-password" element={<ChangePassword />} />
         <Route path="/tasks" element={<Tasks />} />
         <Route path="/calendar" element={<Calendar />} />
+        <Route path="/kanban" element={<Kanban />} />
       </Routes>
     </BrowserRouter>
   );
