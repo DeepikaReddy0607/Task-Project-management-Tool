@@ -782,6 +782,7 @@ function Dashboard() {
               <Button
                 variant="secondary"
                 className="mt-6 w-full"
+                onClick={() => navigate("/calendar")}
               >
                 <FiArrowUpRight
                   size={16}

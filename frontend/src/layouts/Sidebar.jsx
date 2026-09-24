@@ -9,7 +9,7 @@ const primaryNavigation = [
   { label: "Workspaces", icon: FiLayers, path: "/workspaces" },
   { label: "My Tasks", icon: FiCheckSquare, path: "/tasks" },
   { label: "Projects", icon: FiFolder, path: "/projects" },
-  { label: "Calendar", icon: FiCalendar },
+  { label: "Calendar", icon: FiCalendar, path: "/calendar" },
 ];
 
 const secondaryNavigation = [
