@@ -14,6 +14,7 @@ import {
 } from "react-icons/fi";
 
 import Quackie from "../../components/brand/Quackie";
+import SubtaskSection from "../../components/tasks/SubtaskSection";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
@@ -2200,6 +2201,8 @@ function Tasks() {
                 )}
               </select>
             </div>
+
+            <SubtaskSection taskId={selectedTask.id} assignees={projectMembers(selectedTask.projectId)} formatDate={formatDate} statusClasses={statusClasses} statuses={taskStatuses} />
           </Dialog>
         )}
 
