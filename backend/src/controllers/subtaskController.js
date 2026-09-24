@@ -1,38 +1,33 @@
 import {
-    createTask,
-    getProjectTasks,
-    getTask,
-    updateTask,
-    assignTask,
-    archiveTask,
-    getMyTasks,
-    updateTaskStatus
-} from "../services/taskService.js";
+    createSubtask,
+    getTaskSubtasks,
+    getSubtask,
+    updateSubtask,
+    updateSubtaskStatus,
+    deleteSubtask
+} from "../services/subtaskService.js";
 
 
 const create = async (req, res, next) => {
     try {
 
         const {
-            projectId
+            taskId
         } = req.params;
 
         const {
             title,
             description,
-            priority,
             status,
-            startDate,
             dueDate,
-            estimatedHours,
             assignedTo
         } = req.body;
 
 
-        // Validate project ID
-        if (!projectId) {
+        // Validate task ID
+        if (!taskId) {
             return res.status(400).json({
-                message: "Project ID is required"
+                message: "Task ID is required"
             });
         }
 
@@ -40,33 +35,30 @@ const create = async (req, res, next) => {
         // Validate title
         if (!title || !title.trim()) {
             return res.status(400).json({
-                message: "Task title is required"
+                message: "Subtask title is required"
             });
         }
 
 
-        const task = await createTask(
-            projectId,
+        const subtask = await createSubtask(
+            taskId,
             req.user.userId,
             title.trim(),
             description,
-            priority,
             status,
-            startDate,
             dueDate,
-            estimatedHours,
             assignedTo
         );
 
 
         return res.status(201).json({
-            message: "Task created successfully",
-            task
+            message: "Subtask created successfully",
+            subtask
         });
 
     } catch (error) {
 
-        if (error.message === "Project not found") {
+        if (error.message === "Task not found") {
             return res.status(404).json({
                 message: error.message
             });
@@ -74,12 +66,6 @@ const create = async (req, res, next) => {
 
         if (error.message === "Workspace access denied") {
             return res.status(403).json({
-                message: error.message
-            });
-        }
-
-        if (error.message === "Invalid task status") {
-            return res.status(400).json({
                 message: error.message
             });
         }
@@ -101,28 +87,28 @@ const getAll = async (req, res, next) => {
     try {
 
         const {
-            projectId
+            taskId
         } = req.params;
 
-        if (!projectId) {
+        if (!taskId) {
             return res.status(400).json({
-                message: "Project ID is required"
+                message: "Task ID is required"
             });
         }
 
-        const tasks = await getProjectTasks(
-            projectId,
+        const subtasks = await getTaskSubtasks(
+            taskId,
             req.user.userId
         );
 
         return res.status(200).json({
-            message: "Tasks retrieved successfully",
-            tasks
+            message: "Subtasks retrieved successfully",
+            subtasks
         });
 
     } catch (error) {
 
-        if (error.message === "Project not found") {
+        if (error.message === "Task not found") {
             return res.status(404).json({
                 message: error.message
             });
@@ -147,23 +133,23 @@ const getOne = async (req, res, next) => {
 
         if (!id) {
             return res.status(400).json({
-                message: "Task ID is required"
+                message: "Subtask ID is required"
             });
         }
 
-        const task = await getTask(
+        const subtask = await getSubtask(
             id,
             req.user.userId
         );
 
         return res.status(200).json({
-            message: "Task retrieved successfully",
-            task
+            message: "Subtask retrieved successfully",
+            subtask
         });
 
     } catch (error) {
 
-        if (error.message === "Task not found") {
+        if (error.message === "Subtask not found") {
             return res.status(404).json({
                 message: error.message
             });
@@ -188,92 +174,33 @@ const update = async (req, res, next) => {
 
         if (!id) {
             return res.status(400).json({
-                message: "Task ID is required"
+                message: "Subtask ID is required"
             });
         }
 
-        // Validate title if provided
         if (
             req.body.title !== undefined &&
             (!req.body.title || !req.body.title.trim())
         ) {
             return res.status(400).json({
-                message: "Task title cannot be empty"
+                message: "Subtask title cannot be empty"
             });
         }
 
-        const task = await updateTask(
+        const subtask = await updateSubtask(
             id,
             req.user.userId,
             req.body
         );
 
         return res.status(200).json({
-            message: "Task updated successfully",
-            task
+            message: "Subtask updated successfully",
+            subtask
         });
 
     } catch (error) {
 
-        if (error.message === "Task not found") {
-            return res.status(404).json({
-                message: error.message
-            });
-        }
-
-        if (error.message === "Workspace access denied") {
-            return res.status(403).json({
-                message: error.message
-            });
-        }
-
-        next(error);
-    }
-};
-
-const assign = async (req, res, next) => {
-    try {
-
-        const {
-            id
-        } = req.params;
-
-        const {
-            assignedTo
-        } = req.body;
-
-        if (!id) {
-            return res.status(400).json({
-                message: "Task ID is required"
-            });
-        }
-
-        if (!assignedTo) {
-            return res.status(400).json({
-                message: "Assigned user ID is required"
-            });
-        }
-
-        const task = await assignTask(
-            id,
-            req.user.userId,
-            assignedTo
-        );
-
-        return res.status(200).json({
-            message: "Task assigned successfully",
-            task
-        });
-
-    } catch (error) {
-
-        if (error.message === "Task not found") {
-            return res.status(404).json({
-                message: error.message
-            });
-        }
-
-        if (error.message === "User not found") {
+        if (error.message === "Subtask not found") {
             return res.status(404).json({
                 message: error.message
             });
@@ -298,70 +225,6 @@ const assign = async (req, res, next) => {
     }
 };
 
-const archive = async (req, res, next) => {
-    try {
-
-        const {
-            id
-        } = req.params;
-
-        if (!id) {
-            return res.status(400).json({
-                message: "Task ID is required"
-            });
-        }
-
-        const task = await archiveTask(
-            id,
-            req.user.userId
-        );
-
-        return res.status(200).json({
-            message: "Task archived successfully",
-            task
-        });
-
-    } catch (error) {
-
-        if (error.message === "Task not found") {
-            return res.status(404).json({
-                message: error.message
-            });
-        }
-
-        if (error.message === "Workspace access denied") {
-            return res.status(403).json({
-                message: error.message
-            });
-        }
-
-        if (error.message === "Task is already archived") {
-            return res.status(400).json({
-                message: error.message
-            });
-        }
-
-        next(error);
-    }
-};
-
-const getMine = async (req, res, next) => {
-    try {
-
-        const tasks = await getMyTasks(
-            req.user.userId
-        );
-
-        return res.status(200).json({
-            message: "My tasks retrieved successfully",
-            tasks
-        });
-
-    } catch (error) {
-        next(error);
-    }
-};
-
 const updateStatus = async (req, res, next) => {
     try {
 
@@ -375,30 +238,30 @@ const updateStatus = async (req, res, next) => {
 
         if (!id) {
             return res.status(400).json({
-                message: "Task ID is required"
+                message: "Subtask ID is required"
             });
         }
 
         if (!status || !status.trim()) {
             return res.status(400).json({
-                message: "Task status is required"
+                message: "Subtask status is required"
             });
         }
 
-        const task = await updateTaskStatus(
+        const subtask = await updateSubtaskStatus(
             id,
             req.user.userId,
             status.trim()
         );
 
         return res.status(200).json({
-            message: "Task status updated successfully",
-            task
+            message: "Subtask status updated successfully",
+            subtask
         });
 
     } catch (error) {
 
-        if (error.message === "Task not found") {
+        if (error.message === "Subtask not found") {
             return res.status(404).json({
                 message: error.message
             });
@@ -410,8 +273,42 @@ const updateStatus = async (req, res, next) => {
             });
         }
 
-        if (error.message === "Invalid task status") {
+        next(error);
+    }
+};
+
+const remove = async (req, res, next) => {
+    try {
+
+        const {
+            id
+        } = req.params;
+
+        if (!id) {
             return res.status(400).json({
+                message: "Subtask ID is required"
+            });
+        }
+
+        await deleteSubtask(
+            id,
+            req.user.userId
+        );
+
+        return res.status(200).json({
+            message: "Subtask deleted successfully"
+        });
+
+    } catch (error) {
+
+        if (error.message === "Subtask not found") {
+            return res.status(404).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Workspace access denied") {
+            return res.status(403).json({
                 message: error.message
             });
         }
@@ -425,8 +322,6 @@ export {
     getAll,
     getOne,
     update,
-    assign,
-    archive,
-    getMine,
-    updateStatus
+    updateStatus,
+    remove
 };
