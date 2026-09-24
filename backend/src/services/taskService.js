@@ -82,6 +82,11 @@ const createTask = async (
         }
     }
 
+    // Validate task status
+    if (status && !VALID_TASK_STATUSES.includes(status)) {
+        throw new Error("Invalid task status");
+    }
+
     const task = await prisma.tasks.create({
         data: {
             project_id: projectId,

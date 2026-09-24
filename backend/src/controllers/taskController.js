@@ -78,6 +78,12 @@ const create = async (req, res, next) => {
             });
         }
 
+        if (error.message === "Invalid task status") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
         if (
             error.message ===
             "Assigned user is not a member of the project"
