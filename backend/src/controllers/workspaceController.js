@@ -9,6 +9,7 @@ import {
     updateWorkspace,
     deleteWorkspace
 } from "../services/workspaceService.js";
+import { emitRealtimeEvent } from "../socket.js";
 
 const create = async (req, res, next) => {
     try {
@@ -141,6 +142,13 @@ const addMember = async (req, res, next) => {
             workspaceRole
         );
 
+        emitRealtimeEvent({
+            type: "workspace.member_added",
+            workspaceId: id,
+            userId,
+            data: membership
+        });
+
         return res.status(201).json({
             message: "Workspace member added successfully",
             membership
@@ -245,6 +253,13 @@ const removeMember = async (req, res, next) => {
             userId
         );
 
+        emitRealtimeEvent({
+            type: "workspace.member_removed",
+            workspaceId: id,
+            userId,
+            data: { workspaceId: id, userId }
+        });
+
         return res.status(200).json({
             message: "Workspace member removed successfully",
             result
@@ -324,6 +339,14 @@ const updateMemberRole = async (req, res, next) => {
             userId,
             workspaceRole
         );
+
+        emitRealtimeEvent({
+            type: "workspace.member_role_changed",
+            workspaceId: id,
+            userId,
+            changes: { workspaceRole },
+            data: updatedMember
+        });
 
         return res.status(200).json({
             message: "Workspace member role updated successfully",

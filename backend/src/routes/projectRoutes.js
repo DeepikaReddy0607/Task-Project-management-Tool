@@ -11,7 +11,10 @@ import {
     addMember,
     getMembers,
     updateMemberRole,
-    removeMember
+    removeMember,
+    getRisk,
+    getXRay,
+    simulateProjectWhatIf
 } from "../controllers/projectController.js";
 
 const router = express.Router();
@@ -28,6 +31,27 @@ router.get(
     "/workspaces/:workspaceId/projects",
     authMiddleware,
     getAll
+);
+
+// Get project predictive risk analysis
+router.get(
+    "/projects/:id/risk",
+    authMiddleware,
+    getRisk
+);
+
+// Get project X-Ray diagnostic
+router.get(
+    "/projects/:id/xray",
+    authMiddleware,
+    getXRay
+);
+
+// Simulate What-If predictive scenario (READ-ONLY)
+router.post(
+    "/projects/:id/simulate",
+    authMiddleware,
+    simulateProjectWhatIf
 );
 
 // Get a single project
