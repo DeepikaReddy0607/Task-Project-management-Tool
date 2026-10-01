@@ -13,6 +13,7 @@ import calendarRoutes from "./routes/calendarRoutes.js";
 import commentRoutes from "./routes/commentRoutes.js";
 import quackieRoutes from "./routes/quackieRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import commentRoutes from "./routes/commentRoutes.js";
 
 const app = express();
 
@@ -40,4 +41,5 @@ app.use("/api", commentRoutes);
 
 app.use("/api/quackie", quackieRoutes);
 app.use("/api", notificationRoutes);
+app.use("/api", commentRoutes);
 export default app;

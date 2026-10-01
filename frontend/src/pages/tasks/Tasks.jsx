@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   FiAlertCircle,
   FiArchive,
@@ -36,6 +36,12 @@ import {
   getProjects,
   getProjectMembers,
 } from "../../services/api/projectApi";
+import {
+  getComments,
+  createComment,
+  updateComment,
+  deleteComment,
+} from "../../services/api/commentApi";
 import { useAssistantContext } from "../../context/AssistantContext";
 import { useSocketEvent } from "../../context/SocketContext";
 
@@ -308,8 +314,148 @@ function Tasks() {
   const [notice, setNotice] = useState("");
 
   const [commentsByTask, setCommentsByTask] = useState({});
+  const [loadingCommentsByTask, setLoadingCommentsByTask] = useState({});
+  const [commentsErrorByTask, setCommentsErrorByTask] = useState({});
 
   const [dateReference] = useState(() => new Date());
+
+  const currentUserId = useMemo(() => {
+    try {
+      const rawUser = localStorage.getItem("taskflow_user");
+      if (rawUser) {
+        const parsed = JSON.parse(rawUser);
+        if (parsed?.id) return parsed.id;
+      }
+    } catch {
+      // fallback
+    }
+    try {
+      const token = localStorage.getItem("taskflow_token");
+      if (token) {
+        const parts = token.split(".");
+        if (parts.length === 3) {
+          const payload = JSON.parse(
+            atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"))
+          );
+          return payload.userId || payload.id || null;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }, []);
+
+  const normalizeComment = useCallback(
+    (comment) => {
+      if (!comment) return null;
+
+      const users = comment.users || comment.user || null;
+      const authorFirst = users?.first_name || users?.firstName || "";
+      const authorLast = users?.last_name || users?.lastName || "";
+      const authorName = (authorFirst || authorLast)
+        ? `${authorFirst} ${authorLast}`.trim()
+        : users?.email || comment.authorName || "Team Member";
+
+      const firstInitial = authorFirst ? authorFirst[0].toUpperCase() : "";
+      const lastInitial = authorLast ? authorLast[0].toUpperCase() : "";
+      const authorInitials =
+        (firstInitial + lastInitial) ||
+        (authorName ? authorName[0].toUpperCase() : "?");
+
+      const createdAt =
+        comment.created_at || comment.createdAt || new Date().toISOString();
+      const updatedAt = comment.updated_at || comment.updatedAt || null;
+
+      const isEdited = Boolean(
+        updatedAt &&
+        createdAt &&
+        Math.abs(new Date(updatedAt).getTime() - new Date(createdAt).getTime()) > 1000
+      );
+
+      const userId = comment.user_id || comment.userId || users?.id;
+      const isOwn = Boolean(currentUserId && userId && currentUserId === userId);
+
+      return {
+        id: comment.id,
+        taskId: comment.task_id || comment.taskId,
+        userId,
+        content: comment.content || "",
+        authorName,
+        authorInitials,
+        createdAt,
+        updatedAt,
+        isEdited,
+        isOwn,
+        rawUser: users,
+      };
+    },
+    [currentUserId]
+  );
+
+  const loadTaskComments = useCallback(
+    async (taskId) => {
+      if (!taskId) return;
+      setLoadingCommentsByTask((prev) => ({ ...prev, [taskId]: true }));
+      setCommentsErrorByTask((prev) => ({ ...prev, [taskId]: "" }));
+
+      try {
+        const response = await getComments(taskId);
+        const rawComments = response.comments || [];
+        const normalized = rawComments.map(normalizeComment);
+        setCommentsByTask((prev) => ({
+          ...prev,
+          [taskId]: normalized,
+        }));
+      } catch (err) {
+        console.error("Failed to load task comments:", err);
+        setCommentsErrorByTask((prev) => ({
+          ...prev,
+          [taskId]:
+            err.response?.data?.message || "Failed to load comments.",
+        }));
+      } finally {
+        setLoadingCommentsByTask((prev) => ({ ...prev, [taskId]: false }));
+      }
+    },
+    [normalizeComment]
+  );
+
+  useEffect(() => {
+    if (selectedTaskId && !dialog) {
+      loadTaskComments(selectedTaskId);
+    }
+  }, [selectedTaskId, dialog, loadTaskComments]);
+
+  const addComment = async (taskId, content) => {
+    const response = await createComment(taskId, content);
+    const persisted = normalizeComment(response.comment);
+    setCommentsByTask((prev) => ({
+      ...prev,
+      [taskId]: [...(prev[taskId] || []), persisted],
+    }));
+    return persisted;
+  };
+
+  const handleUpdateComment = async (taskId, commentId, content) => {
+    const response = await updateComment(commentId, content);
+    const updated = normalizeComment(response.comment);
+    setCommentsByTask((prev) => ({
+      ...prev,
+      [taskId]: (prev[taskId] || []).map((c) =>
+        c.id === commentId ? updated : c
+      ),
+    }));
+    return updated;
+  };
+
+  const handleDeleteComment = async (taskId, commentId) => {
+    await deleteComment(commentId);
+    setCommentsByTask((prev) => ({
+      ...prev,
+      [taskId]: (prev[taskId] || []).filter((c) => c.id !== commentId),
+    }));
+  };
 
   /* ==========================================================
      DERIVED DATA
@@ -2232,6 +2378,17 @@ function Tasks() {
               statuses={
                 taskStatuses
               }
+            />
+
+            <CommentSection
+              key={selectedTask.id}
+              taskId={selectedTask.id}
+              comments={commentsByTask[selectedTask.id] || []}
+              loading={Boolean(loadingCommentsByTask[selectedTask.id])}
+              error={commentsErrorByTask[selectedTask.id] || ""}
+              onAddComment={addComment}
+              onUpdateComment={handleUpdateComment}
+              onDeleteComment={handleDeleteComment}
             />
           </Dialog>
         )}
