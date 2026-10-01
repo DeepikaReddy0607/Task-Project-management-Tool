@@ -14,6 +14,7 @@ import {
 } from "react-icons/fi";
 
 import Quackie from "../../components/brand/Quackie";
+import CommentSection from "../../components/tasks/CommentSection";
 import SubtaskSection from "../../components/tasks/SubtaskSection";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -305,6 +306,8 @@ function Tasks() {
   const [formError, setFormError] = useState("");
 
   const [notice, setNotice] = useState("");
+
+  const [commentsByTask, setCommentsByTask] = useState({});
 
   const [dateReference] = useState(() => new Date());
 
