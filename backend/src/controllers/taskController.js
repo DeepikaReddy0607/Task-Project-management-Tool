@@ -8,6 +8,8 @@ import {
     getMyTasks,
     updateTaskStatus
 } from "../services/taskService.js";
+import { prioritizeTasks } from "../services/taskPriorityService.js";
+import { emitRealtimeEvent } from "../socket.js";
 
 
 const create = async (req, res, next) => {
@@ -58,6 +60,13 @@ const create = async (req, res, next) => {
             assignedTo
         );
 
+        emitRealtimeEvent({
+            type: "task.created",
+            projectId: task.project_id || projectId,
+            taskId: task.id,
+            userId: task.assigned_to || req.user.userId,
+            data: task
+        });
 
         return res.status(201).json({
             message: "Task created successfully",
@@ -208,6 +217,15 @@ const update = async (req, res, next) => {
             req.body
         );
 
+        emitRealtimeEvent({
+            type: "task.updated",
+            projectId: task.project_id,
+            taskId: task.id,
+            userId: task.assigned_to || req.user.userId,
+            changes: req.body,
+            data: task
+        });
+
         return res.status(200).json({
             message: "Task updated successfully",
             task
@@ -259,6 +277,15 @@ const assign = async (req, res, next) => {
             req.user.userId,
             assignedTo
         );
+
+        emitRealtimeEvent({
+            type: "task.assigned",
+            projectId: task.project_id,
+            taskId: task.id,
+            userId: assignedTo,
+            changes: { assignedTo },
+            data: task
+        });
 
         return res.status(200).json({
             message: "Task assigned successfully",
@@ -315,6 +342,14 @@ const archive = async (req, res, next) => {
             id,
             req.user.userId
         );
+
+        emitRealtimeEvent({
+            type: "task.archived",
+            projectId: task.project_id,
+            taskId: task.id,
+            userId: req.user.userId,
+            data: task
+        });
 
         return res.status(200).json({
             message: "Task archived successfully",
@@ -391,6 +426,15 @@ const updateStatus = async (req, res, next) => {
             status.trim()
         );
 
+        emitRealtimeEvent({
+            type: "task.status_changed",
+            projectId: task.project_id,
+            taskId: task.id,
+            userId: task.assigned_to,
+            changes: { status: status.trim() },
+            data: task
+        });
+
         return res.status(200).json({
             message: "Task status updated successfully",
             task
@@ -420,6 +464,31 @@ const updateStatus = async (req, res, next) => {
     }
 };
 
+const getPrioritized = async (req, res, next) => {
+    try {
+        const userId = req.user.userId;
+        const { projectId, limit, context, taskId } = req.query;
+
+        const result = await prioritizeTasks({
+            userId,
+            projectId: projectId || null,
+            taskId: taskId || null,
+            context: context || "my-tasks",
+            limit: limit ? parseInt(limit, 10) : null
+        });
+
+        return res.status(200).json(result);
+    } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                success: false,
+                message: error.message
+            });
+        }
+        next(error);
+    }
+};
+
 export {
     create,
     getAll,
@@ -428,5 +497,6 @@ export {
     assign,
     archive,
     getMine,
-    updateStatus
+    updateStatus,
+    getPrioritized
 };

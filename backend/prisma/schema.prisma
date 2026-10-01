@@ -91,31 +91,29 @@ model labels {
 }
 
 model notifications {
-  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id             String   @db.Uuid
-  type                String   @db.VarChar(30)
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id             String    @db.Uuid
+  type                String    @db.VarChar(50)
   message             String
-  related_entity_type String?  @db.VarChar(30)
-  related_entity_id   String?  @db.Uuid
-  is_read             Boolean  @default(false)
-  created_at          DateTime @default(now()) @db.Timestamptz(6)
-  users               users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_notifications_user")
+  related_entity_type String?   @db.VarChar(30)
+  related_entity_id   String?   @db.Uuid
+  is_read             Boolean   @default(false)
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  severity            String?   @default("INFO") @db.VarChar(20)
+  title               String?   @db.VarChar(200)
+  project_id          String?   @db.Uuid
+  task_id             String?   @db.Uuid
+  dedupe_key          String?   @db.VarChar(255)
+  users               users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_notifications_user")
+  projects            projects? @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_notifications_project")
+  tasks               tasks?    @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_notifications_task")
 
+  @@unique([user_id, dedupe_key], map: "idx_notifications_dedupe_unique")
   @@index([created_at], map: "idx_notifications_created_at")
   @@index([user_id, is_read], map: "idx_notifications_unread")
   @@index([user_id], map: "idx_notifications_user_id")
-}
-
-model password_reset_tokens {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id    String   @db.Uuid
-  token      String   @unique @db.VarChar(255)
-  expires_at DateTime @db.Timestamptz(6)
-  created_at DateTime @default(now()) @db.Timestamptz(6)
-  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_password_reset_tokens_user")
-
-  @@index([expires_at], map: "idx_password_reset_tokens_expires_at")
-  @@index([user_id], map: "idx_password_reset_tokens_user_id")
+  @@index([project_id], map: "idx_notifications_project_id")
+  @@index([task_id], map: "idx_notifications_task_id")
 }
 
 model project_members {
@@ -148,6 +146,7 @@ model projects {
   updated_at      DateTime          @default(now()) @db.Timestamptz(6)
   attachments     attachments[]
   decisions       decisions[]
+  notifications   notifications[]
   project_members project_members[]
   users           users             @relation(fields: [manager_id], references: [id], onUpdate: NoAction, map: "fk_projects_manager")
   workspaces      workspaces        @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_projects_workspace")
@@ -190,15 +189,11 @@ model subtasks {
   description String?
   status      String    @default("To Do") @db.VarChar(20)
   due_date    DateTime? @db.Date
-  assigned_to String?   @db.Uuid
   created_at  DateTime  @default(now()) @db.Timestamptz(6)
-
-  tasks tasks  @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_subtasks_task")
-  users users? @relation(fields: [assigned_to], references: [id], onUpdate: NoAction, map: "fk_subtasks_assigned_to")
+  tasks       tasks     @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_subtasks_task")
 
   @@index([due_date], map: "idx_subtasks_due_date")
   @@index([task_id], map: "idx_subtasks_task_id")
-  @@index([assigned_to], map: "idx_subtasks_assigned_to")
 }
 
 model task_dependencies {
@@ -240,6 +235,7 @@ model tasks {
   updated_at                                                    DateTime            @default(now()) @db.Timestamptz(6)
   attachments                                                   attachments[]
   comments                                                      comments[]
+  notifications                                                 notifications[]
   subtasks                                                      subtasks[]
   task_dependencies_task_dependencies_depends_on_task_idTotasks task_dependencies[] @relation("task_dependencies_depends_on_task_idTotasks")
   task_dependencies_task_dependencies_task_idTotasks            task_dependencies[] @relation("task_dependencies_task_idTotasks")
@@ -257,30 +253,28 @@ model tasks {
 }
 
 model users {
-  id                             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  role_id                        String                  @db.Uuid
-  first_name                     String                  @db.VarChar(50)
-  last_name                      String                  @db.VarChar(50)
-  email                          String                  @unique @db.VarChar(255)
+  id                             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  role_id                        String              @db.Uuid
+  first_name                     String              @db.VarChar(50)
+  last_name                      String              @db.VarChar(50)
+  email                          String              @unique @db.VarChar(255)
   password_hash                  String
-  phone                          String?                 @db.VarChar(15)
+  phone                          String?             @db.VarChar(15)
   profile_picture                String?
-  is_active                      Boolean                 @default(true)
-  created_at                     DateTime                @default(now()) @db.Timestamptz(6)
-  updated_at                     DateTime                @default(now()) @db.Timestamptz(6)
+  is_active                      Boolean             @default(true)
+  created_at                     DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at                     DateTime            @default(now()) @db.Timestamptz(6)
   activity_logs                  activity_logs[]
   attachments                    attachments[]
   comments                       comments[]
   decisions                      decisions[]
   notifications                  notifications[]
-  password_reset_tokens          password_reset_tokens[]
   project_members                project_members[]
   projects                       projects[]
   risks                          risks[]
-  tasks_tasks_assigned_toTousers tasks[]                 @relation("tasks_assigned_toTousers")
-  tasks_tasks_created_byTousers  tasks[]                 @relation("tasks_created_byTousers")
-  subtasks_assigned_to           subtasks[]
-  roles                          roles                   @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_users_role")
+  tasks_tasks_assigned_toTousers tasks[]             @relation("tasks_assigned_toTousers")
+  tasks_tasks_created_byTousers  tasks[]             @relation("tasks_created_byTousers")
+  roles                          roles               @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_users_role")
   workspace_members              workspace_members[]
   workspaces                     workspaces[]
 

@@ -10,7 +10,8 @@ import {
     assign,
     archive,
     getMine,
-    updateStatus
+    updateStatus,
+    getPrioritized
 } from "../controllers/taskController.js";
 
 
@@ -36,6 +37,13 @@ router.get(
     "/tasks/my-tasks",
     authMiddleware,
     getMine
+);
+
+// Get prioritized tasks (Smart Task Prioritization)
+router.get(
+    "/tasks/prioritized",
+    authMiddleware,
+    getPrioritized
 );
 
 // Get a single task

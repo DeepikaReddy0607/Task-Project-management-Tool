@@ -62,23 +62,25 @@ const createTask = async (
     }
 
     // If assigning task to someone, verify that user
-    // is a member of the project
+    // is a member of the project or manager of the project
     if (assignedTo) {
-
-        const assignedMember =
-            await prisma.project_members.findUnique({
-                where: {
-                    project_id_user_id: {
-                        project_id: projectId,
-                        user_id: assignedTo
+        const isManager = project.manager_id === assignedTo;
+        if (!isManager) {
+            const assignedMember =
+                await prisma.project_members.findUnique({
+                    where: {
+                        project_id_user_id: {
+                            project_id: projectId,
+                            user_id: assignedTo
+                        }
                     }
-                }
-            });
+                });
 
-        if (!assignedMember) {
-            throw new Error(
-                "Assigned user is not a member of the project"
-            );
+            if (!assignedMember) {
+                throw new Error(
+                    "Assigned user is not a member of the project"
+                );
+            }
         }
     }
 
@@ -667,6 +669,59 @@ const updateTaskStatus = async (
     return updatedTask;
 };
 
+// Canonical Date Helper: Start of today in UTC (matching YYYY-MM-DD date storage in DB and frontend)
+const getStartOfTodayUtc = (refDate = new Date()) => {
+    const todayIso = refDate.toISOString().slice(0, 10);
+    return new Date(`${todayIso}T00:00:00.000Z`);
+};
+
+// Canonical Overdue Filter:
+// - not completed
+// - not archived
+// - due_date < startOfTodayUtc
+const getOverdueFilter = (refDate = new Date()) => {
+    const startOfToday = getStartOfTodayUtc(refDate);
+    return {
+        is_archived: false,
+        status: { not: "Completed" },
+        due_date: {
+            not: null,
+            lt: startOfToday
+        }
+    };
+};
+
+const getUserOverdueCount = async (userId, projectId = null) => {
+    const where = getOverdueFilter();
+    if (projectId) {
+        where.project_id = projectId;
+    } else if (userId) {
+        where.assigned_to = userId;
+    }
+    return prisma.tasks.count({ where });
+};
+
+const getUserOverdueTasks = async (userId, projectId = null) => {
+    const where = getOverdueFilter();
+    if (projectId) {
+        where.project_id = projectId;
+    } else if (userId) {
+        where.assigned_to = userId;
+    }
+    return prisma.tasks.findMany({
+        where,
+        orderBy: { due_date: "asc" },
+        include: {
+            projects: {
+                select: {
+                    id: true,
+                    title: true
+                }
+            }
+        }
+    });
+};
+
 export {
     createTask,
     getProjectTasks,
@@ -675,5 +730,9 @@ export {
     assignTask,
     archiveTask,
     getMyTasks,
-    updateTaskStatus
+    updateTaskStatus,
+    getStartOfTodayUtc,
+    getOverdueFilter,
+    getUserOverdueCount,
+    getUserOverdueTasks
 };
