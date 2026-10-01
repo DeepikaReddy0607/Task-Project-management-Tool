@@ -14,6 +14,7 @@ import {
 } from "react-icons/fi";
 
 import Quackie from "../../components/brand/Quackie";
+import CommentSection from "../../components/tasks/CommentSection";
 import SubtaskSection from "../../components/tasks/SubtaskSection";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -302,6 +303,8 @@ function Tasks() {
 
   const [notice, setNotice] = useState("");
 
+  const [commentsByTask, setCommentsByTask] = useState({});
+
   const [dateReference] = useState(() => new Date());
 
   /* ==========================================================
@@ -473,6 +476,45 @@ function Tasks() {
     setForm((current) => ({
       ...current,
       [field]: value,
+    }));
+  };
+
+  const addComment = (taskId, content) => {
+    const createdAt = new Date().toISOString();
+
+    setCommentsByTask((current) => ({
+      ...current,
+      [taskId]: [
+        ...(current[taskId] || []),
+        {
+          id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          taskId,
+          authorName: "You",
+          authorInitials: "YU",
+          content,
+          createdAt,
+          updatedAt: null,
+          isOwn: true,
+        },
+      ],
+    }));
+  };
+
+  const updateComment = (taskId, commentId, content) => {
+    setCommentsByTask((current) => ({
+      ...current,
+      [taskId]: (current[taskId] || []).map((comment) => (
+        comment.id === commentId
+          ? { ...comment, content, updatedAt: new Date().toISOString() }
+          : comment
+      )),
+    }));
+  };
+
+  const deleteComment = (taskId, commentId) => {
+    setCommentsByTask((current) => ({
+      ...current,
+      [taskId]: (current[taskId] || []).filter((comment) => comment.id !== commentId),
     }));
   };
 
@@ -2203,6 +2245,15 @@ function Tasks() {
             </div>
 
             <SubtaskSection taskId={selectedTask.id} assignees={projectMembers(selectedTask.projectId)} formatDate={formatDate} statusClasses={statusClasses} statuses={taskStatuses} />
+
+            <CommentSection
+              key={selectedTask.id}
+              taskId={selectedTask.id}
+              comments={commentsByTask[selectedTask.id] || []}
+              onAddComment={addComment}
+              onUpdateComment={updateComment}
+              onDeleteComment={deleteComment}
+            />
           </Dialog>
         )}
 
