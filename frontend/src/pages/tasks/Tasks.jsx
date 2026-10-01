@@ -36,6 +36,8 @@ import {
   getProjects,
   getProjectMembers,
 } from "../../services/api/projectApi";
+import { useAssistantContext } from "../../context/AssistantContext";
+import { useSocketEvent } from "../../context/SocketContext";
 
 /* ============================================================
    CONSTANTS
@@ -238,7 +240,7 @@ const normalizeTask = (task) => ({
 
   description: task.description || "",
 
-  projectId: task.project_id,
+  projectId: task.project_id || task.projectId,
 
   priority: task.priority || "Medium",
 
@@ -246,19 +248,19 @@ const normalizeTask = (task) => ({
 
   startDate: task.start_date
     ? task.start_date.slice(0, 10)
-    : "",
+    : (task.startDate || ""),
 
   dueDate: task.due_date
     ? task.due_date.slice(0, 10)
-    : "",
+    : (task.dueDate || ""),
 
-  estimatedHours: task.estimated_hours ?? 0,
+  estimatedHours: task.estimated_hours ?? task.estimatedHours ?? 0,
 
-  assignedTo: task.assigned_to || "",
+  assignedTo: task.assigned_to || task.assignedTo || "",
 
-  isArchived: task.is_archived ?? false,
+  isArchived: task.is_archived ?? task.isArchived ?? false,
 
-  createdAt: task.created_at,
+  createdAt: task.created_at || task.createdAt,
 });
 
 /* ============================================================
@@ -295,6 +297,8 @@ function Tasks() {
   const [selectedTaskId, setSelectedTaskId] =
     useState(null);
 
+  const [editingTaskId, setEditingTaskId] = useState(null);
+
   const [dialog, setDialog] = useState(null);
 
   const [form, setForm] = useState(emptyForm);
@@ -327,6 +331,28 @@ function Tasks() {
       ),
     [tasks, selectedTaskId]
   );
+
+  const { setPageContext } = useAssistantContext();
+
+  useEffect(() => {
+    if (selectedTask) {
+      setPageContext({
+        page: "tasks",
+        taskId: selectedTask.id,
+        taskTitle: selectedTask.title,
+        projectId: selectedTask.projectId || null,
+        projectTitle: selectedTask.projectTitle || null,
+      });
+    } else {
+      setPageContext({
+        page: "tasks",
+        taskId: null,
+        taskTitle: null,
+        projectId: null,
+        projectTitle: null,
+      });
+    }
+  }, [selectedTaskId, selectedTask?.title, setPageContext]);
 
   /* ==========================================================
      HELPERS
@@ -467,6 +493,7 @@ function Tasks() {
   const closeDialog = () => {
     setDialog(null);
     setFormError("");
+    setEditingTaskId(null);
   };
 
   const setField = (
@@ -479,102 +506,47 @@ function Tasks() {
     }));
   };
 
-  const addComment = (taskId, content) => {
-    const createdAt = new Date().toISOString();
+  const openForm = (mode, taskToEdit = selectedTask) => {
+    const task = mode === "edit" ? (taskToEdit || selectedTask) : null;
 
-    setCommentsByTask((current) => ({
-      ...current,
-      [taskId]: [
-        ...(current[taskId] || []),
-        {
-          id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          taskId,
-          authorName: "You",
-          authorInitials: "YU",
-          content,
-          createdAt,
-          updatedAt: null,
-          isOwn: true,
-        },
-      ],
-    }));
-  };
+    if (mode === "edit") {
+      if (!task?.id) {
+        setFormError("No task selected for editing.");
+        return;
+      }
 
-  const updateComment = (taskId, commentId, content) => {
-    setCommentsByTask((current) => ({
-      ...current,
-      [taskId]: (current[taskId] || []).map((comment) => (
-        comment.id === commentId
-          ? { ...comment, content, updatedAt: new Date().toISOString() }
-          : comment
-      )),
-    }));
-  };
+      // Store the exact task being edited
+      setEditingTaskId(task.id);
+      setSelectedTaskId(task.id);
 
-  const deleteComment = (taskId, commentId) => {
-    setCommentsByTask((current) => ({
-      ...current,
-      [taskId]: (current[taskId] || []).filter((comment) => comment.id !== commentId),
-    }));
-  };
-
-  const openForm = (mode) => {
-    const task = selectedTask;
-
-    if (
-      mode === "edit" &&
-      task
-    ) {
       setForm({
         title: task.title || "",
-
-        description:
-          task.description || "",
-
-        projectId:
-          task.projectId || "",
-
-        priority:
-          task.priority || "Medium",
-
-        status:
-          task.status || "To Do",
-
-        startDate:
-          task.startDate || "",
-
-        dueDate:
-          task.dueDate || "",
-
+        description: task.description || "",
+        projectId: task.projectId || "",
+        priority: task.priority || "Medium",
+        status: task.status || "To Do",
+        startDate: task.startDate || "",
+        dueDate: task.dueDate || "",
         estimatedHours:
-          task.estimatedHours !==
-            undefined &&
-          task.estimatedHours !==
-            null
-            ? String(
-                task.estimatedHours
-              )
+          task.estimatedHours !== undefined &&
+          task.estimatedHours !== null
+            ? String(task.estimatedHours)
             : "",
-
-        assignedTo:
-          task.assignedTo || "",
+        assignedTo: task.assignedTo || "",
       });
     } else {
-      const firstProject =
-        projects[0];
+      // Creating a new task
+      setEditingTaskId(null);
+      setSelectedTaskId(null);
+
+      const firstProject = projects[0];
 
       setForm({
         ...emptyForm,
-
-        projectId:
-          firstProject?.id || "",
-
-        assignedTo:
-          firstProject
-            ? projectMembers(
-                firstProject.id
-              )[0]?.id || ""
-            : "",
+        projectId: firstProject?.id || "",
+        assignedTo: firstProject
+          ? projectMembers(firstProject.id)[0]?.id || ""
+          : "",
       });
     }
 
@@ -727,13 +699,13 @@ function Tasks() {
      LOAD TASKS
   ========================================================== */
 
-  const loadTasks = async () => {
+  const loadTasks = async (silent = false) => {
     try {
-      setIsLoading(true);
-
-      setNotice("");
-
-      setFormError("");
+      if (!silent) {
+        setIsLoading(true);
+        setNotice("");
+        setFormError("");
+      }
 
       const response =
         await getMyTasks();
@@ -747,15 +719,33 @@ function Tasks() {
         normalizedTasks
       );
     } catch (error) {
-      setFormError(
-        error.response?.data
-          ?.message ||
-          "Failed to load tasks."
-      );
+      if (!silent) {
+        setFormError(
+          error.response?.data
+            ?.message ||
+            "Failed to load tasks."
+        );
+      }
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
   };
+
+  /* ==========================================================
+     REAL-TIME EVENT SUBSCRIPTION
+  ========================================================== */
+
+  useSocketEvent("*", (event) => {
+    if (event?.type?.startsWith("task.") || event?.type?.startsWith("subtask.")) {
+      loadTasks(true);
+    }
+  });
+
+  useSocketEvent("reconnect", () => {
+    loadTasks(true);
+  });
 
   /* ==========================================================
      INITIAL LOAD
@@ -777,172 +767,151 @@ function Tasks() {
      SAVE TASK
   ========================================================== */
 
-  const saveTask = async (
-    event
-  ) => {
-    event.preventDefault();
+  const saveTask = async (event) => {
+  event.preventDefault();
 
-    if (!form.title.trim()) {
-      setFormError(
-        "Task title is required."
+  if (!form.title.trim()) {
+    setFormError("Task title is required.");
+    return;
+  }
+
+  if (!form.projectId) {
+    setFormError("Please select a project.");
+    return;
+  }
+
+  if (
+    form.estimatedHours !== "" &&
+    (
+      Number(form.estimatedHours) < 0 ||
+      Number.isNaN(Number(form.estimatedHours))
+    )
+  ) {
+    setFormError(
+      "Estimated hours must be a non-negative number."
+    );
+    return;
+  }
+
+  if (
+    form.startDate &&
+    form.dueDate &&
+    form.dueDate < form.startDate
+  ) {
+    setFormError(
+      "Due date must be on or after the start date."
+    );
+    return;
+  }
+
+  try {
+    setFormError("");
+
+    const taskData = {
+      title: form.title.trim(),
+      description: form.description.trim(),
+      priority: form.priority,
+      status: form.status,
+      startDate: form.startDate || null,
+      dueDate: form.dueDate || null,
+      estimatedHours:
+        form.estimatedHours === ""
+          ? null
+          : Number(form.estimatedHours),
+      assignedTo: form.assignedTo || null,
+    };
+
+    /* =========================
+       CREATE
+    ========================= */
+
+    if (dialog === "create") {
+      const response = await createTask(
+        form.projectId,
+        taskData
       );
+
+      const task = response.task;
+      const normalizedTask = normalizeTask(task);
+
+      setTasks((current) => [
+        normalizedTask,
+        ...current,
+      ]);
+
+      setSelectedTaskId(task.id);
+
+      setNotice(
+        "Task created successfully."
+      );
+
+      setDialog(null);
+      setForm(emptyForm);
+      setEditingTaskId(null);
+
       return;
     }
 
-    if (!form.projectId) {
-      setFormError(
-        "Please select a project."
-      );
-      return;
-    }
+    /* =========================
+       UPDATE
+    ========================= */
 
-    if (
-      form.estimatedHours !==
-        "" &&
-      (Number(
-        form.estimatedHours
-      ) < 0 ||
-        Number.isNaN(
-          Number(
-            form.estimatedHours
-          )
-        ))
-    ) {
-      setFormError(
-        "Estimated hours must be a non-negative number."
-      );
-      return;
-    }
-
-    if (
-      form.startDate &&
-      form.dueDate &&
-      form.dueDate <
-        form.startDate
-    ) {
-      setFormError(
-        "Due date must be on or after the start date."
-      );
-      return;
-    }
-
-    try {
-      setFormError("");
-
-      const taskData = {
-        title:
-          form.title.trim(),
-
-        description:
-          form.description.trim(),
-
-        priority:
-          form.priority,
-
-        status:
-          form.status,
-
-        startDate:
-          form.startDate ||
-          null,
-
-        dueDate:
-          form.dueDate ||
-          null,
-
-        estimatedHours:
-          form.estimatedHours ===
-          ""
-            ? null
-            : Number(
-                form.estimatedHours
-              ),
-
-        assignedTo:
-          form.assignedTo ||
-          null,
-      };
-
-      /* ========================================================
-         CREATE
-      ======================================================== */
-
-      if (
-        dialog === "create"
-      ) {
-        const response =
-          await createTask(
-            form.projectId,
-            taskData
-          );
-
-        const task =
-          response.task;
-
-        const normalizedTask =
-          normalizeTask(task);
-
-        setTasks(
-          (current) => [
-            normalizedTask,
-            ...current,
-          ]
+    if (dialog === "edit") {
+      if (!editingTaskId) {
+        setFormError(
+          "No task selected for editing."
         );
-
-        setSelectedTaskId(
-          task.id
-        );
-
-        setNotice(
-          "Task created successfully."
-        );
+        return;
       }
 
-      /* ========================================================
-         UPDATE
-      ======================================================== */
-
-      else {
-        const response =
-          await updateTask(
-            selectedTask.id,
-            taskData
-          );
-
-        const task =
-          response.task;
-
-        const normalizedTask =
-          normalizeTask(task);
-
-        setTasks(
-          (current) =>
-            current.map(
-              (item) =>
-                item.id ===
-                selectedTask.id
-                  ? {
-                      ...item,
-                      ...normalizedTask,
-                    }
-                  : item
-            )
-        );
-
-        setNotice(
-          "Task updated successfully."
-        );
-      }
-
-      closeDialog();
-    } catch (error) {
-      setFormError(
-        error.response?.data
-          ?.message ||
-          "Failed to save task."
+      const response = await updateTask(
+        editingTaskId,
+        taskData
       );
+
+      const task = response.task;
+      const normalizedTask = normalizeTask(task);
+
+      setTasks((current) =>
+        current.map((item) =>
+          item.id === editingTaskId
+            ? {
+                ...item,
+                ...normalizedTask,
+              }
+            : item
+        )
+      );
+
+      // Keep the updated task selected
+      setSelectedTaskId(editingTaskId);
+
+      setNotice(
+        "Task updated successfully."
+      );
+
+      setDialog(null);
+      setEditingTaskId(null);
     }
-  };
+  } catch (error) {
+    console.error(
+      "SAVE TASK ERROR:",
+      error
+    );
+
+    console.error(
+      "SAVE TASK RESPONSE:",
+      error.response?.data
+    );
+
+    setFormError(
+      error.response?.data?.message ||
+        error.message ||
+        "Failed to save task."
+    );
+  }
+};
+
 
   /* ==========================================================
      CHANGE STATUS
@@ -1348,7 +1317,9 @@ function Tasks() {
                     (item) => (
                       <option
                         key={item}
-                        value={item}
+                        value={
+                          item
+                        }
                       >
                         {item}
                       </option>
@@ -2020,7 +1991,7 @@ function Tasks() {
             TASK DETAILS DIALOG
         ====================================================== */}
 
-        {selectedTask && (
+        {selectedTask && !dialog && (
           <Dialog
             title={
               selectedTask.title
@@ -2079,7 +2050,8 @@ function Tasks() {
                   variant="secondary"
                   onClick={() =>
                     openForm(
-                      "edit"
+                      "edit",
+                      selectedTask
                     )
                   }
                 >
@@ -2244,15 +2216,22 @@ function Tasks() {
               </select>
             </div>
 
-            <SubtaskSection taskId={selectedTask.id} assignees={projectMembers(selectedTask.projectId)} formatDate={formatDate} statusClasses={statusClasses} statuses={taskStatuses} />
-
-            <CommentSection
-              key={selectedTask.id}
-              taskId={selectedTask.id}
-              comments={commentsByTask[selectedTask.id] || []}
-              onAddComment={addComment}
-              onUpdateComment={updateComment}
-              onDeleteComment={deleteComment}
+            <SubtaskSection
+              taskId={
+                selectedTask.id
+              }
+              assignees={projectMembers(
+                selectedTask.projectId
+              )}
+              formatDate={
+                formatDate
+              }
+              statusClasses={
+                statusClasses
+              }
+              statuses={
+                taskStatuses
+              }
             />
           </Dialog>
         )}

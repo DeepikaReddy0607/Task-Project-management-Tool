@@ -75,17 +75,8 @@ const createSubtask = async (
             due_date: dueDate
                 ? new Date(dueDate)
                 : null,
-            assigned_to: assignedTo || null
         },
         include: {
-            users: {
-                select: {
-                    id: true,
-                    first_name: true,
-                    last_name: true,
-                    email: true
-                }
-            },
             tasks: {
                 select: {
                     id: true,
@@ -140,23 +131,13 @@ const getTaskSubtasks = async (
 
     // Get all subtasks belonging to the task
     const subtasks = await prisma.subtasks.findMany({
-        where: {
-            task_id: taskId
-        },
-        include: {
-            users: {
-                select: {
-                    id: true,
-                    first_name: true,
-                    last_name: true,
-                    email: true
-                }
-            }
-        },
-        orderBy: {
-            created_at: "asc"
-        }
-    });
+    where: {
+        task_id: taskId
+    },
+    orderBy: {
+        created_at: "asc"
+    }
+});
 
     return subtasks;
 };
@@ -182,14 +163,6 @@ const getSubtask = async (
                     }
                 }
             },
-            users: {
-                select: {
-                    id: true,
-                    first_name: true,
-                    last_name: true,
-                    email: true
-                }
-            }
         }
     });
 
@@ -301,10 +274,6 @@ const updateSubtask = async (
             : null;
     }
 
-    if (data.assignedTo !== undefined) {
-        updateData.assigned_to = data.assignedTo || null;
-    }
-
     const subtask = await prisma.subtasks.update({
         where: {
             id: subtaskId
@@ -385,14 +354,6 @@ const updateSubtaskStatus = async (
             status
         },
         include: {
-            users: {
-                select: {
-                    id: true,
-                    first_name: true,
-                    last_name: true,
-                    email: true
-                }
-            },
             tasks: {
                 select: {
                     id: true,
@@ -457,7 +418,10 @@ const deleteSubtask = async (
     });
 
     return {
-        id: subtaskId
+        id: subtaskId,
+        taskId: existingSubtask.task_id,
+        projectId: existingSubtask.tasks?.projects?.id,
+        workspaceId: existingSubtask.tasks?.projects?.workspace_id
     };
 };
 

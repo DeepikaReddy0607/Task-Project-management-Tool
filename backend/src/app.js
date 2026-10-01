@@ -10,6 +10,9 @@ import subtaskRoutes from "./routes/subtaskRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import workspaceRoutes from "./routes/workspaceRoutes.js";
 import calendarRoutes from "./routes/calendarRoutes.js";
+import commentRoutes from "./routes/commentRoutes.js";
+import quackieRoutes from "./routes/quackieRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 
 const app = express();
 
@@ -33,4 +36,8 @@ app.use("/api", subtaskRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api", projectRoutes);
 app.use("/api/calendar", calendarRoutes);
+app.use("/api", commentRoutes);
+
+app.use("/api/quackie", quackieRoutes);
+app.use("/api", notificationRoutes);
 export default app;

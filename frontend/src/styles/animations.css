@@ -203,6 +203,23 @@
   animation: taskflow-login-intro-drop-in 620ms var(--ease-emphasized) both;
 }
 
+@keyframes quackie-subtle-bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.quackie-floating-bounce {
+  animation: quackie-subtle-bounce 1.8s ease-in-out infinite;
+}
+
+.quackie-floating-bounce:hover {
+  animation-play-state: paused;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .taskflow-page-enter,
   .taskflow-fade-slide-in,
@@ -216,7 +233,8 @@
   .taskflow-login-intro-frame,
   .taskflow-login-intro-layer-visible,
   .taskflow-login-intro-beanie-falling,
-  .taskflow-login-intro-drop-in {
+  .taskflow-login-intro-drop-in,
+  .quackie-floating-bounce {
     animation: none;
   }
 }

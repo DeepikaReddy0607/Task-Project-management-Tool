@@ -89,3 +89,21 @@ export const removeProjectMember = async (
 
   return response.data;
 };
+
+// Get project risk analysis
+export const getProjectRisk = async (projectId) => {
+  const response = await api.get(`/projects/${projectId}/risk`);
+  return response.data;
+};
+
+// Get project X-Ray diagnostic analysis
+export const getProjectXRay = async (projectId) => {
+  const response = await api.get(`/projects/${projectId}/xray`);
+  return response.data;
+};
+
+// Simulate What-If predictive scenario
+export const simulateProjectWhatIf = async (projectId, scenarioData) => {
+  const response = await api.post(`/projects/${projectId}/simulate`, scenarioData);
+  return response.data;
+};
