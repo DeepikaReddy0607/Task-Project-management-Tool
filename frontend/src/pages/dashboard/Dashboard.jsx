@@ -7,8 +7,9 @@ import {
   FiClock,
   FiPlus,
 } from "react-icons/fi";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSocketEvent } from "../../context/SocketContext";
 
 import DashboardTaskRow from "../../components/dashboard/DashboardTaskRow";
 import Quackie from "../../components/brand/Quackie";
@@ -204,29 +205,24 @@ function Dashboard() {
   // -------------------------------------------------------
   // Load dashboard data
   // -------------------------------------------------------
-  useEffect(() => {
-  let isMounted = true;
-
-  const loadDashboard = async () => {
-    setIsLoading(true);
+  const loadDashboard = useCallback(async (silent = false) => {
+    if (!silent) {
+      setIsLoading(true);
+    }
 
     // Load current logged-in user
     try {
       const profileResponse = await getProfile();
+      const profile =
+        profileResponse?.user ||
+        profileResponse?.data?.user ||
+        profileResponse?.data ||
+        profileResponse;
 
-      if (isMounted) {
-        const profile =
-          profileResponse?.user ||
-          profileResponse?.data?.user ||
-          profileResponse?.data ||
-          profileResponse;
-
-        setUser(profile || null);
-      }
+      setUser(profile || null);
     } catch (error) {
       console.error("Failed to load current user:", error);
-
-      if (isMounted) {
+      if (!silent) {
         setUser(null);
       }
     }
@@ -234,24 +230,20 @@ function Dashboard() {
     // Load tasks
     try {
       const tasksResponse = await getMyTasks();
+      const taskData =
+        tasksResponse?.tasks ||
+        tasksResponse?.data?.tasks ||
+        tasksResponse?.data ||
+        [];
 
-      if (isMounted) {
-        const taskData =
-          tasksResponse?.tasks ||
-          tasksResponse?.data?.tasks ||
-          tasksResponse?.data ||
-          [];
-
-        setTasks(
-          Array.isArray(taskData)
-            ? taskData.map(normalizeTask)
-            : []
-        );
-      }
+      setTasks(
+        Array.isArray(taskData)
+          ? taskData.map(normalizeTask)
+          : []
+      );
     } catch (error) {
       console.error("Failed to load dashboard tasks:", error);
-
-      if (isMounted) {
+      if (!silent) {
         setTasks([]);
       }
     }
@@ -259,9 +251,6 @@ function Dashboard() {
     // Load workspaces and projects
     try {
       const workspacesResponse = await getWorkspaces();
-
-      if (!isMounted) return;
-
       const workspaceData =
         workspacesResponse?.workspaces ||
         workspacesResponse?.data?.workspaces ||
@@ -280,8 +269,6 @@ function Dashboard() {
             const projectsResponse =
               await getProjects(workspaceId);
 
-            if (!isMounted) return;
-
             const projectData =
               projectsResponse?.projects ||
               projectsResponse?.data?.projects ||
@@ -298,8 +285,7 @@ function Dashboard() {
               "Failed to load dashboard projects:",
               error
             );
-
-            if (isMounted) {
+            if (!silent) {
               setProjects([]);
             }
           }
@@ -310,23 +296,36 @@ function Dashboard() {
         "Failed to load dashboard workspaces:",
         error
       );
-
-      if (isMounted) {
+      if (!silent) {
         setProjects([]);
       }
+    } finally {
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
+  }, []);
 
-    if (isMounted) {
-      setIsLoading(false);
+  useEffect(() => {
+    void loadDashboard();
+  }, [loadDashboard]);
+
+  // Real-time synchronization for Dashboard overview
+  useSocketEvent("*", (event) => {
+    if (!event?.type) return;
+    if (
+      event.type.startsWith("task.") ||
+      event.type.startsWith("subtask.") ||
+      event.type.startsWith("project.") ||
+      event.type.startsWith("risk.")
+    ) {
+      void loadDashboard(true);
     }
-  };
+  });
 
-  loadDashboard();
-
-  return () => {
-    isMounted = false;
-  };
-}, []);
+  useSocketEvent("reconnect", () => {
+    void loadDashboard(true);
+  });
 
 
   // -------------------------------------------------------

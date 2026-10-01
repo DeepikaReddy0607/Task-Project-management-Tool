@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Navbar from "./Navbar";
 import Sidebar from "./Sidebar";
+import QuackieAssistant from "../components/assistant/QuackieAssistant";
 
 function MainLayout({ children }) {
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
@@ -25,6 +26,9 @@ function MainLayout({ children }) {
           </main>
         </div>
       </div>
+
+      {/* Globally available Quackie Assistant */}
+      <QuackieAssistant />
     </div>
   );
 }
