@@ -13,6 +13,8 @@ import { emitRealtimeEvent } from "../socket.js";
 import { analyzeProjectRisk } from "../services/projectRiskService.js";
 import { getProjectXRay } from "../services/projectXRayService.js";
 import { simulateWhatIf } from "../services/whatIfService.js";
+import { getProjectCriticalPath } from "../services/criticalPathService.js";
+import { getProjectBottlenecks } from "../services/bottleneckService.js";
 
 
 const create = async (req, res, next) => {
@@ -674,6 +676,96 @@ const simulateProjectWhatIf = async (req, res, next) => {
     }
 };
 
+const getCriticalPath = async (req, res, next) => {
+    try {
+        const projectId = req.params.projectId || req.params.id;
+
+        if (!projectId) {
+            return res.status(400).json({
+                success: false,
+                message: "Project ID is required"
+            });
+        }
+
+        const criticalPathData = await getProjectCriticalPath(projectId, req.user.userId);
+
+        if (criticalPathData.hasCycle) {
+            return res.status(200).json({
+                success: false,
+                message: "Dependency graph contains a circular dependency (cycle)",
+                data: criticalPathData
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Critical path analysis retrieved successfully",
+            data: criticalPathData
+        });
+    } catch (error) {
+        if (error.statusCode === 404 || error.message === "Project not found") {
+            return res.status(404).json({
+                success: false,
+                message: error.message
+            });
+        }
+
+        if (error.statusCode === 403 || error.message === "Project access denied") {
+            return res.status(403).json({
+                success: false,
+                message: error.message
+            });
+        }
+
+        next(error);
+    }
+};
+
+const getBottlenecks = async (req, res, next) => {
+    try {
+        const projectId = req.params.projectId || req.params.id;
+
+        if (!projectId) {
+            return res.status(400).json({
+                success: false,
+                message: "Project ID is required"
+            });
+        }
+
+        const bottleneckData = await getProjectBottlenecks(projectId, req.user.userId);
+
+        if (bottleneckData.hasCycle) {
+            return res.status(200).json({
+                success: false,
+                message: "Dependency graph contains a circular dependency (cycle)",
+                data: bottleneckData
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Project bottleneck analysis retrieved successfully",
+            data: bottleneckData
+        });
+    } catch (error) {
+        if (error.statusCode === 404 || error.message === "Project not found") {
+            return res.status(404).json({
+                success: false,
+                message: error.message
+            });
+        }
+
+        if (error.statusCode === 403 || error.message === "Project access denied") {
+            return res.status(403).json({
+                success: false,
+                message: error.message
+            });
+        }
+
+        next(error);
+    }
+};
+
 export {
     create,
     getAll,
@@ -686,5 +778,8 @@ export {
     removeMember,
     getRisk,
     getXRay,
-    simulateProjectWhatIf
-};
+    simulateProjectWhatIf,
+    getCriticalPath,
+    getBottlenecks
+};
+

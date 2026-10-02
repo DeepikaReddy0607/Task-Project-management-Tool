@@ -14,7 +14,9 @@ import {
     removeMember,
     getRisk,
     getXRay,
-    simulateProjectWhatIf
+    simulateProjectWhatIf,
+    getCriticalPath,
+    getBottlenecks
 } from "../controllers/projectController.js";
 
 const router = express.Router();
@@ -45,6 +47,32 @@ router.get(
     "/projects/:id/xray",
     authMiddleware,
     getXRay
+);
+
+// Get project critical path analysis
+router.get(
+    "/projects/:id/critical-path",
+    authMiddleware,
+    getCriticalPath
+);
+
+router.get(
+    "/projects/:projectId/critical-path",
+    authMiddleware,
+    getCriticalPath
+);
+
+// Get project bottleneck intelligence
+router.get(
+    "/projects/:id/bottlenecks",
+    authMiddleware,
+    getBottlenecks
+);
+
+router.get(
+    "/projects/:projectId/bottlenecks",
+    authMiddleware,
+    getBottlenecks
 );
 
 // Simulate What-If predictive scenario (READ-ONLY)

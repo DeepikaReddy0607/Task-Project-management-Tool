@@ -5,7 +5,8 @@
   "main": "src/server.js",
   "scripts": {
     "start": "tsx src/server.js",
-    "dev": "tsx watch src/server.js"
+    "dev": "tsx watch src/server.js",
+    "test": "node --test src/tests/criticalPathAndBottleneck.test.js"
   },
   "keywords": [],
   "author": "",

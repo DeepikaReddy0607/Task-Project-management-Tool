@@ -18,8 +18,10 @@ import {
     calculateFocusScore
 } from "./taskPriorityService.js";
 import { simulateWhatIf, parseWhatIfQuery, findAccessibleTaskByTitle } from "./whatIfService.js";
+import { getProjectCriticalPath } from "./criticalPathService.js";
+import { getProjectBottlenecks } from "./bottleneckService.js";
 
-export { calculateFocusScore, simulateWhatIf, parseWhatIfQuery, findAccessibleTaskByTitle };
+export { calculateFocusScore, simulateWhatIf, parseWhatIfQuery, findAccessibleTaskByTitle, getProjectCriticalPath, getProjectBottlenecks };
 
 // Helper: Format Date nicely
 const formatDate = (date) => {
@@ -779,8 +781,152 @@ export const getQuackieProjectXRaySummary = async ({ projectId, userId, note = "
 };
 
 // ============================================================
+// 4D. CRITICAL PATH SUMMARY & FORMATTER
+// ============================================================
+export const formatCriticalPathReply = (cpm, note = "") => {
+    const { projectTitle, projectCriticalPathDays, criticalTaskIds, nodes, hasCycle, cycleNodes, projectStart, projectedEnd } = cpm;
+
+    if (hasCycle) {
+        const cycleList = (cycleNodes || []).map((n) => `"${n.title || n.taskId}"`).join(", ");
+        return `🦆 **Critical Path Warning: ${projectTitle}**\n\n⚠️ A circular dependency was detected in this project involving tasks: ${cycleList}.\n\nPlease resolve the circular dependency to enable deterministic schedule calculation.`;
+    }
+
+    let reply = `🦆 **Critical Path Intelligence: ${projectTitle}**\n\n`;
+    if (note) {
+        reply += `${note}\n\n`;
+    }
+
+    if (!nodes || nodes.length === 0) {
+        reply += `No active tasks were found in this project. Add tasks and dependencies to generate a Critical Path schedule.`;
+        return reply.trim();
+    }
+
+    reply += `• **Critical Path Duration:** ${projectCriticalPathDays} day${projectCriticalPathDays === 1 ? "" : "s"}\n`;
+    if (projectStart && projectedEnd) {
+        reply += `• **Project Window:** ${projectStart} → ${projectedEnd}\n`;
+    }
+    reply += `• **Critical Tasks:** ${criticalTaskIds.length} of ${nodes.length} tasks\n\n`;
+
+    const criticalNodes = nodes.filter((n) => n.isCritical);
+    if (criticalNodes.length === 0) {
+        reply += `All current tasks have flexible slack. No critical path bottlenecks detected.\n`;
+    } else {
+        reply += `**Critical Sequence (Zero Slack):**\n`;
+        criticalNodes.forEach((n, i) => {
+            const statusIcon = n.status === "Completed" ? "✅" : "🔴";
+            const dueInfo = n.dueDate ? ` · Due: ${n.dueDate}` : "";
+            reply += `${i + 1}. ${statusIcon} **${n.title}** (${n.durationDays}d)${dueInfo} [${n.status}]\n`;
+        });
+        reply += `\n💡 *Any delay on these ${criticalNodes.length} tasks will directly postpone project completion.*`;
+    }
+
+    return reply.trim();
+};
+
+export const getQuackieCriticalPathSummary = async ({ projectId, userId, note = "" }) => {
+    const cpm = await getProjectCriticalPath(projectId, userId);
+    const message = formatCriticalPathReply(cpm, note);
+
+    let emotion = "happy";
+    if (cpm.hasCycle) {
+        emotion = "worried";
+    } else {
+        const criticalNodes = (cpm.nodes || []).filter((n) => n.isCritical && n.status !== "Completed");
+        const hasOverdueCritical = criticalNodes.some((n) => {
+            if (!n.dueDate) return false;
+            return new Date(n.dueDate) < getStartOfToday();
+        });
+        if (hasOverdueCritical) {
+            emotion = "worried";
+        } else if (criticalNodes.length > 3) {
+            emotion = "thinking";
+        } else if (cpm.projectCriticalPathDays > 0) {
+            emotion = "excited";
+        }
+    }
+
+    return {
+        ...cpm,
+        message,
+        emotion
+    };
+};
+
+// ============================================================
+// 4E. BOTTLENECK INTELLIGENCE SUMMARY & FORMATTER
+// ============================================================
+export const formatBottleneckReply = (bottleneckData, note = "") => {
+    const { projectTitle, bottlenecks, summary, hasCycle, error } = bottleneckData;
+
+    if (hasCycle) {
+        return `🦆 **Bottleneck Warning: ${projectTitle}**\n\n⚠️ ${error || "Dependency graph contains a circular dependency"}.\nResolve task cycles to identify workflow bottlenecks.`;
+    }
+
+    let reply = `🦆 **Bottleneck Intelligence: ${projectTitle}**\n\n`;
+    if (note) {
+        reply += `${note}\n\n`;
+    }
+
+    if (!bottlenecks || bottlenecks.length === 0) {
+        reply += `Great news! No active bottlenecks detected in **${projectTitle}**. Work is flowing smoothly without blocking constraints.`;
+        return reply.trim();
+    }
+
+    const primary = summary?.primaryBottleneck || bottlenecks[0];
+    reply += `**Primary Bottleneck:**\n`;
+    const severityIcon = primary.severity === "CRITICAL" ? "🔴" : primary.severity === "HIGH" ? "🟠" : "🟡";
+    reply += `${severityIcon} **${primary.title}** — **${primary.severity}** (Score: ${primary.score}/100)\n`;
+
+    const fullPrimary = bottlenecks.find((b) => b.taskId === primary.taskId) || bottlenecks[0];
+    if (fullPrimary.reasons && fullPrimary.reasons.length > 0) {
+        fullPrimary.reasons.slice(0, 3).forEach((r) => {
+            reply += `   • ${r}\n`;
+        });
+    }
+    reply += `\n`;
+
+    const others = bottlenecks.slice(1, 4);
+    if (others.length > 0) {
+        reply += `**Other Constrained Tasks (${others.length}):**\n`;
+        others.forEach((b) => {
+            const icon = b.severity === "CRITICAL" ? "🔴" : b.severity === "HIGH" ? "🟠" : "🟡";
+            const blockedStr = b.blockedDownstreamCount > 0 ? ` · blocks ${b.blockedDownstreamCount} tasks` : "";
+            reply += `• ${icon} **${b.title}** [${b.severity}]${blockedStr}\n`;
+        });
+        reply += `\n`;
+    }
+
+    reply += `💡 *Action item: Unblocking "${fullPrimary.title}" will provide the highest schedule relief.*`;
+
+    return reply.trim();
+};
+
+export const getQuackieBottleneckSummary = async ({ projectId, userId, note = "" }) => {
+    const data = await getProjectBottlenecks(projectId, userId);
+    const message = formatBottleneckReply(data, note);
+
+    let emotion = "happy";
+    if (data.hasCycle) {
+        emotion = "worried";
+    } else if (data.summary?.criticalSeverityCount > 0) {
+        emotion = "worried";
+    } else if (data.summary?.highSeverityCount > 0) {
+        emotion = "thinking";
+    } else if (data.bottlenecks?.length === 0) {
+        emotion = "excited";
+    }
+
+    return {
+        ...data,
+        message,
+        emotion
+    };
+};
+
+// ============================================================
 // 5. NATURAL-LANGUAGE TASK CREATION INTENT PARSER
 // ============================================================
+
 
 export const extractTaskDetails = (rawText, accessibleProjects = []) => {
     let text = rawText.trim();
@@ -2174,6 +2320,101 @@ export const processMessage = async ({ message, content, context, conversationHi
             emotion,
             data: xray,
             meta: { xray },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5C. Critical Path Intent:
+    // Matches: "What is our critical path?", "Show critical path", "Critical path",
+    // "Which tasks are on the critical path?", "What is on the critical path?"
+    const isCriticalPathQuery =
+        /\b(?:critical\s+path|critical-path)\b/i.test(lower) ||
+        /what\s+is\s+(?:our|the)\s+critical\s+path/i.test(lower) ||
+        /show\s+(?:me\s+)?(?:the\s+)?critical\s+path/i.test(lower) ||
+        /which\s+tasks?\s+(?:are\s+on\s+the|is\s+on\s+the)\s+critical\s+path/i.test(lower);
+
+    if (isCriticalPathQuery) {
+        let targetProjectId = effectiveProjectId;
+
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId) {
+                if (accessibleProjects.length === 0) {
+                    return {
+                        reply: "🦆 There are no active projects to calculate a Critical Path for.",
+                        emotion: "curious",
+                        context: {}
+                    };
+                }
+                if (accessibleProjects.length === 1) {
+                    targetProjectId = accessibleProjects[0].id;
+                } else {
+                    targetProjectId = accessibleProjects[0].id;
+                }
+            }
+        }
+
+        const summary = await getQuackieCriticalPathSummary({ projectId: targetProjectId, userId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { criticalPath: summary },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5D. Project Bottlenecks Intent:
+    // Matches: "What is the biggest bottleneck?", "What is blocking this project?",
+    // "Which task is delaying us?", "Show bottlenecks", "What are the bottlenecks?"
+    const isBottleneckQuery =
+        /\bbottlenecks?\b/i.test(lower) ||
+        /what\s+is\s+(?:the|our)\s+(?:biggest\s+)?bottleneck/i.test(lower) ||
+        /what\s+is\s+blocking\s+(?:this\s+)?project/i.test(lower) ||
+        /which\s+task\s+is\s+delaying\s+us/i.test(lower) ||
+        /show\s+(?:me\s+)?(?:the\s+)?bottlenecks?/i.test(lower);
+
+    if (isBottleneckQuery) {
+        let targetProjectId = effectiveProjectId;
+
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId) {
+                if (accessibleProjects.length === 0) {
+                    return {
+                        reply: "🦆 There are no active projects to detect bottlenecks for.",
+                        emotion: "curious",
+                        context: {}
+                    };
+                }
+                if (accessibleProjects.length === 1) {
+                    targetProjectId = accessibleProjects[0].id;
+                } else {
+                    targetProjectId = accessibleProjects[0].id;
+                }
+            }
+        }
+
+        const summary = await getQuackieBottleneckSummary({ projectId: targetProjectId, userId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { bottlenecks: summary },
             context: { projectId: targetProjectId, taskId: effectiveTaskId }
         };
     }

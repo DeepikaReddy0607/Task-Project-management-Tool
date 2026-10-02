@@ -162,9 +162,9 @@ function QuackieAssistant() {
         }
         if (ctx?.projectId || ctx?.page === "project") {
             return [
+                "What is the critical path?",
+                "What are the bottlenecks?",
                 "Summarize this project",
-                "What's delaying this project?",
-                "What are the biggest risks?",
                 "Simulate in What-If"
             ];
         }
@@ -483,6 +483,31 @@ function QuackieAssistant() {
                                                 className="inline-flex items-center gap-1 rounded-lg bg-[var(--color-brand)] px-2.5 py-1 text-xs font-semibold text-white shadow-xs transition hover:bg-[var(--color-brand-hover)] shrink-0"
                                             >
                                                 <span>Open What-If →</span>
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Project Intelligence Deep-Link Action Button */}
+                                    {!isUser && (
+                                        /Critical Path|Bottleneck/i.test(msg.content || "") ||
+                                        msg.data?.criticalPath ||
+                                        msg.data?.bottlenecks
+                                    ) && (
+                                        <div className="mt-2.5 w-full max-w-[88%] rounded-xl border border-[var(--color-brand)] bg-[var(--color-brand-soft)]/50 p-2.5 text-xs shadow-xs flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-1.5 font-medium text-[var(--color-text)]">
+                                                <span className="text-base">⚡</span>
+                                                <span>View Project Intelligence</span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const pId = msg.context?.projectId || pageContext?.projectId || "";
+                                                    closeAssistant();
+                                                    navigate(`/projects${pId ? `?projectId=${pId}&tab=intelligence` : ""}`);
+                                                }}
+                                                className="inline-flex items-center gap-1 rounded-lg bg-[var(--color-brand)] px-2.5 py-1 text-xs font-semibold text-white shadow-xs transition hover:bg-[var(--color-brand-hover)] shrink-0"
+                                            >
+                                                <span>Open Intelligence →</span>
                                             </button>
                                         </div>
                                     )}
