@@ -26,23 +26,37 @@ function CommentAvatar({ comment }) {
   );
 }
 
-function CommentSection({ comments, onAddComment, onDeleteComment, onUpdateComment, taskId }) {
+function CommentSection({
+  comments = [],
+  loading = false,
+  error = "",
+  onAddComment,
+  onDeleteComment,
+  onUpdateComment,
+  taskId,
+}) {
   const [draft, setDraft] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editingContent, setEditingContent] = useState("");
   const [addError, setAddError] = useState("");
   const [editError, setEditError] = useState("");
   const [deleteId, setDeleteId] = useState(null);
+  const [deleteError, setDeleteError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const orderedComments = useMemo(
     () =>
-      [...comments].sort((first, second) => new Date(first.createdAt) - new Date(second.createdAt)),
+      [...comments].sort(
+        (first, second) => new Date(first.createdAt) - new Date(second.createdAt)
+      ),
     [comments]
   );
 
   const commentToDelete = comments.find((comment) => comment.id === deleteId);
 
-  const submitComment = (event) => {
+  const submitComment = async (event) => {
     event.preventDefault();
 
     const content = draft.trim();
@@ -51,9 +65,18 @@ function CommentSection({ comments, onAddComment, onDeleteComment, onUpdateComme
       return;
     }
 
-    onAddComment(taskId, content);
-    setDraft("");
-    setAddError("");
+    try {
+      setSubmitting(true);
+      setAddError("");
+      await onAddComment(taskId, content);
+      setDraft("");
+    } catch (err) {
+      setAddError(
+        err.response?.data?.message || err.message || "Failed to add comment."
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const startEditing = (comment) => {
@@ -62,7 +85,7 @@ function CommentSection({ comments, onAddComment, onDeleteComment, onUpdateComme
     setEditError("");
   };
 
-  const saveEdit = (event, commentId) => {
+  const saveEdit = async (event, commentId) => {
     event.preventDefault();
 
     const content = editingContent.trim();
@@ -71,16 +94,41 @@ function CommentSection({ comments, onAddComment, onDeleteComment, onUpdateComme
       return;
     }
 
-    onUpdateComment(taskId, commentId, content);
-    setEditingId(null);
-    setEditingContent("");
-    setEditError("");
+    try {
+      setSavingEdit(true);
+      setEditError("");
+      await onUpdateComment(taskId, commentId, content);
+      setEditingId(null);
+      setEditingContent("");
+    } catch (err) {
+      setEditError(
+        err.response?.data?.message || err.message || "Failed to update comment."
+      );
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setEditingContent("");
     setEditError("");
+  };
+
+  const handleDelete = async () => {
+    if (!commentToDelete) return;
+    try {
+      setDeleting(true);
+      setDeleteError("");
+      await onDeleteComment(taskId, commentToDelete.id);
+      setDeleteId(null);
+    } catch (err) {
+      setDeleteError(
+        err.response?.data?.message || err.message || "Failed to delete comment."
+      );
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -109,6 +157,15 @@ function CommentSection({ comments, onAddComment, onDeleteComment, onUpdateComme
           </p>
         </div>
       </div>
+
+      {error && (
+        <div
+          className="mt-3 rounded-[var(--radius-md)] border border-[var(--color-danger)] bg-[var(--color-danger-soft)] p-3 text-sm text-[var(--color-danger)]"
+          role="alert"
+        >
+          {error}
+        </div>
+      )}
 
       <form
         onSubmit={submitComment}
@@ -143,14 +200,18 @@ function CommentSection({ comments, onAddComment, onDeleteComment, onUpdateComme
           </p>
         )}
         <div className="mt-3 flex justify-end">
-          <Button type="submit">
+          <Button type="submit" disabled={submitting}>
             <FiSend size={16} aria-hidden="true" />
-            Add comment
+            {submitting ? "Adding..." : "Add comment"}
           </Button>
         </div>
       </form>
 
-      {orderedComments.length ? (
+      {loading ? (
+        <div className="mt-5 py-8 text-center text-sm text-[var(--color-text-muted)]">
+          Loading comments...
+        </div>
+      ) : orderedComments.length ? (
         <ol className="mt-5 space-y-4" aria-label="Task comments">
           {orderedComments.map((comment) => (
             <li

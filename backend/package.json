@@ -5,7 +5,8 @@
   "main": "src/server.js",
   "scripts": {
     "start": "tsx src/server.js",
-    "dev": "tsx watch src/server.js"
+    "dev": "tsx watch src/server.js",
+    "test": "node --test src/tests/criticalPathAndBottleneck.test.js"
   },
   "keywords": [],
   "author": "",
@@ -21,11 +22,13 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
     "nodemailer": "^9.1.1",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "socket.io": "^4.8.4"
   },
   "devDependencies": {
     "nodemon": "^3.1.14",
     "prisma": "^7.9.1",
+    "socket.io-client": "^4.8.4",
     "tsx": "^4.23.12"
   }
 }

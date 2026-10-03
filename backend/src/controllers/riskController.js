@@ -4,6 +4,7 @@ import {
     updateRisk,
     closeRisk
 } from "../services/riskService.js";
+import { emitRealtimeEvent } from "../socket.js";
 
 
 // Create risk
@@ -32,6 +33,13 @@ const create = async (req, res, next) => {
             mitigationPlan,
             status
         );
+
+        emitRealtimeEvent({
+            type: "risk.created",
+            projectId,
+            userId: req.user.userId,
+            data: risk
+        });
 
         res.status(201).json({
             message: "Risk created successfully",
@@ -83,6 +91,14 @@ const update = async (req, res, next) => {
             req.body
         );
 
+        emitRealtimeEvent({
+            type: "risk.updated",
+            projectId: risk.project_id,
+            userId: req.user.userId,
+            changes: req.body,
+            data: risk
+        });
+
         res.status(200).json({
             message: "Risk updated successfully",
             risk
@@ -103,6 +119,14 @@ const close = async (req, res, next) => {
             id,
             req.user.userId
         );
+
+        emitRealtimeEvent({
+            type: "risk.updated",
+            projectId: risk.project_id,
+            userId: req.user.userId,
+            changes: { status: "Closed" },
+            data: risk
+        });
 
         res.status(200).json({
             message: "Risk closed successfully",

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   FiAlertTriangle,
   FiCheck,
@@ -18,6 +18,7 @@ import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
 import PageHeader from "../../components/ui/PageHeader";
 import MainLayout from "../../layouts/MainLayout";
+import { useSocketEvent } from "../../context/SocketContext";
 
 import {
   getWorkspaces,
@@ -142,10 +143,12 @@ function Workspaces() {
      LOAD WORKSPACES
   ========================================================== */
 
-  const loadWorkspaces = async () => {
+  const loadWorkspaces = useCallback(async (silent = false) => {
     try {
-      setIsLoading(true);
-      setFormError("");
+      if (!silent) {
+        setIsLoading(true);
+        setFormError("");
+      }
 
       const response = await getWorkspaces();
 
@@ -175,64 +178,69 @@ function Workspaces() {
         error
       );
 
-      setWorkspaces([]);
-      setSelectedWorkspaceId("");
-
-      setFormError(
-        error.response?.data?.message ||
-          "Failed to load workspaces."
-      );
+      if (!silent) {
+        setWorkspaces([]);
+        setSelectedWorkspaceId("");
+        setFormError(
+          error.response?.data?.message ||
+            "Failed to load workspaces."
+        );
+      }
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
-    const load = async () => {
-      await loadWorkspaces();
-    };
-    void load();
-  }, []);
+    void loadWorkspaces();
+  }, [loadWorkspaces]);
 
   /* ==========================================================
      LOAD WORKSPACE MEMBERS
   ========================================================== */
 
-  useEffect(() => {
-    const loadMembers = async () => {
-      if (!selectedWorkspaceId) {
-        setSelectedWorkspaceMembers([]);
-        return;
-      }
+  const loadMembers = useCallback(async () => {
+    if (!selectedWorkspaceId) {
+      setSelectedWorkspaceMembers([]);
+      return;
+    }
 
-      try {
-        setFormError("");
-
-        const response =
-          await getWorkspaceMembers(
-            selectedWorkspaceId
-          );
-
-        setSelectedWorkspaceMembers(
-          response?.members || []
-        );
-      } catch (error) {
-        console.error(
-          "Failed to load workspace members:",
-          error
+    try {
+      const response =
+        await getWorkspaceMembers(
+          selectedWorkspaceId
         );
 
-        setSelectedWorkspaceMembers([]);
-
-        setFormError(
-          error.response?.data?.message ||
-            "Failed to load workspace members."
-        );
-      }
-    };
-
-    loadMembers();
+      setSelectedWorkspaceMembers(
+        response?.members || []
+      );
+    } catch (error) {
+      console.error(
+        "Failed to load workspace members:",
+        error
+      );
+      setSelectedWorkspaceMembers([]);
+    }
   }, [selectedWorkspaceId]);
+
+  useEffect(() => {
+    void loadMembers();
+  }, [loadMembers]);
+
+  // Real-time synchronization for Workspaces and Members
+  useSocketEvent("*", (event) => {
+    if (event?.type?.startsWith("workspace.")) {
+      void loadWorkspaces(true);
+      void loadMembers();
+    }
+  });
+
+  useSocketEvent("reconnect", () => {
+    void loadWorkspaces(true);
+    void loadMembers();
+  });
 
   /* ==========================================================
      DIALOG

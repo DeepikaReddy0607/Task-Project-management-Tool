@@ -1,4 +1,5 @@
 import { FiBell, FiCalendar, FiCheckSquare, FiColumns, FiFolder, FiGrid, FiLayers, FiLogOut, FiSettings, FiUser, FiX } from "react-icons/fi";
+import { TbCrystalBall } from "react-icons/tb";
 import { useLocation, useNavigate } from "react-router-dom";
 import TaskFlowMark from "../components/brand/TaskFlowMark";
 import NavItem from "../components/navigation/NavItem";
@@ -11,6 +12,7 @@ const primaryNavigation = [
   { label: "Kanban", icon: FiColumns, path: "/kanban" },
   { label: "Projects", icon: FiFolder, path: "/projects" },
   { label: "Calendar", icon: FiCalendar, path: "/calendar" },
+  { label: "What-If", icon: TbCrystalBall, path: "/what-if" },
 ];
 
 const secondaryNavigation = [
