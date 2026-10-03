@@ -11,6 +11,7 @@ import ChangePassword from "../pages/profile/ChangePassword";
 import Tasks from "../pages/tasks/Tasks";
 import Calendar from "../pages/calendar/Calendar";
 import Kanban from "../pages/kanban/Kanban";
+import FirstTimeExperience from "../components/onboarding/FirstTimeExperience";
 import WhatIf from "../pages/WhatIf";
 import { AssistantProvider } from "../context/AssistantContext";
 import { SocketProvider } from "../context/SocketContext";
@@ -21,21 +22,22 @@ function AppRoutes() {
       <SocketProvider>
         <AssistantProvider>
           <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/workspaces" element={<Workspaces />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/profile/change-password" element={<ChangePassword />} />
-          <Route path="/tasks" element={<Tasks />} />
-          <Route path="/calendar" element={<Calendar />} />
-          <Route path="/kanban" element={<Kanban />} />
-          <Route path="/what-if" element={<WhatIf />} />
-        </Routes>
-      </AssistantProvider>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/workspaces" element={<Workspaces />} />
+            <Route path="/projects" element={<Projects />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/profile/change-password" element={<ChangePassword />} />
+            <Route path="/tasks" element={<Tasks />} />
+            <Route path="/calendar" element={<Calendar />} />
+            <Route path="/kanban" element={<Kanban />} />
+            <Route path="/what-if" element={<WhatIf />} />
+            <Route path="/onboarding" element={<FirstTimeExperience />} />
+          </Routes>
+        </AssistantProvider>
       </SocketProvider>
     </BrowserRouter>
   );

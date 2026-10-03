@@ -26,6 +26,7 @@ function Login() {
   const location = useLocation();
   const navigationType = useNavigationType();
   const shouldSkipIntro = Boolean(location.state?.skipIntro) && navigationType === "PUSH";
+  const shouldStartOnboarding = Boolean(location.state?.startOnboarding);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeField, setActiveField] = useState(null);
@@ -154,7 +155,7 @@ function Login() {
 
       setHasMockSuccess(true);
 
-      navigate("/", {
+      navigate(shouldStartOnboarding ? "/onboarding" : "/", {
         replace: true,
       });
     } catch (error) {

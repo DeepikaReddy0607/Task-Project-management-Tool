@@ -123,6 +123,7 @@ function Register() {
         state: {
           message: "Registration successful. Please log in.",
           skipIntro: true,
+          startOnboarding: true,
         },
       });
     } catch (error) {
