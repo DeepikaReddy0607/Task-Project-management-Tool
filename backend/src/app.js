@@ -11,6 +11,7 @@ import userRoutes from "./routes/userRoutes.js";
 import workspaceRoutes from "./routes/workspaceRoutes.js";
 import calendarRoutes from "./routes/calendarRoutes.js";
 import commentRoutes from "./routes/commentRoutes.js";
+import fileRoutes from "./routes/fileRoutes.js";
 import quackieRoutes from "./routes/quackieRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import commentRoutes from "./routes/commentRoutes.js";
@@ -19,6 +20,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use("/uploads", express.static("uploads"));
 
 app.get("/api/health", (req, res) => {
     res.json({
@@ -38,6 +40,7 @@ app.use("/api/users", userRoutes);
 app.use("/api", projectRoutes);
 app.use("/api/calendar", calendarRoutes);
 app.use("/api", commentRoutes);
+app.use("/api", fileRoutes);
 
 app.use("/api/quackie", quackieRoutes);
 app.use("/api", notificationRoutes);
