@@ -9,6 +9,12 @@ import {
     updateProjectMemberRole,
     removeProjectMember
 } from "../services/projectService.js";
+import { emitRealtimeEvent } from "../socket.js";
+import { analyzeProjectRisk } from "../services/projectRiskService.js";
+import { getProjectXRay } from "../services/projectXRayService.js";
+import { simulateWhatIf } from "../services/whatIfService.js";
+import { getProjectCriticalPath } from "../services/criticalPathService.js";
+import { getProjectBottlenecks } from "../services/bottleneckService.js";
 
 
 const create = async (req, res, next) => {
@@ -57,6 +63,13 @@ const create = async (req, res, next) => {
             endDate
         );
 
+        emitRealtimeEvent({
+            type: "project.created",
+            workspaceId: project.workspace_id || workspaceId,
+            projectId: project.id,
+            userId: req.user.userId,
+            data: project
+        });
 
         return res.status(201).json({
             message: "Project created successfully",
@@ -176,6 +189,15 @@ const update = async (req, res, next) => {
             req.body
         );
 
+        emitRealtimeEvent({
+            type: "project.updated",
+            workspaceId: project.workspace_id,
+            projectId: project.id,
+            userId: req.user.userId,
+            changes: req.body,
+            data: project
+        });
+
         return res.status(200).json({
             message: "Project updated successfully",
             project
@@ -215,6 +237,14 @@ const archive = async (req, res, next) => {
             id,
             req.user.userId
         );
+
+        emitRealtimeEvent({
+            type: "project.archived",
+            workspaceId: project.workspace_id,
+            projectId: project.id,
+            userId: req.user.userId,
+            data: project
+        });
 
         return res.status(200).json({
             message: "Project archived successfully",
@@ -281,6 +311,13 @@ const addMember = async (req, res, next) => {
             userId,
             role.trim()
         );
+
+        emitRealtimeEvent({
+            type: "project.member_added",
+            projectId,
+            userId,
+            data: projectMember
+        });
 
         return res.status(201).json({
             message: "Project member added successfully",
@@ -411,6 +448,14 @@ const updateMemberRole = async (req, res, next) => {
                 role.trim()
             );
 
+        emitRealtimeEvent({
+            type: "project.member_role_changed",
+            projectId,
+            userId,
+            changes: { role: role.trim() },
+            data: updatedMember
+        });
+
         return res.status(200).json({
             message: "Project member role updated successfully",
             member: updatedMember
@@ -472,6 +517,13 @@ const removeMember = async (req, res, next) => {
             userId
         );
 
+        emitRealtimeEvent({
+            type: "project.member_removed",
+            projectId,
+            userId,
+            data: { projectId, userId }
+        });
+
         return res.status(200).json({
             message: "Project member removed successfully"
         });
@@ -500,6 +552,220 @@ const removeMember = async (req, res, next) => {
     }
 };
 
+const getRisk = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        if (!id) {
+            return res.status(400).json({
+                message: "Project ID is required"
+            });
+        }
+
+        const risk = await analyzeProjectRisk(id, req.user.userId);
+
+        return res.status(200).json({
+            message: "Project risk analysis retrieved successfully",
+            risk
+        });
+    } catch (error) {
+        if (error.statusCode === 404 || error.message === "Project not found") {
+            return res.status(404).json({
+                message: error.message
+            });
+        }
+
+        if (error.statusCode === 403 || error.message === "Project access denied") {
+            return res.status(403).json({
+                message: error.message
+            });
+        }
+
+        next(error);
+    }
+};
+
+const getXRay = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        if (!id) {
+            return res.status(400).json({
+                message: "Project ID is required"
+            });
+        }
+
+        const xray = await getProjectXRay(id, req.user.userId);
+
+        return res.status(200).json({
+            message: "Project X-Ray retrieved successfully",
+            xray
+        });
+    } catch (error) {
+        if (error.statusCode === 404 || error.message === "Project not found") {
+            return res.status(404).json({
+                message: error.message
+            });
+        }
+
+        if (error.statusCode === 403 || error.message === "Project access denied") {
+            return res.status(403).json({
+                message: error.message
+            });
+        }
+
+        next(error);
+    }
+};
+
+const simulateProjectWhatIf = async (req, res, next) => {
+    try {
+        const { id: projectId } = req.params;
+        const {
+            scenario,
+            taskId,
+            targetTaskTitle,
+            priority,
+            daysOffset,
+            newDate,
+            assigneeId,
+            assigneeName,
+            changes,
+            params
+        } = req.body;
+
+        if (!projectId) {
+            return res.status(400).json({
+                message: "Project ID is required"
+            });
+        }
+
+        const simulation = await simulateWhatIf({
+            userId: req.user.userId,
+            projectId,
+            scenario: scenario || "complete_task",
+            taskId,
+            targetTaskTitle,
+            priority,
+            daysOffset,
+            newDate,
+            assigneeId,
+            assigneeName,
+            changes,
+            params: params || {}
+        });
+
+        return res.status(200).json({
+            message: "Simulation completed successfully",
+            simulation,
+            reply: simulation.reply,
+            emotion: simulation.emotion
+        });
+    } catch (error) {
+        if (error.statusCode === 404 || error.message === "Project not found") {
+            return res.status(404).json({
+                message: error.message
+            });
+        }
+        if (error.statusCode === 403 || error.message === "Project access denied") {
+            return res.status(403).json({
+                message: error.message
+            });
+        }
+        next(error);
+    }
+};
+
+const getCriticalPath = async (req, res, next) => {
+    try {
+        const projectId = req.params.projectId || req.params.id;
+
+        if (!projectId) {
+            return res.status(400).json({
+                success: false,
+                message: "Project ID is required"
+            });
+        }
+
+        const criticalPathData = await getProjectCriticalPath(projectId, req.user.userId);
+
+        if (criticalPathData.hasCycle) {
+            return res.status(200).json({
+                success: false,
+                message: "Dependency graph contains a circular dependency (cycle)",
+                data: criticalPathData
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Critical path analysis retrieved successfully",
+            data: criticalPathData
+        });
+    } catch (error) {
+        if (error.statusCode === 404 || error.message === "Project not found") {
+            return res.status(404).json({
+                success: false,
+                message: error.message
+            });
+        }
+
+        if (error.statusCode === 403 || error.message === "Project access denied") {
+            return res.status(403).json({
+                success: false,
+                message: error.message
+            });
+        }
+
+        next(error);
+    }
+};
+
+const getBottlenecks = async (req, res, next) => {
+    try {
+        const projectId = req.params.projectId || req.params.id;
+
+        if (!projectId) {
+            return res.status(400).json({
+                success: false,
+                message: "Project ID is required"
+            });
+        }
+
+        const bottleneckData = await getProjectBottlenecks(projectId, req.user.userId);
+
+        if (bottleneckData.hasCycle) {
+            return res.status(200).json({
+                success: false,
+                message: "Dependency graph contains a circular dependency (cycle)",
+                data: bottleneckData
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Project bottleneck analysis retrieved successfully",
+            data: bottleneckData
+        });
+    } catch (error) {
+        if (error.statusCode === 404 || error.message === "Project not found") {
+            return res.status(404).json({
+                success: false,
+                message: error.message
+            });
+        }
+
+        if (error.statusCode === 403 || error.message === "Project access denied") {
+            return res.status(403).json({
+                success: false,
+                message: error.message
+            });
+        }
+
+        next(error);
+    }
+};
+
 export {
     create,
     getAll,
@@ -509,5 +775,11 @@ export {
     addMember,
     getMembers,
     updateMemberRole,
-    removeMember
+    removeMember,
+    getRisk,
+    getXRay,
+    simulateProjectWhatIf,
+    getCriticalPath,
+    getBottlenecks
 };
+

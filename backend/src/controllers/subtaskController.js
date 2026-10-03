@@ -6,6 +6,7 @@ import {
     updateSubtaskStatus,
     deleteSubtask
 } from "../services/subtaskService.js";
+import { emitRealtimeEvent } from "../socket.js";
 
 
 const create = async (req, res, next) => {
@@ -50,6 +51,13 @@ const create = async (req, res, next) => {
             assignedTo
         );
 
+        emitRealtimeEvent({
+            type: "subtask.created",
+            projectId: subtask.tasks?.project_id,
+            taskId: subtask.task_id,
+            userId: req.user.userId,
+            data: subtask
+        });
 
         return res.status(201).json({
             message: "Subtask created successfully",
@@ -193,6 +201,15 @@ const update = async (req, res, next) => {
             req.body
         );
 
+        emitRealtimeEvent({
+            type: "subtask.updated",
+            projectId: subtask.tasks?.project_id,
+            taskId: subtask.task_id,
+            userId: req.user.userId,
+            changes: req.body,
+            data: subtask
+        });
+
         return res.status(200).json({
             message: "Subtask updated successfully",
             subtask
@@ -254,6 +271,15 @@ const updateStatus = async (req, res, next) => {
             status.trim()
         );
 
+        emitRealtimeEvent({
+            type: "subtask.status_changed",
+            projectId: subtask.tasks?.project_id,
+            taskId: subtask.task_id,
+            userId: req.user.userId,
+            changes: { status: status.trim() },
+            data: subtask
+        });
+
         return res.status(200).json({
             message: "Subtask status updated successfully",
             subtask
@@ -290,10 +316,19 @@ const remove = async (req, res, next) => {
             });
         }
 
-        await deleteSubtask(
+        const deleteResult = await deleteSubtask(
             id,
             req.user.userId
         );
+
+        emitRealtimeEvent({
+            type: "subtask.deleted",
+            projectId: deleteResult.projectId,
+            workspaceId: deleteResult.workspaceId,
+            taskId: deleteResult.taskId || id,
+            userId: req.user.userId,
+            data: { id, taskId: deleteResult.taskId }
+        });
 
         return res.status(200).json({
             message: "Subtask deleted successfully"

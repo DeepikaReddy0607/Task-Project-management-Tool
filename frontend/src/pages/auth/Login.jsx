@@ -26,6 +26,7 @@ function Login() {
   const location = useLocation();
   const navigationType = useNavigationType();
   const shouldSkipIntro = Boolean(location.state?.skipIntro) && navigationType === "PUSH";
+  const shouldStartOnboarding = Boolean(location.state?.startOnboarding);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeField, setActiveField] = useState(null);
@@ -154,7 +155,7 @@ function Login() {
 
       setHasMockSuccess(true);
 
-      navigate("/", {
+      navigate(shouldStartOnboarding ? "/onboarding" : "/", {
         replace: true,
       });
     } catch (error) {
@@ -212,7 +213,7 @@ function Login() {
                 </Card>
               </aside>
             )}
-            <div className={isIntroActive ? (isCardRevealing ? "taskflow-login-card-reveal" : "taskflow-login-card-pending") : ""} aria-hidden={isIntroActive} inert={isIntroActive ? "" : undefined}>
+            <div className={isIntroActive ? (isCardRevealing ? "taskflow-login-card-reveal" : "taskflow-login-card-pending") : ""} aria-hidden={isIntroActive} inert={isIntroActive}>
             <Card className="w-full rounded-[var(--radius-2xl)] border-white/75 bg-[color-mix(in_srgb,var(--color-surface)_90%,transparent)] p-6 shadow-[var(--shadow-lg)] backdrop-blur-sm sm:p-8 lg:p-10">
             <header>
               <p className="text-sm font-semibold text-[var(--color-brand-hover)]">TaskFlow</p>

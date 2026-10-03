@@ -71,3 +71,15 @@ export const updateTaskStatus = async (taskId, status) => {
 
   return response.data;
 };
+
+// Get prioritized tasks (Smart Task Prioritization)
+export const getPrioritizedTasks = async ({ projectId, limit, context, taskId } = {}) => {
+  const params = {};
+  if (projectId) params.projectId = projectId;
+  if (limit) params.limit = limit;
+  if (context) params.context = context;
+  if (taskId) params.taskId = taskId;
+
+  const response = await api.get("/tasks/prioritized", { params });
+  return response.data;
+};
