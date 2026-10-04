@@ -13,7 +13,10 @@ import calendarRoutes from "./routes/calendarRoutes.js";
 import commentRoutes from "./routes/commentRoutes.js";
 import quackieRoutes from "./routes/quackieRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
-import commentRoutes from "./routes/commentRoutes.js";
+import intelligenceRoutes from "./routes/intelligenceRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
+import searchRoutes from "./routes/searchRoutes.js";
+import attachmentRoutes from "./routes/attachmentRoutes.js";
 
 const app = express();
 
@@ -35,11 +38,13 @@ app.use("/api", projectRoutes);
 app.use("/api", taskRoutes);
 app.use("/api", subtaskRoutes);
 app.use("/api/users", userRoutes);
-app.use("/api", projectRoutes);
 app.use("/api/calendar", calendarRoutes);
 app.use("/api", commentRoutes);
+app.use("/api", attachmentRoutes);
 
 app.use("/api/quackie", quackieRoutes);
 app.use("/api", notificationRoutes);
-app.use("/api", commentRoutes);
+app.use("/api/intelligence", intelligenceRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/search", searchRoutes);
 export default app;

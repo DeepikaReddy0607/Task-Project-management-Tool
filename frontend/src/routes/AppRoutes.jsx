@@ -12,6 +12,11 @@ import Tasks from "../pages/tasks/Tasks";
 import Calendar from "../pages/calendar/Calendar";
 import Kanban from "../pages/kanban/Kanban";
 import WhatIf from "../pages/WhatIf";
+import PortfolioIntelligence from "../pages/PortfolioIntelligence";
+import CoordinationPage from "../pages/CoordinationPage";
+import ProjectCommandCenterPage from "../pages/ProjectCommandCenterPage";
+import AdminDashboardPage from "../pages/admin/AdminDashboardPage";
+import SearchPage from "../pages/search/SearchPage";
 import { AssistantProvider } from "../context/AssistantContext";
 import { SocketProvider } from "../context/SocketContext";
 
@@ -34,6 +39,18 @@ function AppRoutes() {
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/kanban" element={<Kanban />} />
           <Route path="/what-if" element={<WhatIf />} />
+          <Route path="/portfolio" element={<PortfolioIntelligence />} />
+          <Route path="/portfolio-intelligence" element={<PortfolioIntelligence />} />
+          <Route path="/coordination" element={<CoordinationPage />} />
+          <Route path="/coordination-dashboard" element={<CoordinationPage />} />
+          <Route path="/briefing" element={<CoordinationPage />} />
+          <Route path="/standup" element={<CoordinationPage />} />
+          <Route path="/approval-center" element={<CoordinationPage />} />
+          <Route path="/command-center" element={<ProjectCommandCenterPage />} />
+          <Route path="/project-command-center" element={<ProjectCommandCenterPage />} />
+          <Route path="/admin" element={<AdminDashboardPage />} />
+          <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+          <Route path="/search" element={<SearchPage />} />
         </Routes>
       </AssistantProvider>
       </SocketProvider>

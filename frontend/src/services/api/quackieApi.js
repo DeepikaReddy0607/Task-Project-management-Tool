@@ -86,28 +86,6 @@ export const getQuackieProjectXRay = async (projectId) => {
     return response.data;
 };
 
-// Parse task creation proposal
-export const parseTaskProposal = async ({ text, context = {} }) => {
-    const response = await api.post("/quackie/proposal", {
-        text,
-        context
-    });
-    return response.data;
-};
-
-// Get prioritized tasks (Smart Task Prioritization)
-export const getQuackiePrioritizedTasks = async ({ projectId = null, limit = null, context = null, taskId = null } = {}) => {
-    const response = await api.get("/tasks/prioritized", {
-        params: {
-            projectId: projectId || undefined,
-            limit: limit || undefined,
-            context: context || undefined,
-            taskId: taskId || undefined
-        }
-    });
-    return response.data;
-};
-
 // Simulate What-If predictive scenario (READ-ONLY)
 export const simulateWhatIfScenario = async ({
     projectId,
@@ -133,6 +111,28 @@ export const simulateWhatIfScenario = async ({
         assigneeName,
         changes,
         params
+    });
+    return response.data;
+};
+
+// Parse task creation proposal
+export const parseTaskProposal = async ({ text, context = {} }) => {
+    const response = await api.post("/quackie/proposal", {
+        text,
+        context
+    });
+    return response.data;
+};
+
+// Get prioritized tasks (Smart Task Prioritization)
+export const getQuackiePrioritizedTasks = async ({ projectId = null, limit = null, context = null, taskId = null } = {}) => {
+    const response = await api.get("/tasks/prioritized", {
+        params: {
+            projectId: projectId || undefined,
+            limit: limit || undefined,
+            context: context || undefined,
+            taskId: taskId || undefined
+        }
     });
     return response.data;
 };

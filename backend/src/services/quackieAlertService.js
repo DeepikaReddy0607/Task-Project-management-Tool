@@ -13,7 +13,13 @@ export const ALERT_TYPES = Object.freeze({
     HIGH_RISK_PROJECT: "HIGH_RISK_PROJECT",
     DEADLINE_WARNING: "DEADLINE_WARNING",
     PRIORITY_SHIFT: "PRIORITY_SHIFT",
-    NEW_CRITICAL_TASK: "NEW_CRITICAL_TASK"
+    NEW_CRITICAL_TASK: "NEW_CRITICAL_TASK",
+    CRITICAL_PATH_CHANGED: "CRITICAL_PATH_CHANGED",
+    CRITICAL_TASK_OVERDUE: "CRITICAL_TASK_OVERDUE",
+    BOTTLENECK_ESCALATED: "BOTTLENECK_ESCALATED",
+    NEW_MAJOR_BOTTLENECK: "NEW_MAJOR_BOTTLENECK",
+    PROJECT_DURATION_INCREASED: "PROJECT_DURATION_INCREASED",
+    CYCLE_DETECTED: "CYCLE_DETECTED"
 });
 
 export const ALERT_SEVERITY = Object.freeze({
@@ -712,6 +718,31 @@ export const processEventForAlerts = async (eventPayload) => {
             if (pid) {
                 await checkProjectRiskAlert({ projectId: pid, userId });
             }
+        }
+
+        // Schedule debounced project intelligence evaluation (Phase 1C)
+        let intelProjectId =
+            projectId ||
+            data?.projectId ||
+            data?.project_id ||
+            data?.project?.id ||
+            data?.task?.project_id;
+        if (!intelProjectId && (taskId || data?.taskId || data?.task_id)) {
+            const tid = taskId || data?.taskId || data?.task_id;
+            const t = await prisma.tasks.findUnique({
+                where: { id: tid },
+                select: { project_id: true }
+            });
+            intelProjectId = t?.project_id;
+        }
+        if (
+            intelProjectId &&
+            (type.startsWith("task.") ||
+             type.startsWith("dependency.") ||
+             type === "project.updated")
+        ) {
+            const { scheduleProjectIntelligenceEvaluation } = await import("./intelligenceAlertService.js");
+            scheduleProjectIntelligenceEvaluation({ projectId: intelProjectId });
         }
     } catch (err) {
         console.warn("processEventForAlerts error (non-fatal):", err.message);

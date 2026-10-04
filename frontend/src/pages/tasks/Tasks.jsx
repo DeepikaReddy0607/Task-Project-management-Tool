@@ -16,6 +16,8 @@ import {
 import Quackie from "../../components/brand/Quackie";
 import CommentSection from "../../components/tasks/CommentSection";
 import SubtaskSection from "../../components/tasks/SubtaskSection";
+import TaskDependencySection from "../../components/tasks/TaskDependencySection";
+import TaskAttachmentSection from "../../components/tasks/TaskAttachmentSection";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
@@ -2378,6 +2380,19 @@ function Tasks() {
               statuses={
                 taskStatuses
               }
+            />
+
+            <TaskDependencySection
+              key={`dep-${selectedTask.id}`}
+              taskId={selectedTask.id}
+              projectId={selectedTask.projectId}
+              availableTasks={tasks.filter((t) => t.projectId === selectedTask.projectId && t.id !== selectedTask.id)}
+              formatDate={formatDate}
+            />
+
+            <TaskAttachmentSection
+              key={`att-${selectedTask.id}`}
+              taskId={selectedTask.id}
             />
 
             <CommentSection

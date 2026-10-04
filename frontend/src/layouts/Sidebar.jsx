@@ -1,4 +1,4 @@
-import { FiBell, FiCalendar, FiCheckSquare, FiColumns, FiFolder, FiGrid, FiLayers, FiLogOut, FiSettings, FiUser, FiX } from "react-icons/fi";
+import { FiBell, FiCalendar, FiCheckSquare, FiColumns, FiFolder, FiGrid, FiLayers, FiLogOut, FiSettings, FiUser, FiX, FiCompass, FiShield } from "react-icons/fi";
 import { TbCrystalBall } from "react-icons/tb";
 import { useLocation, useNavigate } from "react-router-dom";
 import TaskFlowMark from "../components/brand/TaskFlowMark";
@@ -13,6 +13,7 @@ const primaryNavigation = [
   { label: "Projects", icon: FiFolder, path: "/projects" },
   { label: "Calendar", icon: FiCalendar, path: "/calendar" },
   { label: "What-If", icon: TbCrystalBall, path: "/what-if" },
+  { label: "Coordination", icon: FiCompass, path: "/coordination" },
 ];
 
 const secondaryNavigation = [
@@ -34,6 +35,10 @@ function Sidebar({ isOpen = false, onClose }) {
   onClose();
 };
 
+  const userStr = localStorage.getItem("taskflow_user");
+  const currentUser = userStr ? JSON.parse(userStr) : null;
+  const isAdmin = currentUser?.role?.trim().toLowerCase() === "admin";
+
   return (
     <>
       {isOpen && <button type="button" aria-label="Close navigation" onClick={onClose} className="fixed inset-0 z-40 bg-[rgb(52_67_51/0.16)] backdrop-blur-[2px] lg:hidden" />}
@@ -42,6 +47,14 @@ function Sidebar({ isOpen = false, onClose }) {
         <nav className="flex-1 overflow-y-auto px-4 py-6" aria-label="Primary navigation">
           <p className="mb-3 px-3 text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-[var(--color-text-subtle)]">Workspace</p>
           <div className="space-y-1">{primaryNavigation.map((item) => <NavItem key={item.label} {...item} active={location.pathname === item.path} onClick={() => navigateTo(item.path)} />)}</div>
+          {isAdmin && (
+            <>
+              <p className="mb-3 mt-8 px-3 text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-purple-600">Administration</p>
+              <div className="space-y-1">
+                <NavItem label="Admin Dashboard" icon={FiShield} path="/admin" active={location.pathname === "/admin" || location.pathname.startsWith("/admin/")} onClick={() => navigateTo("/admin")} />
+              </div>
+            </>
+          )}
           <p className="mb-3 mt-8 px-3 text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-[var(--color-text-subtle)]">Account</p>
           <div className="space-y-1">{secondaryNavigation.map((item) => <NavItem key={item.label} {...item} active={item.path ? location.pathname === item.path || location.pathname.startsWith(`${item.path}/`) : false} onClick={() => navigateTo(item.path)} />)}</div>
         </nav>

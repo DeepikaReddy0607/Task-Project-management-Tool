@@ -228,7 +228,15 @@ function CommentSection({
                       </p>
                       <p className="mt-0.5 text-xs text-[var(--color-text-subtle)]">
                         {formatTimestamp(comment.createdAt)}
-                        {comment.updatedAt && " · Edited"}
+                        {(comment.isEdited ||
+                          (comment.updatedAt &&
+                            comment.createdAt &&
+                            Math.abs(
+                              new Date(comment.updatedAt).getTime() -
+                                new Date(comment.createdAt).getTime()
+                            ) > 1000))
+                          ? " · Edited"
+                          : null}
                       </p>
                     </div>
                     {comment.isOwn && editingId !== comment.id && (
@@ -244,7 +252,10 @@ function CommentSection({
                         </button>
                         <button
                           type="button"
-                          onClick={() => setDeleteId(comment.id)}
+                          onClick={() => {
+                            setDeleteId(comment.id);
+                            setDeleteError("");
+                          }}
                           aria-label={`Delete comment by ${comment.authorName}`}
                           title="Delete comment"
                           className="rounded-lg p-2 text-[var(--color-text-subtle)] transition hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[color-mix(in_srgb,var(--color-danger)_16%,transparent)]"
@@ -277,12 +288,17 @@ function CommentSection({
                         </p>
                       )}
                       <div className="mt-3 flex flex-wrap justify-end gap-2">
-                        <Button type="button" variant="secondary" onClick={cancelEdit}>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={cancelEdit}
+                          disabled={savingEdit}
+                        >
                           Cancel
                         </Button>
-                        <Button type="submit">
+                        <Button type="submit" disabled={savingEdit}>
                           <FiCheck size={16} aria-hidden="true" />
-                          Save changes
+                          {savingEdit ? "Saving..." : "Save changes"}
                         </Button>
                       </div>
                     </form>
@@ -316,25 +332,32 @@ function CommentSection({
             id={`delete-comment-${commentToDelete.id}`}
             className="text-sm text-[var(--color-text)]"
           >
-            Delete your comment? This local preview action cannot be undone.
+            Delete your comment? This action cannot be undone.
           </p>
+          {deleteError && (
+            <p role="alert" className="mt-2 text-sm text-[var(--color-danger)]">
+              {deleteError}
+            </p>
+          )}
           <div className="mt-4 flex flex-wrap justify-end gap-2">
             <Button
               variant="secondary"
-              onClick={() => setDeleteId(null)}
+              onClick={() => {
+                setDeleteId(null);
+                setDeleteError("");
+              }}
               aria-describedby={`delete-comment-${commentToDelete.id}`}
+              disabled={deleting}
             >
               Cancel
             </Button>
             <Button
-              onClick={() => {
-                onDeleteComment(taskId, commentToDelete.id);
-                setDeleteId(null);
-              }}
+              onClick={handleDelete}
               aria-describedby={`delete-comment-${commentToDelete.id}`}
+              disabled={deleting}
               className="bg-[var(--color-danger)] hover:bg-[var(--color-danger)]"
             >
-              Delete
+              {deleting ? "Deleting..." : "Delete"}
             </Button>
           </div>
         </div>

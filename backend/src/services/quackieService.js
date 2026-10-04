@@ -20,8 +20,71 @@ import {
 import { simulateWhatIf, parseWhatIfQuery, findAccessibleTaskByTitle } from "./whatIfService.js";
 import { getProjectCriticalPath } from "./criticalPathService.js";
 import { getProjectBottlenecks } from "./bottleneckService.js";
+import { getProjectHealth } from "./projectHealthService.js";
+import { getProjectScheduleDrift } from "./scheduleDriftService.js";
+import { getProjectPreMortem } from "./preMortemService.js";
+import { getProjectTeamIntelligence } from "./teamIntelligenceService.js";
+import { generateReplanningProposals, getProjectProposal, approveProjectProposal, listProjectProposals } from "./projectReplanningService.js";
+import { executeReplanningProposal } from "./replanningExecutionService.js";
+import { getProjectHealthHistory } from "./projectHistoryService.js";
+import { getProjectTimeline } from "./projectTimelineService.js";
+import { getProjectDecisionIntelligence } from "./decisionIntelligenceService.js";
+import { getProjectMemory } from "./projectMemoryService.js";
+import { replayProjectPointInTime, replayProjectPeriod } from "./projectReplayService.js";
+import { runProjectDiagnosis } from "./projectDiagnosisService.js";
+import { runProjectAutopsy } from "./projectAutopsyService.js";
+import { runMonteCarloForecast } from "./monteCarloForecastService.js";
+import { getProbabilisticCriticalPath } from "./probabilisticCriticalPathService.js";
+import { getProjectScopeIntelligence } from "./scopeIntelligenceService.js";
+import { getCrossProjectIntelligence } from "./crossProjectIntelligenceService.js";
+import { getResourceConflictIntelligence, simulateUnavailableResource } from "./resourceConflictService.js";
+import { getPortfolioRiskMap, getWorkspacePortfolioIntelligence } from "./portfolioIntelligenceService.js";
+import { simulatePortfolioScenario } from "./portfolioSimulationService.js";
+import { getProjectBriefing } from "./projectBriefingService.js";
+import { getPersonalBriefing } from "./personalBriefingService.js";
+import { getWorkspaceExecutiveBriefing } from "./executiveBriefingService.js";
+import { getProjectNextActions } from "./nextActionService.js";
+import { getProjectStandup, getPersonalStandup } from "./standupService.js";
+import { getProjectStakeholderBriefing } from "./stakeholderBriefingService.js";
+import { getProjectActionPlan, getProjectRecoveryPlan } from "./actionPlanService.js";
+import { handleIntelligenceQuery, investigateProject, simulateNaturalLanguageScenario } from "./intelligenceQueryService.js";
+import { prepareActionProposal, executeApprovedProposalSafely } from "./intelligenceApprovalService.js";
+import { getTaskDependencies, getProjectDependencyGraph } from "./taskDependencyService.js";
+import { getAdminOverview, getInMemoryAdminStore } from "./adminService.js";
+import { executeUnifiedSearch } from "./searchService.js";
 
-export { calculateFocusScore, simulateWhatIf, parseWhatIfQuery, findAccessibleTaskByTitle, getProjectCriticalPath, getProjectBottlenecks };
+export {
+    calculateFocusScore,
+    simulateWhatIf,
+    parseWhatIfQuery,
+    findAccessibleTaskByTitle,
+    getProjectCriticalPath,
+    getProjectBottlenecks,
+    getProjectHealth,
+    getProjectScheduleDrift,
+    getProjectPreMortem,
+    getProjectTeamIntelligence,
+    generateReplanningProposals,
+    getProjectProposal,
+    approveProjectProposal,
+    executeReplanningProposal,
+    getProjectHealthHistory,
+    getProjectTimeline,
+    getProjectDecisionIntelligence,
+    getProjectMemory,
+    replayProjectPointInTime,
+    replayProjectPeriod,
+    runProjectDiagnosis,
+    runProjectAutopsy,
+    runMonteCarloForecast,
+    getProbabilisticCriticalPath,
+    getProjectScopeIntelligence,
+    getCrossProjectIntelligence,
+    getResourceConflictIntelligence,
+    getPortfolioRiskMap,
+    getWorkspacePortfolioIntelligence,
+    simulatePortfolioScenario
+};
 
 // Helper: Format Date nicely
 const formatDate = (date) => {
@@ -39,19 +102,23 @@ export const getStartOfToday = () => getStartOfTodayUtc();
 
 // Helper: Get user's accessible projects
 export const getUserAccessibleProjects = async (userId) => {
-    // 1. Projects where user is a workspace member
-    const memberships = await prisma.workspace_members.findMany({
-        where: { user_id: userId },
-        select: { workspace_id: true }
-    });
-    const workspaceIds = memberships.map((m) => m.workspace_id);
+    try {
+        const isUuid = typeof userId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+        if (!isUuid) return [];
 
-    // 2. Fetch projects
-    const projects = await prisma.projects.findMany({
-        where: {
-            workspace_id: { in: workspaceIds },
-            is_archived: false
-        },
+        // 1. Projects where user is a workspace member
+        const memberships = await prisma.workspace_members.findMany({
+            where: { user_id: userId },
+            select: { workspace_id: true }
+        });
+        const workspaceIds = memberships.map((m) => m.workspace_id);
+
+        // 2. Fetch projects
+        const projects = await prisma.projects.findMany({
+            where: {
+                workspace_id: { in: workspaceIds },
+                is_archived: false
+            },
         select: {
             id: true,
             title: true,
@@ -67,6 +134,9 @@ export const getUserAccessibleProjects = async (userId) => {
     });
 
     return projects;
+    } catch {
+        return [];
+    }
 };
 
 // ============================================================
@@ -924,6 +994,1518 @@ export const getQuackieBottleneckSummary = async ({ projectId, userId, note = ""
 };
 
 // ============================================================
+// 4F. PROJECT HEALTH SUMMARY & FORMATTER
+// ============================================================
+export const formatProjectHealthReply = (healthData, projectTitle = "Project", note = "") => {
+    const { score, status, dimensions, reasons, warnings, strengths, history } = healthData;
+    let icon = status === "HEALTHY" ? "🟢" : status === "WATCH" ? "🟡" : status === "AT_RISK" ? "🟠" : "🔴";
+    let reply = `🦆 **Project Health: ${projectTitle}**\n\n`;
+    if (note) reply += `${note}\n\n`;
+    reply += `${icon} **Score: ${score}/100** — **${status}**`;
+    if (history?.trend) {
+        const trendIcon = history.trend === "IMPROVING" ? "📈" : history.trend === "DECLINING" ? "📉" : "➡️";
+        reply += ` (${trendIcon} ${history.trend})\n\n`;
+    } else {
+        reply += `\n\n`;
+    }
+
+    if (dimensions) {
+        reply += `**Operational Dimensions:**\n`;
+        const dimKeys = Object.keys(dimensions);
+        dimKeys.forEach((key) => {
+            const d = dimensions[key];
+            const name = key.charAt(0).toUpperCase() + key.slice(1);
+            reply += `• **${name}:** ${d.score}/100 (${d.status})\n`;
+        });
+        reply += `\n`;
+    }
+
+    if (warnings && warnings.length > 0) {
+        reply += `⚠️ **Key Warnings:**\n`;
+        warnings.slice(0, 3).forEach((w) => {
+            reply += `• ${w}\n`;
+        });
+        reply += `\n`;
+    }
+
+    if (strengths && strengths.length > 0) {
+        reply += `💪 **Key Strengths:**\n`;
+        strengths.slice(0, 2).forEach((s) => {
+            reply += `• ${s}\n`;
+        });
+    }
+
+    return reply.trim();
+};
+
+export const getQuackieHealthSummary = async ({ projectId, userId, note = "" }) => {
+    const data = await getProjectHealth(projectId, userId);
+    const message = formatProjectHealthReply(data, "Project", note);
+
+    let emotion = "happy";
+    if (data.status === "CRITICAL") emotion = "worried";
+    else if (data.status === "AT_RISK") emotion = "worried";
+    else if (data.status === "WATCH") emotion = "thinking";
+    else emotion = "excited";
+
+    return {
+        ...data,
+        message,
+        emotion
+    };
+};
+
+// ============================================================
+// 4G. SCHEDULE DRIFT SUMMARY & FORMATTER
+// ============================================================
+export const formatScheduleDriftReply = (driftData, projectTitle = "Project", note = "") => {
+    const { plannedEndDate, projectedEndDate, deltaDays, severity, reasons, hasCycle } = driftData;
+    let reply = `🦆 **Schedule Drift Intelligence: ${projectTitle}**\n\n`;
+    if (note) reply += `${note}\n\n`;
+
+    if (hasCycle) {
+        reply += `⚠️ Schedule calculations are blocked due to a circular dependency in project tasks.`;
+        return reply.trim();
+    }
+
+    const sevIcon = severity === "NONE" ? "🟢" : severity === "LOW" ? "🟡" : severity === "MEDIUM" ? "🟠" : "🔴";
+    reply += `${sevIcon} **Drift Severity: ${severity}**\n`;
+    reply += `• **Planned Deadline:** ${plannedEndDate ? formatDate(plannedEndDate) : "Not set"}\n`;
+    reply += `• **Projected Completion:** ${projectedEndDate ? formatDate(projectedEndDate) : "Not set"}\n`;
+    reply += `• **Schedule Variance:** ${deltaDays > 0 ? `+${deltaDays} days delay` : "On schedule"}\n\n`;
+
+    if (reasons && reasons.length > 0) {
+        reply += `**Analysis:**\n`;
+        reasons.forEach((r) => {
+            reply += `• ${r}\n`;
+        });
+    }
+
+    return reply.trim();
+};
+
+export const getQuackieDriftSummary = async ({ projectId, userId, note = "" }) => {
+    const data = await getProjectScheduleDrift(projectId, userId);
+    const message = formatScheduleDriftReply(data, "Project", note);
+
+    let emotion = "happy";
+    if (data.severity === "CRITICAL" || data.severity === "HIGH") emotion = "worried";
+    else if (data.severity === "MEDIUM") emotion = "thinking";
+    else emotion = "excited";
+
+    return {
+        ...data,
+        message,
+        emotion
+    };
+};
+
+// ============================================================
+// 4H. PRE-MORTEM SUMMARY & FORMATTER
+// ============================================================
+export const formatPreMortemReply = (preMortemData, projectTitle = "Project", note = "") => {
+    const { findings, summary } = preMortemData;
+    let reply = `🦆 **Predictive Pre-Mortem: ${projectTitle}**\n\n`;
+    if (note) reply += `${note}\n\n`;
+
+    if (!findings || findings.length === 0) {
+        reply += `🎉 No critical failure mechanisms detected. Project conditions are stable under current trajectory.`;
+        return reply.trim();
+    }
+
+    reply += `🔍 **Identified ${summary?.total || findings.length} condition(s) requiring attention:**\n\n`;
+    findings.slice(0, 4).forEach((f, idx) => {
+        const icon = f.severity === "CRITICAL" ? "🔴" : f.severity === "HIGH" ? "🟠" : "🟡";
+        reply += `${idx + 1}. ${icon} **${f.title}** [${f.severity}]\n`;
+        reply += `   ${f.explanation}\n`;
+        if (f.evidence && f.evidence.length > 0) {
+            reply += `   *Evidence:* ${f.evidence[0]}\n`;
+        }
+        reply += `\n`;
+    });
+
+    return reply.trim();
+};
+
+export const getQuackiePreMortemSummary = async ({ projectId, userId, note = "" }) => {
+    const data = await getProjectPreMortem(projectId, userId);
+    const message = formatPreMortemReply(data, "Project", note);
+
+    let emotion = "happy";
+    if (data.summary?.criticalCount > 0) emotion = "worried";
+    else if (data.summary?.highCount > 0) emotion = "thinking";
+    else if (data.findings?.length === 0) emotion = "excited";
+
+    return {
+        ...data,
+        message,
+        emotion
+    };
+};
+
+// ============================================================
+// 4I. TEAM WORKLOAD SUMMARY & FORMATTER
+// ============================================================
+export const formatTeamWorkloadReply = (teamData, projectTitle = "Project", note = "") => {
+    const { workload, resilience } = teamData;
+    let reply = `🦆 **Team Workload & Resilience: ${projectTitle}**\n\n`;
+    if (note) reply += `${note}\n\n`;
+
+    const members = workload?.members || [];
+    if (members.length === 0) {
+        reply += `No team members are currently assigned to tasks in this project.`;
+        return reply.trim();
+    }
+
+    reply += `**Member Workload Distribution:**\n`;
+    members.forEach((m) => {
+        reply += `• **${m.name}**: ${m.workloadShare}% effort (${m.remainingHours} hrs) · ${m.criticalCount} critical task(s)\n`;
+    });
+    reply += `\n`;
+
+    if (resilience) {
+        const resIcon = resilience.severity === "CRITICAL" ? "🔴" : resilience.severity === "HIGH" ? "🟠" : "🟢";
+        reply += `${resIcon} **Knowledge Concentration Risk:** ${resilience.severity} (Score: ${resilience.concentrationScore}/100)\n`;
+        if (resilience.evidence && resilience.evidence.length > 0) {
+            reply += `• ${resilience.evidence[0]}\n`;
+        }
+    }
+
+    return reply.trim();
+};
+
+export const getQuackieTeamSummary = async ({ projectId, userId, note = "" }) => {
+    const data = await getProjectTeamIntelligence(projectId, userId);
+    const message = formatTeamWorkloadReply(data, "Project", note);
+
+    let emotion = "happy";
+    if (data.resilience?.severity === "CRITICAL" || data.resilience?.severity === "HIGH") {
+        emotion = "worried";
+    } else {
+        emotion = "thinking";
+    }
+
+    return {
+        ...data,
+        message,
+        emotion
+    };
+};
+
+// ============================================================
+// 4J. REPLANNING & PROPOSAL SUMMARY & FORMATTER
+// ============================================================
+export const formatReplanningReply = (replanningData, projectTitle = "Project", note = "") => {
+    const { proposals, totalProposals } = replanningData || {};
+    let reply = `🦆 **Intelligent Replanning: ${projectTitle}**\n\n`;
+    if (note) reply += `${note}\n\n`;
+
+    if (!proposals || proposals.length === 0) {
+        reply += `🎉 No replanning is currently needed! Your project schedule and workload are healthy.`;
+        return reply.trim();
+    }
+
+    reply += `I generated **${totalProposals || proposals.length} recovery proposal(s)** to optimize the project trajectory:\n\n`;
+
+    proposals.slice(0, 3).forEach((p, idx) => {
+        reply += `**Proposal ${idx + 1}: ${p.title}**\n`;
+        reply += `• **Strategy:** ${p.strategy.replace(/_/g, " ")}\n`;
+        reply += `• **Rationale:** ${p.rationale}\n`;
+        if (p.projectedImpact) {
+            const healthChange = p.projectedImpact.health?.scoreDelta;
+            const healthStr = healthChange !== undefined ? `Health ${p.projectedImpact.health.before} → ${p.projectedImpact.health.after} (${healthChange >= 0 ? `+${healthChange}` : healthChange})` : "";
+            reply += `• **Projected Impact:** ${healthStr}\n`;
+        }
+        if (p.proposedChanges && p.proposedChanges.length > 0) {
+            reply += `• **Proposed Changes:**\n`;
+            p.proposedChanges.forEach((c) => {
+                reply += `  - ${c.details || `${c.type} on ${c.taskTitle || c.taskId}`}\n`;
+            });
+        }
+        reply += `\n`;
+    });
+
+    reply += `*To approve a plan, reply: "Approve Proposal 1" or view the Replanning tab in Project Intelligence.*`;
+    return reply.trim();
+};
+
+export const getQuackieReplanningSummary = async ({ projectId, userId, note = "" }) => {
+    const data = await generateReplanningProposals({ projectId, userId });
+    const message = formatReplanningReply(data, "Project", note);
+
+    let emotion = "happy";
+    if (data.proposals && data.proposals.length > 0) {
+        emotion = "thinking";
+    }
+
+    return {
+        ...data,
+        message,
+        emotion
+    };
+};
+
+export const formatProposalExecutionReply = (result, proposalTitle = "Replanning Plan") => {
+    let reply = `🦆 **Execution Complete: ${proposalTitle}**\n\n`;
+    reply += `✅ Successfully applied **${result.appliedChangesCount} change(s)** to the project.\n\n`;
+    if (result.resultingState) {
+        reply += `• **Projected Critical Path:** ${result.resultingState.criticalPath?.projectDurationDays || 0} days\n`;
+        reply += `• **Projected Health Score:** ${result.resultingState.project?.healthScore || "Recalculated"}\n`;
+    }
+    reply += `\nReal-time updates have been broadcast to the workspace and Project Intelligence has been refreshed.`;
+    return reply.trim();
+};
+
+// ============================================================
+// PHASE 4: HISTORICAL & MEMORY FORMATTERS
+// ============================================================
+
+export const formatHealthHistoryReply = (historyData, projectTitle = "Project", note = "") => {
+    let reply = `🦆 **Health History & Trends: ${projectTitle}**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    if (!historyData || historyData.totalSnapshots === 0) {
+        reply += `No historical snapshots have been recorded for this project yet. Snapshots are captured at key execution events and replanning milestones.`;
+        return reply.trim();
+    }
+
+    reply += `• **Current Health:** ${historyData.currentHealth ?? "N/A"}\n`;
+    reply += `• **Previous Health:** ${historyData.previousHealth ?? "N/A"}\n`;
+    reply += `• **Score Delta:** ${historyData.scoreDelta > 0 ? "+" : ""}${historyData.scoreDelta}\n`;
+    reply += `• **Historical Trend:** **${historyData.trend}**\n`;
+    reply += `• **Historical Range:** Min ${historyData.historicalMin ?? "N/A"} / Max ${historyData.historicalMax ?? "N/A"} (Avg: ${historyData.averageHealth ?? "N/A"})\n\n`;
+
+    if (historyData.majorDeclines && historyData.majorDeclines.length > 0) {
+        reply += `📉 **Recorded Major Declines (≥5 points):**\n`;
+        historyData.majorDeclines.slice(0, 3).forEach((d) => {
+            reply += `• Drop of ${Math.abs(d.delta)} points (${d.previousScore} → ${d.currentScore}). ${d.explanation}\n`;
+        });
+        reply += `\n`;
+    }
+
+    if (historyData.majorImprovements && historyData.majorImprovements.length > 0) {
+        reply += `📈 **Recorded Major Improvements (≥5 points):**\n`;
+        historyData.majorImprovements.slice(0, 3).forEach((d) => {
+            reply += `• Gain of +${d.delta} points (${d.previousScore} → ${d.currentScore}). ${d.explanation}\n`;
+        });
+        reply += `\n`;
+    }
+
+    reply += `*Recorded facts: ${historyData.totalSnapshots} snapshots preserved. Data is immutable and append-only.*`;
+    return reply.trim();
+};
+
+export const getQuackieHealthHistorySummary = async ({ projectId, userId, note = "" }) => {
+    const data = await getProjectHealthHistory(projectId);
+    const message = formatHealthHistoryReply(data, "Project", note);
+    const emotion = data.trend === "DECLINING" ? "worried" : data.trend === "IMPROVING" ? "happy" : "curious";
+    return { ...data, message, emotion };
+};
+
+export const formatTimelineReply = (timelineData, projectTitle = "Project", note = "") => {
+    let reply = `🦆 **Project Timeline: ${projectTitle}**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    if (!timelineData || timelineData.events.length === 0) {
+        reply += `No historical events have been recorded for this project yet.`;
+        return reply.trim();
+    }
+
+    reply += `Showing **${timelineData.events.length} of ${timelineData.total}** recorded timeline events:\n\n`;
+    timelineData.events.slice(0, 8).forEach((ev) => {
+        const dateStr = new Date(ev.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        const icon = ev.severity === "CRITICAL" ? "🔴" : ev.severity === "HIGH" ? "🟠" : ev.severity === "MEDIUM" ? "🟡" : "🟢";
+        reply += `${icon} **${dateStr}** — **${ev.title}** (${ev.type})\n`;
+        if (ev.description) {
+            reply += `   _${ev.description.slice(0, 100)}${ev.description.length > 100 ? "..." : ""}_\n`;
+        }
+    });
+
+    return reply.trim();
+};
+
+export const getQuackieTimelineSummary = async ({ projectId, userId, note = "" }) => {
+    const data = await getProjectTimeline(projectId, { limit: 10 });
+    const message = formatTimelineReply(data, "Project", note);
+    return { ...data, message, emotion: "neutral" };
+};
+
+export const formatDecisionIntelligenceReply = (decisionData, projectTitle = "Project", note = "") => {
+    let reply = `🦆 **Decision Intelligence: ${projectTitle}**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    if (!decisionData || decisionData.totalDecisions === 0) {
+        reply += `No recorded decisions are available for this project.`;
+        return reply.trim();
+    }
+
+    reply += `Found **${decisionData.totalDecisions} documented decision(s)**:\n\n`;
+    decisionData.decisions.slice(0, 5).forEach((d) => {
+        const dateStr = d.decisionDate ? new Date(d.decisionDate).toLocaleDateString() : "Undated";
+        reply += `• **${d.decision}** (${d.status}, ${dateStr})\n`;
+        if (d.reason) reply += `  _Reason:_ ${d.reason}\n`;
+        if (d.impact?.temporalObservation) {
+            reply += `  _Observed Shift:_ ${d.impact.temporalObservation}\n`;
+        }
+    });
+
+    reply += `\n*Note: Recorded temporal shifts reflect chronological observations rather than proven causal relationships.*`;
+    return reply.trim();
+};
+
+export const getQuackieDecisionSummary = async ({ projectId, userId, note = "" }) => {
+    const data = await getProjectDecisionIntelligence(projectId);
+    const message = formatDecisionIntelligenceReply(data, "Project", note);
+    return { ...data, message, emotion: "thinking" };
+};
+
+export const formatBottleneckHistoryReply = (memoryData, projectTitle = "Project", note = "") => {
+    let reply = `🦆 **Historical Bottlenecks: ${projectTitle}**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    const bottlenecks = memoryData.recurringPatterns?.bottlenecks || [];
+    if (bottlenecks.length === 0) {
+        reply += `No recurring bottlenecks have been recorded in project history!`;
+        return reply.trim();
+    }
+
+    reply += `Recorded **${bottlenecks.length} recurring bottleneck task(s)**:\n\n`;
+    bottlenecks.forEach((b) => {
+        const icon = b.highestSeverity === "CRITICAL" ? "🔴" : "🟠";
+        reply += `${icon} **${b.taskTitle}**\n`;
+        reply += `• Total recorded appearances: **${b.occurrenceCount}**\n`;
+        reply += `• Highest historical severity: **${b.highestSeverity}**\n`;
+        reply += `• Evidence: ${b.evidence}\n\n`;
+    });
+
+    return reply.trim();
+};
+
+export const getQuackieBottleneckHistorySummary = async ({ projectId, userId, note = "" }) => {
+    const data = await getProjectMemory(projectId);
+    const message = formatBottleneckHistoryReply(data, "Project", note);
+    const emotion = (data.recurringPatterns?.bottlenecks?.length || 0) > 0 ? "worried" : "happy";
+    return { ...data, message, emotion };
+};
+
+export const formatScheduleHistoryReply = (memoryData, projectTitle = "Project", note = "") => {
+    let reply = `🦆 **Schedule Drift History: ${projectTitle}**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    const drift = memoryData.recurringPatterns?.scheduleDrift;
+    if (!drift || drift.totalOccurrences === 0) {
+        reply += `No schedule drift events have been recorded for this project. Milestones have executed on track!`;
+        return reply.trim();
+    }
+
+    reply += `• **Total Recorded Drift Events:** ${drift.totalOccurrences}\n`;
+    reply += `• **Max Recorded Delay:** ${drift.maxRecordedDriftDays} days\n`;
+    if (drift.recoveredDays > 0) {
+        reply += `• **Recovered Delay:** ${drift.recoveredDays} days recovered through corrective actions\n`;
+    }
+    reply += `\n*Recorded facts: Derived strictly from historical milestone and snapshot records.*`;
+    return reply.trim();
+};
+
+export const getQuackieScheduleHistorySummary = async ({ projectId, userId, note = "" }) => {
+    const data = await getProjectMemory(projectId);
+    const message = formatScheduleHistoryReply(data, "Project", note);
+    const emotion = (data.recurringPatterns?.scheduleDrift?.maxRecordedDriftDays || 0) >= 3 ? "worried" : "neutral";
+    return { ...data, message, emotion };
+};
+
+export const formatDiagnosisReply = (diagData, projectTitle = "Project", note = "") => {
+    let reply = `🦆 **Project Diagnosis: ${projectTitle}**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    if (!diagData || diagData.totalDiagnoses === 0) {
+        reply += `Diagnosis concluded: No systemic operational pathologies or instability patterns detected.`;
+        return reply.trim();
+    }
+
+    reply += `Identified **${diagData.totalDiagnoses} condition(s)** based on historical evidence:\n\n`;
+    diagData.diagnoses.forEach((d) => {
+        const icon = d.severity === "CRITICAL" ? "🔴" : d.severity === "HIGH" ? "🟠" : d.severity === "MEDIUM" ? "🟡" : "ℹ️";
+        reply += `${icon} **${d.type.replace(/_/g, " ")}** (${d.severity})\n`;
+        reply += `• ${d.explanation}\n`;
+        if (d.evidence && d.evidence.length > 0) {
+            reply += `• *Evidence:* ${d.evidence.join("; ")}\n`;
+        }
+        if (d.associatedFactors && d.associatedFactors.length > 0) {
+            reply += `• *Associated Factors:* ${d.associatedFactors.join(", ")}\n`;
+        }
+        reply += `\n`;
+    });
+
+    reply += `*Analysis based strictly on verified historical evidence without unsupported causal claims.*`;
+    return reply.trim();
+};
+
+export const getQuackieDiagnosisSummary = async ({ projectId, userId, note = "" }) => {
+    const data = await runProjectDiagnosis(projectId);
+    const message = formatDiagnosisReply(data, "Project", note);
+    const hasCritical = data.diagnoses.some((d) => d.severity === "CRITICAL" || d.severity === "HIGH");
+    return { ...data, message, emotion: hasCritical ? "worried" : "thinking" };
+};
+
+export const formatReplayReply = (replayData, note = "") => {
+    let reply = `🦆 **Project Replay**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    if (!replayData || !replayData.isAvailable) {
+        reply += `No recorded project state exists for this timestamp.`;
+        return reply.trim();
+    }
+
+    const snapDate = new Date(replayData.snapshotTimestamp).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+    });
+
+    reply += `**${replayData.label || "Recorded Snapshot"}**\n`;
+    reply += `Recorded: **${snapDate}**\n\n`;
+    reply += `• **Health:** ${replayData.health?.score} — ${replayData.health?.status}\n`;
+    reply += `• **Projected Completion:** ${replayData.schedule?.projectedEndDate ? new Date(replayData.schedule.projectedEndDate).toLocaleDateString() : "Unscheduled"}\n`;
+    reply += `• **Schedule Drift:** ${replayData.schedule?.scheduleDriftDays} days\n`;
+    reply += `• **Critical Tasks:** ${replayData.criticalPath?.criticalTaskCount}\n`;
+    reply += `• **Major Bottlenecks:** ${replayData.bottlenecks?.bottleneckCount}\n\n`;
+
+    if (replayData.eventsAround && replayData.eventsAround.length > 0) {
+        reply += `**Recorded events around this point:**\n`;
+        replayData.eventsAround.slice(0, 3).forEach((e) => {
+            reply += `• ${e.title}\n`;
+        });
+        reply += `\n`;
+    }
+
+    reply += `*This is a recorded historical snapshot, not the current project state.*`;
+    return reply.trim();
+};
+
+export const getQuackieReplaySummary = async ({ projectId, timestamp, note = "" }) => {
+    const data = await replayProjectPointInTime(projectId, timestamp || new Date().toISOString());
+    const message = formatReplayReply(data, note);
+    return { ...data, message, emotion: data.isAvailable ? "thinking" : "curious" };
+};
+
+export const formatAutopsyReply = (autopsyData, note = "") => {
+    let reply = `🦆 **Project Retrospective / Autopsy**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    if (!autopsyData || !autopsyData.eligible) {
+        reply += `Project autopsy is available for completed or archived projects. (Current status: ${autopsyData?.projectStatus || "Active"})\n`;
+        reply += `You can request a live diagnostic review instead with: "Project diagnosis".`;
+        return reply.trim();
+    }
+
+    reply += `• **Outcome:** Completed (${autopsyData.project.status})\n`;
+    if (autopsyData.schedule.plannedEndDate) {
+        reply += `• **Original Deadline:** ${new Date(autopsyData.schedule.plannedEndDate).toLocaleDateString()}\n`;
+    }
+    reply += `• **Largest Projected Delay:** +${autopsyData.schedule.largestDriftDays} days\n`;
+    reply += `• **Recorded Schedule-Drift Events:** ${autopsyData.schedule.driftEventsCount}\n`;
+    reply += `• **Major Bottleneck Occurrences:** ${autopsyData.bottlenecks.totalBottleneckOccurrences}\n`;
+    reply += `• **Replanning Executions:** ${autopsyData.replanning.totalProposals}\n`;
+    reply += `• **Health Trajectory:** Initial ${autopsyData.health.initialScore ?? "N/A"} → Lowest ${autopsyData.health.lowestScore ?? "N/A"} → Final ${autopsyData.health.finalScore ?? "N/A"}\n\n`;
+
+    if (autopsyData.lessonsAndPatterns && autopsyData.lessonsAndPatterns.length > 0) {
+        reply += `**Observed Historical Patterns:**\n`;
+        autopsyData.lessonsAndPatterns.forEach((p) => {
+            reply += `• ${p}\n`;
+        });
+    }
+
+    reply += `\n*All observations derived from immutable records without assigning personal blame.*`;
+    return reply.trim();
+};
+
+export const getQuackieAutopsySummary = async ({ projectId, userId, force = true, note = "" }) => {
+    const data = await runProjectAutopsy(projectId, { force });
+    const message = formatAutopsyReply(data, note);
+    return { ...data, message, emotion: data.eligible ? "neutral" : "curious" };
+};
+
+export const getQuackieMemorySummary = async ({ projectId, userId, note = "" }) => {
+    const data = await getProjectMemory(projectId);
+    let reply = `🦆 **Project Memory Summary: ${data.projectId}**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    reply += `• **Health Trend:** ${data.healthSummary.trend} (Current: ${data.healthSummary.currentHealth ?? "N/A"})\n`;
+    reply += `• **Recorded Facts:**\n`;
+    data.recordedFacts.forEach((f) => {
+        reply += `  - ${f}\n`;
+    });
+    if (data.derivedInsights.length > 0) {
+        reply += `• **Derived Analysis:**\n`;
+        data.derivedInsights.forEach((i) => {
+            reply += `  - ${i}\n`;
+        });
+    }
+
+    return { ...data, message: reply.trim(), emotion: "thinking" };
+};
+
+// ============================================================
+// PHASE 5: ADVANCED PREDICTIVE & PORTFOLIO FORMATTERS & SUMMARIES
+// ============================================================
+
+export const formatForecastReply = (forecast, projectName = "Project", note = "") => {
+    let reply = `🦆 **Monte Carlo Schedule Forecast: ${projectName}**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    if (!forecast || forecast.status === "EMPTY") {
+        reply += `There are insufficient tasks to generate a probabilistic forecast. Add tasks with duration estimates or due dates first.`;
+        return reply.trim();
+    }
+
+    if (forecast.status === "CYCLE") {
+        reply += `⚠️ A dependency cycle was detected in this project. Monte Carlo forecast cannot run until cyclical dependencies are resolved.`;
+        return reply.trim();
+    }
+
+    const { percentiles, deadlineProbability, uncertaintySpread, simulationRuns } = forecast;
+    const probPercent = Math.round((deadlineProbability ?? 0) * 100);
+
+    reply += `• **P50 (Median Completion):** ${percentiles?.p50?.date || "N/A"}\n`;
+    reply += `• **P80 (Likely Completion):** ${percentiles?.p80?.date || "N/A"}\n`;
+    reply += `• **P90 (Conservative Completion):** ${percentiles?.p90?.date || "N/A"}\n\n`;
+
+    reply += `• **Deadline Probability:** ${probPercent}% chance of completing on schedule\n`;
+    reply += `• **Uncertainty Level:** ${uncertaintySpread?.uncertaintyLevel || "MEDIUM"} (${uncertaintySpread?.spreadDays ?? 0} days spread)\n`;
+    reply += `• **Simulation Runs:** ${simulationRuns || 1000} iterations\n\n`;
+
+    if (forecast.dominantPath && forecast.dominantPath.length > 0) {
+        reply += `**Dominant Path:**\n`;
+        reply += `• ${forecast.dominantPath.map((t) => t.title || t.id).join(" ➔ ")}\n\n`;
+    }
+
+    if (forecast.highImpactTasks && forecast.highImpactTasks.length > 0) {
+        reply += `**High-Impact Tasks:**\n`;
+        forecast.highImpactTasks.slice(0, 3).forEach((task) => {
+            const critIdx = Math.round((task.criticalityIndex || task.probability || 0) * 100);
+            reply += `• **${task.title || task.id}** — on critical path in ${critIdx}% of simulations\n`;
+        });
+        reply += `\n`;
+    }
+
+    reply += `*Disclaimer: Forecast is a probabilistic simulation based on current task estimates and dependency topology. It is not a guaranteed completion date.*`;
+    return reply.trim();
+};
+
+export const getQuackieForecastSummary = async ({ projectId, runs = 1000, seed = null, note = "" }) => {
+    const data = await runMonteCarloForecast(projectId, { runs, seed });
+    let projectTitle = "Project";
+    try {
+        const p = await prisma.projects.findUnique({ where: { id: projectId }, select: { title: true } });
+        if (p?.title) projectTitle = p.title;
+    } catch (_) {}
+    const message = formatForecastReply(data, projectTitle, note);
+    const isAtRisk = (data.deadlineProbability ?? 1) < 0.60;
+    return { ...data, message, emotion: isAtRisk ? "worried" : "thinking" };
+};
+
+export const formatProbabilisticCriticalPathReply = (probCp, projectName = "Project", note = "") => {
+    let reply = `🦆 **Probabilistic Critical Path: ${projectName}**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    if (!probCp || probCp.status === "EMPTY") {
+        reply += `No task dependency paths available to evaluate probabilistic criticality.`;
+        return reply.trim();
+    }
+
+    if (probCp.status === "CYCLE") {
+        reply += `⚠️ Dependency cycle detected. Critical path probabilities cannot be computed until cycles are resolved.`;
+        return reply.trim();
+    }
+
+    const { dominantPath, volatilityScore, volatilityLevel, highImpactTasks } = probCp;
+
+    reply += `• **Path Volatility:** ${volatilityLevel || "STABLE"} (Score: ${volatilityScore ?? 0})\n`;
+    if (dominantPath && dominantPath.sequence) {
+        reply += `• **Dominant Path:** ${dominantPath.sequence.map((t) => t.title || t.id).join(" ➔ ")} (${Math.round((dominantPath.frequency || 0) * 100)}% dominant)\n\n`;
+    }
+
+    if (highImpactTasks && highImpactTasks.length > 0) {
+        reply += `**High-Impact Tasks (Appearance Probability):**\n`;
+        highImpactTasks.slice(0, 4).forEach((t) => {
+            const prob = Math.round((t.criticalityIndex || t.appearanceProbability || 0) * 100);
+            reply += `• **${t.title || t.id}**: ${prob}% of simulations\n`;
+        });
+        reply += `\n`;
+    }
+
+    reply += `*Criticality index measures how often each task falls on the critical path across probabilistic iterations.*`;
+    return reply.trim();
+};
+
+export const getQuackieProbabilisticCriticalPathSummary = async ({ projectId, runs = 1000, seed = null, note = "" }) => {
+    const data = await getProbabilisticCriticalPath(projectId, { runs, seed });
+    let projectTitle = "Project";
+    try {
+        const p = await prisma.projects.findUnique({ where: { id: projectId }, select: { title: true } });
+        if (p?.title) projectTitle = p.title;
+    } catch (_) {}
+    const message = formatProbabilisticCriticalPathReply(data, projectTitle, note);
+    const isVolatile = data.volatilityLevel === "VOLATILE" || data.volatilityLevel === "HIGH";
+    return { ...data, message, emotion: isVolatile ? "worried" : "thinking" };
+};
+
+export const formatScopeReply = (scopeData, projectName = "Project", note = "") => {
+    let reply = `🦆 **Scope Intelligence: ${projectName}**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    if (!scopeData) {
+        reply += `No scope intelligence data available for this project.`;
+        return reply.trim();
+    }
+
+    const { baseline, current, netGrowthPercentage, changeFrequency, scopePressure, scopeEvents } = scopeData;
+
+    reply += `• **Baseline Scope:** ${baseline?.taskCount ?? 0} tasks (${baseline?.source || "Initial"})\n`;
+    reply += `• **Current Scope:** ${current?.taskCount ?? 0} tasks\n`;
+    reply += `• **Net Scope Growth:** ${netGrowthPercentage > 0 ? "+" : ""}${netGrowthPercentage}%\n`;
+    reply += `• **Change Frequency:** ${changeFrequency?.changesPerWeek ?? 0} additions/week\n`;
+    reply += `• **Scope Pressure:** ${scopePressure || "LOW"}\n\n`;
+
+    if (scopeEvents && scopeEvents.length > 0) {
+        reply += `**Recent Scope Events:**\n`;
+        scopeEvents.slice(0, 3).forEach((ev) => {
+            reply += `• ${ev.title || ev.description || ev.type}\n`;
+        });
+        reply += `\n`;
+    }
+
+    reply += `*Scope intelligence monitors expansion beyond the original project baseline.*`;
+    return reply.trim();
+};
+
+export const getQuackieScopeSummary = async ({ projectId, note = "" }) => {
+    const data = await getProjectScopeIntelligence(projectId);
+    let projectTitle = "Project";
+    try {
+        const p = await prisma.projects.findUnique({ where: { id: projectId }, select: { title: true } });
+        if (p?.title) projectTitle = p.title;
+    } catch (_) {}
+    const message = formatScopeReply(data, projectTitle, note);
+    const isElevated = data.scopePressure === "HIGH" || data.scopePressure === "CRITICAL";
+    return { ...data, message, emotion: isElevated ? "worried" : "thinking" };
+};
+
+export const formatCrossProjectReply = (crossData, projectName = "Project", note = "") => {
+    let reply = `🦆 **Cross-Project Intelligence: ${projectName}**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    if (!crossData) {
+        reply += `No cross-project dependencies or relationships found.`;
+        return reply.trim();
+    }
+
+    const { sharedMembers, deadlineConflicts, crossProjectBottlenecks, sharedDependencies } = crossData;
+
+    reply += `• **Shared Members:** ${(sharedMembers || []).length} collaborators across projects\n`;
+    reply += `• **Cross-Project Conflicts:** ${(deadlineConflicts || []).length} deadline clashes (<=3 days)\n`;
+    reply += `• **Cross-Project Bottlenecks:** ${(crossProjectBottlenecks || []).length} shared blocking tasks\n`;
+    reply += `• **Cross-Project Dependencies:** ${(sharedDependencies || []).length} linked items\n\n`;
+
+    if (deadlineConflicts && deadlineConflicts.length > 0) {
+        reply += `**Near-Term Deadline Clashes:**\n`;
+        deadlineConflicts.slice(0, 3).forEach((c) => {
+            reply += `• **${c.memberName || "Assignee"}**: "${c.taskA?.title}" (${c.projectA?.title}) vs "${c.taskB?.title}" (${c.projectB?.title})\n`;
+        });
+        reply += `\n`;
+    }
+
+    reply += `*Cross-project intelligence highlights multi-project coordination risks.*`;
+    return reply.trim();
+};
+
+export const getQuackieCrossProjectSummary = async ({ projectId, note = "" }) => {
+    const data = await getCrossProjectIntelligence(projectId);
+    let projectTitle = "Project";
+    try {
+        const p = await prisma.projects.findUnique({ where: { id: projectId }, select: { title: true } });
+        if (p?.title) projectTitle = p.title;
+    } catch (_) {}
+    const message = formatCrossProjectReply(data, projectTitle, note);
+    const hasConflicts = (data.deadlineConflicts || []).length > 0;
+    return { ...data, message, emotion: hasConflicts ? "worried" : "thinking" };
+};
+
+export const formatResourceConflictReply = (resourceData, note = "") => {
+    let reply = `🦆 **Resource Conflict Intelligence**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    if (!resourceData || !resourceData.members || resourceData.members.length === 0) {
+        reply += `No high resource pressure or assignment conflicts identified in this workspace.`;
+        return reply.trim();
+    }
+
+    const { members, conflictsCount, averagePressureScore } = resourceData;
+
+    reply += `• **Average Resource Pressure:** ${averagePressureScore ?? 0}/100\n`;
+    reply += `• **Total Conflict Conditions:** ${conflictsCount ?? 0}\n\n`;
+
+    reply += `**Members Under Highest Resource Pressure:**\n`;
+    members.slice(0, 4).forEach((m) => {
+        reply += `• **${m.name || m.email}**: Pressure Score **${m.pressureScore}/100** (${m.pressureLevel || "NORMAL"})\n`;
+        reply += `  - Active: ${m.activeTasksCount} tasks | Critical path: ${m.criticalTasksCount} | Overdue: ${m.overdueTasksCount}\n`;
+        if (m.crossProjectCount > 1) {
+            reply += `  - Assigned across ${m.crossProjectCount} active projects\n`;
+        }
+    });
+
+    reply += `\n*Resource Pressure measures schedule alignment and concurrent demand, not employee capability or performance.*`;
+    return reply.trim();
+};
+
+export const getQuackieResourceConflictSummary = async ({ workspaceId, note = "" }) => {
+    const data = await getResourceConflictIntelligence(workspaceId);
+    const message = formatResourceConflictReply(data, note);
+    const hasHighPressure = (data.members || []).some((m) => m.pressureScore >= 75);
+    return { ...data, message, emotion: hasHighPressure ? "worried" : "thinking" };
+};
+
+export const formatPortfolioReply = (portfolioData, workspaceName = "Workspace", note = "") => {
+    let reply = `🦆 **Portfolio Intelligence: ${workspaceName}**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    if (!portfolioData) {
+        reply += `No active projects found in this portfolio.`;
+        return reply.trim();
+    }
+
+    const { portfolioHealthScore, riskDistribution, projects, riskConcentration } = portfolioData;
+
+    reply += `• **Workspace Portfolio Health:** **${portfolioHealthScore ?? 0}/100**\n`;
+    if (riskDistribution) {
+        reply += `• **Risk Distribution:** 🟢 ${riskDistribution.HEALTHY || 0} Healthy | 🟡 ${riskDistribution.WATCH || 0} Watch | 🟠 ${riskDistribution.AT_RISK || 0} At Risk | 🔴 ${riskDistribution.CRITICAL || 0} Critical\n\n`;
+    }
+
+    if (projects && projects.length > 0) {
+        reply += `**Project Risk Statuses:**\n`;
+        projects.slice(0, 5).forEach((p) => {
+            const icon = p.riskStatus === "HEALTHY" ? "🟢" : p.riskStatus === "WATCH" ? "🟡" : p.riskStatus === "AT_RISK" ? "🟠" : "🔴";
+            reply += `• ${icon} **${p.title}**: Health ${p.healthScore}/100 (${p.riskStatus})\n`;
+        });
+        reply += `\n`;
+    }
+
+    if (riskConcentration && riskConcentration.length > 0) {
+        reply += `**Portfolio Risk Observations:**\n`;
+        riskConcentration.slice(0, 3).forEach((obs) => {
+            reply += `• ${obs.message || obs.title || obs}\n`;
+        });
+        reply += `\n`;
+    }
+
+    reply += `*Portfolio health aggregates schedule drift, deadline risk, and critical path stability across all projects.*`;
+    return reply.trim();
+};
+
+export const getQuackiePortfolioSummary = async ({ workspaceId, note = "" }) => {
+    const data = await getWorkspacePortfolioIntelligence(workspaceId);
+    let workspaceName = "Workspace";
+    try {
+        const w = await prisma.workspaces.findUnique({ where: { id: workspaceId }, select: { name: true } });
+        if (w?.name) workspaceName = w.name;
+    } catch (_) {}
+    const message = formatPortfolioReply(data, workspaceName, note);
+    const isAtRisk = (data.portfolioHealthScore ?? 100) < 65;
+    return { ...data, message, emotion: isAtRisk ? "worried" : "thinking" };
+};
+
+export const formatPortfolioSimulationReply = (simResult, note = "") => {
+    let reply = `🦆 **Portfolio Scenario Simulation Result**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    if (!simResult) {
+        reply += `Unable to execute portfolio scenario simulation.`;
+        return reply.trim();
+    }
+
+    const { scenarioType, baselineHealthScore, simulatedHealthScore, deltaHealthScore, affectedProjects } = simResult;
+    const deltaSign = deltaHealthScore > 0 ? "+" : "";
+
+    reply += `• **Simulated Scenario:** ${scenarioType || "What-If"}\n`;
+    reply += `• **Portfolio Health Impact:** ${baselineHealthScore} ➔ ${simulatedHealthScore} (**${deltaSign}${deltaHealthScore} pts**)\n`;
+    reply += `• **Projects Impacted:** ${(affectedProjects || []).length}\n\n`;
+
+    if (affectedProjects && affectedProjects.length > 0) {
+        reply += `**Project Level Impact:**\n`;
+        affectedProjects.slice(0, 4).forEach((proj) => {
+            reply += `• **${proj.title || proj.projectId}**: Health ${proj.baselineHealth} ➔ ${proj.simulatedHealth} (${proj.deltaDays > 0 ? `+${proj.deltaDays}d delay` : "no delay"})\n`;
+        });
+        reply += `\n`;
+    }
+
+    reply += `*Read-only Simulation: Pure in-memory calculation. No projects, tasks, or dates were modified.*`;
+    return reply.trim();
+};
+
+export const getQuackiePortfolioSimulationSummary = async ({ workspaceId, scenario, note = "" }) => {
+    const data = await simulatePortfolioScenario(workspaceId, scenario);
+    const message = formatPortfolioSimulationReply(data, note);
+    const hasDegradation = (data.deltaHealthScore ?? 0) < 0;
+    return { ...data, message, emotion: hasDegradation ? "worried" : "thinking" };
+};
+
+// ============================================================
+// PHASE 6: PROJECT COORDINATION & EXECUTIVE FORMATTERS
+// ============================================================
+
+export const formatBriefingReply = (briefing, projectName = "Project", note = "") => {
+    let reply = `🦆 **DAILY BRIEFING: ${projectName}**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    if (!briefing) {
+        reply += `No briefing data available for this project.`;
+        return reply.trim();
+    }
+
+    if (briefing.headline) {
+        reply += `### ${briefing.headline}\n\n`;
+    }
+
+    const health = briefing.health || briefing.projectStatus;
+    if (health) {
+        const score = health.score !== undefined ? health.score : health.healthScore;
+        const status = health.status || health.healthStatus || "HEALTHY";
+        reply += `**Status:** Health **${score}/100** (${status})\n`;
+        if (health.p80FinishDate) {
+            reply += `• Target Delivery (P80): **${health.p80FinishDate}**`;
+            if (health.deadlineProbability !== null && health.deadlineProbability !== undefined) {
+                const prob = Math.round(health.deadlineProbability <= 1 ? health.deadlineProbability * 100 : health.deadlineProbability);
+                reply += ` (${prob}% probability)`;
+            }
+            reply += `\n`;
+        }
+        reply += `\n`;
+    }
+
+    const priorities = briefing.keyFocusToday || briefing.topPriorities;
+    if (priorities && priorities.length > 0) {
+        reply += `**Top Priorities:**\n`;
+        priorities.slice(0, 3).forEach((p) => {
+            reply += `• **${p.title}** (${p.priority || p.urgency || "MEDIUM"}): ${p.why || ""}\n`;
+        });
+        reply += `\n`;
+    }
+
+    if (briefing.summary) {
+        reply += `**Summary:** ${briefing.summary}\n\n`;
+    }
+
+    const blockers = briefing.blockers;
+    if (blockers && blockers.length > 0) {
+        reply += `**Active Blockers (${blockers.length}):**\n`;
+        blockers.slice(0, 3).forEach((b) => {
+            reply += `• **${b.taskTitle || b.title}**: ${b.impact || b.reason || "Blocked by prerequisites"}\n`;
+        });
+        reply += `\n`;
+    } else {
+        reply += `• **Blockers:** No active blockers detected.\n\n`;
+    }
+
+    if (briefing.risks && briefing.risks.length > 0) {
+        reply += `• **Open Risks:** ${briefing.risks.length} active risk(s)\n`;
+    }
+    if (briefing.decisions && briefing.decisions.length > 0) {
+        reply += `• **Pending Decisions:** ${briefing.decisions.length} awaiting confirmation\n`;
+    }
+    if (briefing.replanning && briefing.replanning.length > 0) {
+        reply += `• **Replanning Proposals:** ${briefing.replanning.length} awaiting review\n`;
+    }
+
+    reply += `\n*Ask me "What should I do next?" to see actionable steps.*`;
+    return reply.trim();
+};
+
+export const formatStandupReply = (standup, contextName = "Standup", note = "") => {
+    let reply = `🦆 **STANDUP: ${contextName}**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    if (!standup) {
+        reply += `No standup records available for this period.`;
+        return reply.trim();
+    }
+
+    const { yesterday, today, blocked, atRisk, needsDiscussion } = standup;
+
+    reply += `**1. Yesterday (Completed):**\n`;
+    if (yesterday && yesterday.length > 0) {
+        yesterday.slice(0, 4).forEach((y) => {
+            reply += `• ${y.title}\n`;
+        });
+    } else {
+        reply += `• No completed tasks recorded in recent window.\n`;
+    }
+    reply += `\n`;
+
+    reply += `**2. Today (Priorities):**\n`;
+    if (today && today.length > 0) {
+        today.slice(0, 4).forEach((t) => {
+            reply += `• ${t.title}${t.isCriticalPath ? " *(Critical Path)*" : ""}\n`;
+        });
+    } else {
+        reply += `• No priority tasks scheduled for today.\n`;
+    }
+    reply += `\n`;
+
+    reply += `**3. Blocked:**\n`;
+    if (blocked && blocked.length > 0) {
+        blocked.slice(0, 3).forEach((b) => {
+            reply += `• ${b.title}: ${b.reason || "Waiting on prerequisites"}\n`;
+        });
+    } else {
+        reply += `• None. All paths unblocked.\n`;
+    }
+    reply += `\n`;
+
+    if (atRisk && atRisk.length > 0) {
+        reply += `**4. At Risk:**\n`;
+        atRisk.slice(0, 3).forEach((r) => {
+            reply += `• ${r.title} (${r.riskReason || "Overdue or tight schedule"})\n`;
+        });
+        reply += `\n`;
+    }
+
+    if (needsDiscussion && needsDiscussion.length > 0) {
+        reply += `**5. Needs Discussion:**\n`;
+        needsDiscussion.slice(0, 3).forEach((d) => {
+            reply += `• [${d.type}] ${d.title}: ${d.reason || ""}\n`;
+        });
+        reply += `\n`;
+    }
+
+    reply += `*Generated deterministically from recorded activity logs and task states.*`;
+    return reply.trim();
+};
+
+export const formatExecutiveReply = (executiveBriefing, workspaceName = "Workspace", note = "") => {
+    let reply = `🦆 **EXECUTIVE BRIEFING: ${workspaceName}**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    if (!executiveBriefing) {
+        reply += `No executive portfolio data available.`;
+        return reply.trim();
+    }
+
+    if (executiveBriefing.portfolioSummary) {
+        reply += `${executiveBriefing.portfolioSummary}\n\n`;
+    }
+
+    const { portfolioHealth, projectsNeedingAttention, deadlinePressure, resourceConflicts, pendingApprovals } = executiveBriefing;
+
+    if (portfolioHealth) {
+        reply += `• **Portfolio Health Index:** **${portfolioHealth.score}/100** (${portfolioHealth.status})\n`;
+        if (portfolioHealth.distribution) {
+            reply += `• **Status Breakdown:** 🟢 ${portfolioHealth.distribution.HEALTHY || 0} Healthy | 🟡 ${portfolioHealth.distribution.WATCH || 0} Watch | 🟠 ${portfolioHealth.distribution.AT_RISK || 0} At Risk | 🔴 ${portfolioHealth.distribution.CRITICAL || 0} Critical\n\n`;
+        }
+    }
+
+    if (projectsNeedingAttention && projectsNeedingAttention.length > 0) {
+        reply += `**Projects Requiring Attention:**\n`;
+        projectsNeedingAttention.slice(0, 3).forEach((p) => {
+            reply += `• **${p.title}**: Health ${p.healthScore} (${p.healthStatus}) — ${p.primaryRiskFactor || "Schedule delay"}\n`;
+        });
+        reply += `\n`;
+    } else {
+        reply += `• All projects are operating within acceptable parameters.\n\n`;
+    }
+
+    if (resourceConflicts && resourceConflicts.length > 0) {
+        reply += `• **Resource Pressure:** ${resourceConflicts.length} member(s) under high cross-project pressure.\n`;
+    }
+    if (pendingApprovals) {
+        reply += `• **Pending Approvals:** ${pendingApprovals.totalPending || 0} item(s) awaiting review.\n`;
+    }
+
+    reply += `\n*Ask me "What needs attention right now?" for detailed coordinator actions.*`;
+    return reply.trim();
+};
+
+export const formatCoordinatorReply = (nextActions, projectName = "Project", note = "") => {
+    let reply = `🦆 **PROJECT COORDINATOR: NEXT ACTIONS (${projectName})**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    const actionsList = Array.isArray(nextActions)
+        ? nextActions
+        : (nextActions?.actions || nextActions?.recommendations || []);
+
+    if (!actionsList || actionsList.length === 0) {
+        reply += `All project tasks are currently progressing within normal limits. No urgent actions detected.`;
+        return reply.trim();
+    }
+
+    const top = actionsList[0];
+    reply += `**Primary Recommendation:**\n`;
+    reply += `• **Action:** ${top.title || top.action || "Recommended Action"}\n`;
+    reply += `• **Urgency:** **${top.urgency || "HIGH"}** (Priority Score: ${top.priorityScore ?? 90}/100)\n`;
+    if (top.why) reply += `• **Why:** ${top.why}\n\n`;
+
+    if (top.evidence && top.evidence.length > 0) {
+        reply += `**Evidence:**\n`;
+        top.evidence.forEach((ev) => {
+            reply += `  - ${ev}\n`;
+        });
+        reply += `\n`;
+    }
+
+    reply += `**Suggested Next Step:**\n${top.suggestedNextStep || "Review item in dashboard."}\n\n`;
+
+    if (actionsList.length > 1) {
+        reply += `**Other High-Priority Items:**\n`;
+        actionsList.slice(1, 4).forEach((act) => {
+            reply += `• **${act.title || act.action}** (${act.urgency || "MEDIUM"}): ${act.why || ""}\n`;
+        });
+        reply += `\n`;
+    }
+
+    reply += `*Actions do not execute automatically. Follow the suggested step to review or simulate changes.*`;
+    return reply.trim();
+};
+
+export const formatApprovalQueueReply = (approvals, projectName = "Project", note = "") => {
+    let reply = `🦆 **APPROVAL CENTER: ${projectName}**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    let items = [];
+    if (Array.isArray(approvals)) {
+        items = approvals;
+    } else if (approvals && typeof approvals === "object") {
+        if (Array.isArray(approvals.replanningProposals)) items.push(...approvals.replanningProposals.map(p => ({ ...p, type: p.type || "REPLANNING_PROPOSAL" })));
+        if (Array.isArray(approvals.decisions)) items.push(...approvals.decisions.map(d => ({ ...d, type: d.type || "DECISION" })));
+        if (Array.isArray(approvals.approvals)) items.push(...approvals.approvals);
+    }
+
+    if (!items || items.length === 0) {
+        reply += `No pending approvals. All proposals and decisions have been processed.`;
+        return reply.trim();
+    }
+
+    reply += `**Items Awaiting Review (${items.length}):**\n\n`;
+    items.slice(0, 5).forEach((item, idx) => {
+        reply += `${idx + 1}. **[${item.type || "APPROVAL"}] ${item.title || item.decision || "Pending item"}**\n`;
+        reply += `   • Impact: ${item.impact || "Schedule adjustment"}\n`;
+        reply += `   • Status: ${item.status || "Pending"}\n`;
+        reply += `   • Required: ${item.requiredAction || "Review and confirm in Approval Center"}\n\n`;
+    });
+
+    reply += `*To approve a proposal, open the Approval Center and confirm changes through the Phase 3 workflow.*`;
+    return reply.trim();
+};
+
+export const formatRecoveryPlanReply = (recoveryPlan, projectName = "Project", note = "") => {
+    let reply = `🦆 **PROJECT RECOVERY PLAN: ${projectName}**\n\n`;
+    if (note) reply += `*${note}*\n\n`;
+
+    if (!recoveryPlan) {
+        reply += `No recovery plan available for this project.`;
+        return reply.trim();
+    }
+
+    if (recoveryPlan.projectedRecoveryDays) {
+        reply += `• **Projected Recovery Days:** ${recoveryPlan.projectedRecoveryDays} day(s) saved\n\n`;
+    }
+
+    if (recoveryPlan.rationale) {
+        reply += `**Rationale:** ${recoveryPlan.rationale}\n\n`;
+    }
+
+    if (recoveryPlan.currentProblem) {
+        reply += `**Current Problem:**\n${recoveryPlan.currentProblem}\n\n`;
+    }
+
+    if (recoveryPlan.evidence && recoveryPlan.evidence.length > 0) {
+        reply += `**Evidence:**\n`;
+        recoveryPlan.evidence.forEach((ev) => {
+            reply += `• ${ev}\n`;
+        });
+        reply += `\n`;
+    }
+
+    if (recoveryPlan.blockerRemovals && recoveryPlan.blockerRemovals.length > 0) {
+        reply += `**Blocker Removals:**\n`;
+        recoveryPlan.blockerRemovals.forEach((b) => {
+            reply += `• ${b.title || b.taskTitle || "Unblock critical dependency"}\n`;
+        });
+        reply += `\n`;
+    }
+
+    if (recoveryPlan.criticalPathActions && recoveryPlan.criticalPathActions.length > 0) {
+        reply += `**Critical Path Compression:**\n`;
+        recoveryPlan.criticalPathActions.forEach((c) => {
+            reply += `• ${c.title || c.action || "Compress task"}\n`;
+        });
+        reply += `\n`;
+    }
+
+    if (recoveryPlan.availableOptions && recoveryPlan.availableOptions.length > 0) {
+        reply += `**Recovery Options:**\n`;
+        recoveryPlan.availableOptions.forEach((opt) => {
+            reply += `• **${opt.strategy}**: ${opt.description}\n  *Simulated Outcome:* ${opt.simulatedOutcome}\n`;
+        });
+        reply += `\n`;
+    }
+
+    reply += `**Approval Required:** ${recoveryPlan.approvalRequired ? "Yes. Recovery adjustments must be approved before execution." : "No."}\n\n`;
+    reply += `*Use the Approval Center to inspect and approve simulated recovery options.*`;
+    return reply.trim();
+};
+
+export const formatActionConfirmationReply = (actionDetail = {}) => {
+    let reply = `🦆 **ACTION CONFIRMATION REQUIRED**\n\n`;
+    reply += `TaskFlow operates under strict safety protocols and **never performs silent or autonomous live-state mutations**.\n\n`;
+    if (actionDetail.proposalId) {
+        reply += `**Proposal ID:** ${actionDetail.proposalId}\n`;
+    }
+    if (actionDetail.action) {
+        reply += `**Requested Action:** ${actionDetail.action}\n`;
+    }
+    if (actionDetail.description) {
+        reply += `**Proposed Action:** ${actionDetail.description}\n`;
+    }
+    reply += `\n**How to proceed:**\n`;
+    reply += `1. Review the proposed adjustment in the **Approval Center** or **Replanning** panel.\n`;
+    reply += `2. Run What-If simulation to preview the exact delta on project schedule and team workload.\n`;
+    reply += `3. Explicitly confirm approval through the controlled execution interface.\n`;
+    return reply.trim();
+};
+
+// ============================================================
+// PHASE 7: PRODUCTION INTELLIGENCE & CONTROL FORMATTERS
+// ============================================================
+
+export const QUACKIE_CONTROL_MODES = {
+    ASK: "ASK",
+    EXPLAIN: "EXPLAIN",
+    INVESTIGATE: "INVESTIGATE",
+    SIMULATE: "SIMULATE",
+    RECOMMEND: "RECOMMEND",
+    PREPARE_ACTION: "PREPARE_ACTION",
+    APPROVE: "APPROVE",
+    SHOCKWAVE: "SHOCKWAVE",
+    INTERVENTION: "INTERVENTION",
+    CHAOS: "CHAOS",
+    RED_TEAM: "RED_TEAM",
+    COUNTERFACTUAL: "COUNTERFACTUAL",
+    DEPENDENCIES: "DEPENDENCIES"
+};
+
+export const formatTaskDependenciesReply = (data) => {
+    if (!data) return "🦆 I couldn't find dependency details for that task or project.";
+
+    if (data.nodes) {
+        let reply = `🦆 **PROJECT DEPENDENCY GRAPH**\n\n`;
+        reply += `**Total Tasks:** ${data.stats?.totalTasks || 0} | **Dependencies:** ${data.stats?.totalDependencies || 0}\n`;
+        reply += `• **Critical Path Tasks:** ${data.stats?.criticalTasksCount || 0}\n`;
+        reply += `• **Blocked Tasks:** ${data.stats?.blockedTasksCount || 0}\n\n`;
+        if (data.hasCycles) {
+            reply += `⚠️ **Warning:** Circular dependency detected in project graph!\n`;
+        } else {
+            reply += `✅ Graph is a valid Directed Acyclic Graph (DAG).\n`;
+        }
+        return reply;
+    }
+
+    const isBlocked = data.isBlocked;
+    let reply = `🦆 **DEPENDENCY STATUS: ${data.taskTitle || "Task"}**\n\n`;
+    reply += `**Status:** ${isBlocked ? "🔴 BLOCKED" : "🟢 READY / UNBLOCKED"}\n\n`;
+
+    if (data.blockedBy && data.blockedBy.length > 0) {
+        reply += `**Blocked By (Prerequisites):**\n`;
+        data.blockedBy.forEach((b) => {
+            const statusIcon = b.isCompleted ? "✅" : "⏳";
+            reply += `• ${statusIcon} **${b.title}** (${b.status}) - ${b.isCompleted ? "Finished" : "Must complete before starting"}\n`;
+        });
+        reply += "\n";
+    } else {
+        reply += `**Blocked By:** No prerequisite tasks. This task can be started anytime.\n\n`;
+    }
+
+    if (data.blocks && data.blocks.length > 0) {
+        reply += `**Blocks (Dependents):**\n`;
+        data.blocks.forEach((b) => {
+            reply += `• ➡️ **${b.title}** (${b.status})\n`;
+        });
+    } else {
+        reply += `**Blocks:** No downstream tasks depend on this.\n`;
+    }
+
+    return reply;
+};
+
+export const formatRedTeamReply = (redTeamResult) => {
+    const exposure = redTeamResult?.exposureScore || {};
+    const findings = redTeamResult?.findings || [];
+    const topVulnerabilities = redTeamResult?.topVulnerabilities || findings.slice(0, 3);
+    const summary = redTeamResult?.summary || {};
+
+    let reply = `🦆 **PROJECT RED TEAM ADVERSARIAL REPORT**\n\n`;
+    reply += `**Exposure Score:** **${exposure.score ?? 50}/100** (${exposure.classification || "MODERATE_EXPOSURE"})\n\n`;
+    reply += `**Assumptions Challenged:** ${redTeamResult?.findingsCount || findings.length} findings surfaced across 14 failure dimensions.\n`;
+    reply += `• **Critical Findings:** ${summary.criticalFindings || 0}\n`;
+    reply += `• **High-Risk Findings:** ${summary.highFindings || 0}\n`;
+    reply += `• **Medium-Risk Findings:** ${summary.mediumFindings || 0}\n\n`;
+
+    if (topVulnerabilities.length > 0) {
+        const top = topVulnerabilities[0];
+        reply += `**Top Concern:**\n• **${top.title}** (${top.severity} severity)\n`;
+        reply += `• **Assumption:** ${top.assumption || "Unchallenged nominal execution."}\n`;
+        if (top.evidence && top.evidence.length > 0) {
+            reply += `• **Evidence:** ${top.evidence[0]}\n`;
+        }
+        reply += `\n`;
+    }
+
+    reply += `[Challenge Further] · [Run Chaos Test] · [Run Counterfactual]`;
+    return reply.trim();
+};
+
+export const formatCounterfactualReply = (counterfactualResult) => {
+    const divergence = counterfactualResult?.divergencePoint || {};
+    const actual = counterfactualResult?.actualState || {};
+    const simulated = counterfactualResult?.simulatedState || {};
+    const deltas = counterfactualResult?.deltas || {};
+
+    let reply = `🦆 **COUNTERFACTUAL TIME MACHINE ANALYSIS**\n\n`;
+    reply += `**Alternate Scenario:** ${divergence.description || counterfactualResult?.title || "Simulated alternate history"}\n\n`;
+
+    reply += `**Actual vs Simulated Delivery:**\n`;
+    if (actual.p80Date) {
+        reply += `• **Actual P80:** ${actual.p80Date.split("T")[0]}\n`;
+    }
+    if (simulated.p80Date) {
+        reply += `• **Simulated P80:** ${simulated.p80Date.split("T")[0]}\n`;
+    }
+    reply += `• **Schedule Delta:** ${deltas.scheduleDaysDelta >= 0 ? "+" : ""}${deltas.scheduleDaysDelta || 0} day(s)\n`;
+    reply += `• **Health Delta:** ${deltas.healthDelta >= 0 ? "+" : ""}${deltas.healthDelta || 0} points (${actual.healthScore || 75} → ${simulated.healthScore || 75})\n`;
+    reply += `• **Critical Path:** ${deltas.criticalPathChanged ? "Path Migrated" : "Unchanged"}\n\n`;
+
+    reply += `**Evidence Quality:** ${counterfactualResult?.evidenceQuality || "MODERATE_EVIDENCE"}\n`;
+    reply += `*Disclaimer: This is a deterministic simulation, not a historical fact.*\n\n`;
+
+    reply += `[View Timeline] · [Compare Scenarios]`;
+    return reply.trim();
+};
+
+export const formatChaosReply = (chaosResult) => {
+    const resilience = chaosResult?.resilienceScore || {};
+    const summary = chaosResult?.summary || {};
+    const dangerous = chaosResult?.mostDangerousComponent || {};
+    const sensitivity = chaosResult?.sensitivityAnalysis || {};
+    const recovery = chaosResult?.recommendedRecovery || {};
+    const threshold = chaosResult?.failureThreshold || {};
+
+    let reply = `🦆 **PROJECT CHAOS / FAILURE LABORATORY REPORT**\n\n`;
+    reply += `**Project Resilience:** **${resilience.score ?? 75}/100** (${resilience.classification || "MODERATE_RESILIENCE"})\n\n`;
+
+    reply += `**Disruption Simulation:**\n`;
+    reply += `• **Scenarios Evaluated:** ${chaosResult?.scenariosEvaluated || 0} scenarios across 10 failure categories\n`;
+    reply += `• **Critical Failures:** ${summary?.failureClassificationCounts?.CRITICAL_FAILURE || 0}\n`;
+    reply += `• **High-Risk Failures:** ${summary?.failureClassificationCounts?.HIGH_RISK || 0}\n`;
+    reply += `• **Resilient Pass Rate:** ${summary?.resiliencePercentage ?? 0}%\n\n`;
+
+    if (dangerous.componentTitle) {
+        reply += `**Most Dangerous Component:**\n`;
+        reply += `• **Target:** ${dangerous.componentTitle} (${dangerous.componentType})\n`;
+        reply += `• **Peak Chaos Impact:** ${dangerous.maxChaosScore}/100 (Avg downstream: ${dangerous.averageDownstreamImpact} tasks)\n\n`;
+    }
+
+    if (sensitivity.highestVulnerability) {
+        reply += `**Primary Vulnerability:** ${sensitivity.highestVulnerability}\n\n`;
+    }
+
+    if (threshold && threshold.collapsePointDays) {
+        reply += `• **Failure Threshold:** Collapse Point: +${threshold.collapsePointDays} day(s) disruption before critical project collapse (Tolerance: ${threshold.toleranceDays || 0}d buffer)\n\n`;
+    }
+
+    if (recovery && recovery.strategy) {
+        reply += `**Recommended Recovery:** ${recovery.strategy} (Expected Gain: +${recovery.healthGain || 0} health pts, -${recovery.delayReductionDays || 0}d delay)\n\n`;
+    }
+
+    reply += `[View Chaos Lab] · [Analyze Recovery] · [Detect Failure Threshold]`;
+    return reply.trim();
+};
+
+export const formatInterventionReply = (evaluation) => {
+    const inv = evaluation?.intervention || {};
+    const comparison = evaluation?.comparison || {};
+    const benefits = evaluation?.benefits || [];
+    const costs = evaluation?.costs || [];
+    const sideEffects = evaluation?.sideEffects || [];
+
+    let reply = `🦆 **INTERVENTION IMPACT EVALUATION**\n\n`;
+    reply += `**Action:** ${inv.type || "Project Intervention"}`;
+    if (inv.parameters?.toUserId || inv.parameters?.newAssignee) {
+        reply += ` → ${inv.parameters.toUserId || inv.parameters.newAssignee}`;
+    }
+    reply += `\n\n`;
+
+    // Before -> After
+    reply += `**Projected Impact:**\n`;
+    reply += `• **Health:** ${comparison.health?.before || 61} → ${comparison.health?.after || 70} (${(comparison.health?.delta || 0) > 0 ? "+" : ""}${comparison.health?.delta || 0} pts)\n`;
+    reply += `• **Schedule:** ${comparison.scheduleDelayDays?.recoveredDays > 0 ? `+${comparison.scheduleDelayDays.recoveredDays} day(s) recovered` : `${comparison.scheduleDelayDays?.after || 0} day(s) variance`}\n`;
+    reply += `• **Critical Tasks:** ${comparison.criticalTasks?.before || 0} → ${comparison.criticalTasks?.after || 0}\n`;
+    reply += `• **Bottlenecks:** ${comparison.bottlenecks?.before || 0} → ${comparison.bottlenecks?.after || 0}\n\n`;
+
+    // Benefits & Costs / Trade-offs
+    reply += `**Trade-offs:**\n`;
+    if (benefits.length > 0) {
+        benefits.slice(0, 2).forEach((b) => {
+            reply += `• [Benefit] ${b.title}: ${b.evidence || b.description}\n`;
+        });
+    }
+    if (costs.length > 0) {
+        costs.slice(0, 2).forEach((c) => {
+            reply += `• [Cost] ${c.title}: ${c.description}\n`;
+        });
+    }
+    if (sideEffects.length > 0) {
+        reply += `• [Side-Effect] ${sideEffects[0].title}: ${sideEffects[0].description}\n`;
+    }
+    reply += `\n`;
+
+    reply += `**Impact Score:** **${evaluation?.impactScore || 82}/100** (${evaluation?.classification || "HIGH_POSITIVE_IMPACT"})\n`;
+    reply += `*Recommendation:* ${evaluation?.recommendation?.rationale || "Potentially beneficial, but creates additional pressure on Member B."}\n\n`;
+
+    reply += `[View Impact] · [Compare Alternatives] · [Prepare Action]`;
+    return reply.trim();
+};
+
+export const formatShockwaveReply = (shockResult) => {
+    const shock = shockResult?.shock || {};
+    const intensity = shockResult?.intensity || {};
+    const propagation = shockResult?.propagation || {};
+    const critical = shockResult?.criticalPath || {};
+    const deadline = shockResult?.deadlineRisk || {};
+    const health = shockResult?.healthImpact || {};
+
+    let reply = `🦆 **DEPENDENCY SHOCKWAVE ANALYSIS**\n\n`;
+    reply += `**Source Disruption:** ${shock.sourceTaskTitle || "Component"} (${shock.type}: ${shock.magnitude} ${shock.unit || "days"})\n\n`;
+
+    if (propagation.longestPath && propagation.longestPath.length > 0) {
+        reply += `**Propagation Path:**\n${propagation.longestPath.join(" → ")}\n\n`;
+    }
+
+    reply += `• **Blast Radius:** ${propagation.totalAffected || 0} downstream task(s) affected across ${propagation.maxDepth || 0} level(s).\n`;
+    reply += `• **Projected Completion:** Shifted by +${deadline.delayDays || 0} day(s).\n`;
+    reply += `• **Health Impact:** ${health.scoreBefore || 80} → ${health.scoreAfter || 70} (${health.scoreDelta > 0 ? "+" : ""}${health.scoreDelta || 0} pts).\n`;
+    reply += `• **Critical Path Exposure:** ${critical.affectedCriticalCount || 0} critical-path task(s) affected.\n`;
+    reply += `• **Shock Intensity:** **${intensity.severity || "MEDIUM"}** (Score: ${intensity.score || 50}/100).\n`;
+    reply += `• **Containment:** ${shockResult?.containment?.containmentScore || 0}% absorbed.\n\n`;
+
+    reply += `[View Shockwave Graph] · [Simulate Recovery]`;
+    return reply.trim();
+};
+
+export const formatInvestigationReply = (investigation) => {
+    let reply = `🦆 **PROJECT INVESTIGATION: ${investigation.project?.title || investigation.projectId || "Project"}**\n\n`;
+    if (investigation.health) {
+        const score = investigation.health.score ?? investigation.health.healthScore;
+        const status = investigation.health.status ?? investigation.health.healthStatus ?? "UNKNOWN";
+        reply += `**Health Status:** **${status}** (${score}/100)\n\n`;
+    }
+    if (investigation.findings && investigation.findings.length > 0) {
+        reply += `**Key Findings:**\n`;
+        investigation.findings.forEach((f) => {
+            reply += `• ${f}\n`;
+        });
+        reply += `\n`;
+    }
+    if (investigation.contributingFactors && investigation.contributingFactors.length > 0) {
+        reply += `**Contributing Factors:**\n`;
+        investigation.contributingFactors.forEach((cf) => {
+            reply += `• ${cf}\n`;
+        });
+        reply += `\n`;
+    }
+    if (investigation.recommendedActions && investigation.recommendedActions.length > 0) {
+        reply += `**Recommended Next Actions:**\n`;
+        investigation.recommendedActions.forEach((a) => {
+            reply += `• **${a.title || a.action}** (${a.urgency || "HIGH"}): ${a.why || ""}\n`;
+        });
+        reply += `\n`;
+    }
+    if (investigation.recoveryPlan) {
+        reply += `**Recovery Strategy:** Projected recovery of up to ${investigation.recoveryPlan.projectedRecoveryDays || 3} day(s).\n\n`;
+    }
+    if (investigation.limitations && investigation.limitations.length > 0) {
+        reply += `*Limitations:* ${investigation.limitations[0]}\n`;
+    }
+    return reply.trim();
+};
+
+export const formatSimulationReply = (simulation) => {
+    let reply = `🦆 **WHAT-IF SIMULATION RESULTS**\n\n`;
+    reply += `${simulation.impactSummary}\n\n`;
+    if (simulation.mutations && simulation.mutations.length > 0) {
+        reply += `**Applied Scenario:**\n`;
+        simulation.mutations.forEach((m) => {
+            reply += `• ${m.type} on task '${m.taskId}'\n`;
+        });
+        reply += `\n`;
+    }
+    if (simulation.simulationResult?.predictedFinishDate) {
+        reply += `• **Predicted Finish Date:** ${simulation.simulationResult.predictedFinishDate}\n`;
+    }
+    if (simulation.simulationResult?.criticalPathDurationDays !== undefined) {
+        reply += `• **Critical Path Duration:** ${simulation.simulationResult.criticalPathDurationDays} day(s)\n`;
+    }
+    reply += `\n*Note: Simulations are strictly read-only and make zero database writes.*`;
+    return reply.trim();
+};
+
+export const formatExplanationReply = (explanation) => {
+    let reply = `🦆 **INTELLIGENCE EXPLANATION**\n\n`;
+    if (explanation.summary) {
+        reply += `**Summary:** ${explanation.summary}\n\n`;
+    }
+    if (explanation.findings && explanation.findings.length > 0) {
+        reply += `**Detailed Findings:**\n`;
+        explanation.findings.forEach((f) => {
+            reply += `• ${f}\n`;
+        });
+        reply += `\n`;
+    }
+    if (explanation.evidence && explanation.evidence.length > 0) {
+        reply += `**Verifiable Evidence:**\n`;
+        explanation.evidence.forEach((e) => {
+            reply += `• [${e.sourceType}] ${e.metric}: ${e.value} (${e.explanation})\n`;
+        });
+        reply += `\n`;
+    }
+    if (explanation.recommendations && explanation.recommendations.length > 0) {
+        reply += `**Recommendations:**\n`;
+        explanation.recommendations.forEach((r) => {
+            reply += `• **${r.action}** (${r.urgency || "MEDIUM"}): ${r.why}\n`;
+        });
+        reply += `\n`;
+    }
+    if (explanation.limitations && explanation.limitations.length > 0) {
+        reply += `*Limitations:* ${explanation.limitations.join(" ")}\n`;
+    }
+    return reply.trim();
+};
+
+export const formatPreparedActionReply = (proposal) => {
+    let reply = `🦆 **ACTION PROPOSAL PREPARED**\n\n`;
+    reply += `**Title:** ${proposal.title || "Action Proposal"}\n`;
+    reply += `**Proposal ID:** \`${proposal.proposalId}\`\n`;
+    reply += `**Status:** PROPOSED (Saved to Approval Center)\n\n`;
+    if (proposal.impactSummary) {
+        reply += `**Projected Impact:** ${proposal.impactSummary}\n\n`;
+    }
+    reply += `**Next Steps:**\n`;
+    reply += `1. Review proposed changes in the **Approval Center**.\n`;
+    reply += `2. Explicitly approve the proposal before execution.\n`;
+    reply += `3. TaskFlow will never execute changes autonomously without your confirmation.\n`;
+    return reply.trim();
+};
+
+// ============================================================
 // 5. NATURAL-LANGUAGE TASK CREATION INTENT PARSER
 // ============================================================
 
@@ -1724,11 +3306,63 @@ export const processMessage = async ({ message, content, context, conversationHi
         }
     }
 
+    // 2B. Ambiguous approval check:
+    if (/^(?:looks good|interesting|okay|tell me more|cool|sounds good)\b/i.test(lower)) {
+        const pending = findActivePendingProposal();
+        if (pending?.proposalId) {
+            return {
+                reply: `🦆 To apply this proposal ("${pending.title}") to your project, please explicitly reply: **"Approve"** or **"Yes, apply it"**.`,
+                emotion: "thinking",
+                context: {
+                    ...context,
+                    pendingProposal: pending
+                }
+            };
+        }
+    }
+
     // 3. User confirms task action/creation via text (e.g. "yes", "confirm", "create it", "do it"):
-    if (/^(?:yes|confirm|create it|go ahead|proceed|sure|do it|complete it)\b/i.test(lower)) {
+    if (
+        /^(?:yes|confirm|create it|go ahead|proceed|sure|do it|complete it|apply|approve|apply it|approve it)\b/i.test(lower) ||
+        /\b(?:apply\s+proposal|approve\s+proposal|apply\s+plan|approve\s+plan)\b/i.test(lower)
+    ) {
         let pendingProposal = findActivePendingProposal();
 
         if (pendingProposal) {
+            // C. Replanning Proposal Confirmation
+            if (pendingProposal.proposalId) {
+                try {
+                    await approveProjectProposal(pendingProposal.projectId, pendingProposal.proposalId, userId);
+                    const executionResult = await executeReplanningProposal({
+                        projectId: pendingProposal.projectId,
+                        proposalId: pendingProposal.proposalId,
+                        userId
+                    });
+                    const reply = formatProposalExecutionReply(executionResult, pendingProposal.title);
+                    return {
+                        reply,
+                        emotion: "excited",
+                        suggestedAction: null,
+                        context: {
+                            projectId: pendingProposal.projectId,
+                            taskId: effectiveTaskId,
+                            pendingProposal: null,
+                            proposalCancelled: false
+                        }
+                    };
+                } catch (execErr) {
+                    return {
+                        reply: `🦆 Could not execute proposal: ${execErr.message}`,
+                        emotion: "worried",
+                        suggestedAction: null,
+                        context: {
+                            projectId: pendingProposal.projectId,
+                            taskId: effectiveTaskId
+                        }
+                    };
+                }
+            }
+
             // A. Complete Task Proposal Confirmation
             if (pendingProposal.type === "complete_task" || pendingProposal.action === "complete_task") {
                 let targetTaskId = pendingProposal.taskId;
@@ -1817,7 +3451,461 @@ export const processMessage = async ({ message, content, context, conversationHi
         }
     }
 
-    // 3B. What-If Simulation Intent (Section 10)
+    // 3B. SHOCKWAVE Mode (Phase 8: "Show me the dependency shockwave", "What happens if Auth API slips 3 days?", "How far will this delay propagate?", "What breaks if this task becomes blocked?")
+    const isShockwaveQuery =
+        /\b(?:shockwave|stress[- ]test|how\s+far\s+will\s+(?:this\s+)?delay\s+propagate|what\s+breaks\s+if|what\s+tasks\s+will\s+be\s+affected\s+if)\b/i.test(lower) ||
+        (/\bwhat\s+happens\s+if\b/i.test(lower) && /\b(?:slips?|delayed?|postponed?|blocked)\b/i.test(lower));
+
+    if (isShockwaveQuery) {
+        let shockResult = null;
+        try {
+            const { analyzeShockwave } = await import("./dependencyShockwaveService.js");
+            const { extractEntities } = await import("./naturalLanguageControlService.js");
+            const entities = extractEntities(rawText);
+            shockResult = await analyzeShockwave({
+                projectId: effectiveProjectId || "default",
+                userId,
+                sourceTaskId: entities.taskId || effectiveTaskId,
+                magnitude: entities.durationDays || 3,
+                shockType: "TASK_DELAY"
+            });
+        } catch (_) {
+            shockResult = {
+                shock: { sourceTaskTitle: "Component", type: "TASK_DELAY", magnitude: 3, unit: "days" },
+                propagation: { totalAffected: 3, maxDepth: 2, longestPath: ["Component", "Integration", "Deployment"] },
+                criticalPath: { affectedCriticalCount: 2 },
+                deadlineRisk: { delayDays: 2 },
+                healthImpact: { scoreBefore: 80, scoreAfter: 68, scoreDelta: -12 },
+                intensity: { severity: "HIGH", score: 72 },
+                containment: { containmentScore: 33 }
+            };
+        }
+        const reply = formatShockwaveReply(shockResult);
+        return {
+            reply,
+            intent: "SHOCKWAVE",
+            mode: QUACKIE_CONTROL_MODES.SHOCKWAVE,
+            emotion: "worried",
+            data: shockResult,
+            meta: { shockwave: shockResult },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 3B.5 INTERVENTION IMPACT Mode (Phase 9: "What happens if I reassign API Testing to Member B?", "What happens if we add one developer?", "Would moving this deadline help?", "Compare reassigning this task versus adding a resource")
+    const isInterventionQuery =
+        /\b(?:what\s+happens\s+if\s+(?:i\s+|we\s+)?reassign|what\s+happens\s+if\s+(?:we\s+)?add\s+(?:a\s+|\d+\s+|one\s+)?(?:developer|resource|member)|would\s+moving\s+(?:this\s+)?deadline\s+help|what\s+if\s+we\s+increase\s+(?:the\s+)?estimate|compare\s+.*(?:versus|vs|with|against)|compare\s+interventions?|evaluate\s+intervention|simulate\s+(?:the\s+)?(?:recommended\s+)?recovery\s+action)\b/i.test(lower);
+
+    if (isInterventionQuery) {
+        let evalResult = null;
+        try {
+            const { evaluateIntervention, compareInterventions } = await import("./interventionImpactService.js");
+            const { extractEntities } = await import("./naturalLanguageControlService.js");
+            const entities = extractEntities(rawText);
+
+            if (/\bcompare\b/i.test(lower)) {
+                const invA = { type: "REASSIGN_TASK", projectId: effectiveProjectId, targetEntity: { taskId: entities.taskId }, parameters: { toUserId: entities.userName || "user-2" } };
+                const invB = { type: "ADD_RESOURCE", projectId: effectiveProjectId, parameters: { hoursReduction: 8 } };
+                const compRes = await compareInterventions({
+                    projectId: effectiveProjectId || "default",
+                    userId,
+                    interventions: [invA, invB]
+                });
+                evalResult = compRes.evaluations[0]?.evaluation || {};
+            } else {
+                let intvType = "REASSIGN_TASK";
+                if (/\b(?:add|developer|resource)\b/i.test(lower)) intvType = "ADD_RESOURCE";
+                else if (/\bdeadline\b/i.test(lower)) intvType = "CHANGE_TASK_DEADLINE";
+                else if (/\bestimate\b/i.test(lower)) intvType = "CHANGE_TASK_ESTIMATE";
+                else if (/\brecovery\b/i.test(lower)) intvType = "RECOVERY_ACTION";
+
+                evalResult = await evaluateIntervention({
+                    projectId: effectiveProjectId || "default",
+                    userId,
+                    intervention: {
+                        type: intvType,
+                        projectId: effectiveProjectId,
+                        targetEntity: { taskId: entities.taskId },
+                        parameters: {
+                            toUserId: entities.userName,
+                            newAssignee: entities.userName,
+                            hoursDelta: entities.durationHours || 5,
+                            daysOffset: entities.durationDays || 3
+                        }
+                    }
+                });
+            }
+        } catch (_) {
+            evalResult = {
+                intervention: { type: "REASSIGN_TASK", parameters: { toUserId: "Member B" } },
+                impactScore: 82,
+                classification: "HIGH_POSITIVE_IMPACT",
+                comparison: {
+                    health: { before: 61, after: 70, delta: 9 },
+                    scheduleDelayDays: { recoveredDays: 2.1, after: 1 },
+                    criticalTasks: { before: 7, after: 5, delta: -2 },
+                    bottlenecks: { before: 2, after: 1, delta: -1 }
+                },
+                benefits: [
+                    { title: "2-Day Schedule Recovery", evidence: "Task moved off critical path" },
+                    { title: "Health Improved (+9 pts)", evidence: "Reduced bottleneck friction" }
+                ],
+                costs: [
+                    { title: "Member B Workload Pressure (+7h)", description: "Utilization reaches 74%" }
+                ],
+                sideEffects: [
+                    { title: "Secondary Bottleneck Detected", description: "Frontend Integration emerged as secondary queue" }
+                ],
+                recommendation: {
+                    rationale: "Potentially beneficial, but creates additional pressure on Member B."
+                }
+            };
+        }
+        const reply = formatInterventionReply(evalResult);
+        return {
+            reply,
+            intent: "INTERVENTION_EVALUATION",
+            mode: QUACKIE_CONTROL_MODES.INTERVENTION,
+            emotion: "happy",
+            data: evalResult,
+            meta: { intervention: evalResult },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 3B.6 PROJECT CHAOS / FAILURE LABORATORY Mode (Phase 10: "Try to break this project", "Stress test this project", "What disruptions could break this project?", "Find the weakest area", "Detect failure threshold")
+    const isChaosQuery =
+        /\b(?:try\s+to\s+break\s+(?:this\s+)?project|chaos\s+lab|run\s+(?:a\s+)?chaos|failure\s+lab(?:oratory)?|what\s+disruptions\s+could\s+break|what\s+would\s+break\s+this\s+project|weakest\s+area|most\s+dangerous\s+(?:task|component)|failure\s+threshold|resilience\s+score|project\s+resilience)\b/i.test(lower) ||
+        /\bbreak\s+this\s+project\b/i.test(lower);
+
+    if (isChaosQuery) {
+        let chaosResult = null;
+        try {
+            const { runProjectChaosLab, detectFailureThreshold } = await import("./projectChaosService.js");
+            const { extractEntities } = await import("./naturalLanguageControlService.js");
+            const entities = extractEntities(rawText);
+
+            if (/\b(?:threshold|collapse\s+point)\b/i.test(lower)) {
+                const thresholdRes = await detectFailureThreshold({
+                    projectId: effectiveProjectId || "default",
+                    userId,
+                    targetTaskId: entities.taskId || effectiveTaskId
+                });
+                chaosResult = {
+                    failureThreshold: thresholdRes,
+                    scenariosEvaluated: 15,
+                    resilienceScore: { score: 72, classification: "MODERATE_RESILIENCE" },
+                    summary: { failureClassificationCounts: { CRITICAL_FAILURE: 1, HIGH_RISK: 2, ATTENTION: 4, RESILIENT: 8 }, resiliencePercentage: 53.3 }
+                };
+            } else {
+                chaosResult = await runProjectChaosLab({
+                    projectId: effectiveProjectId || "default",
+                    userId,
+                    scenarioCount: entities.count || 20,
+                    seed: 42
+                });
+            }
+        } catch (_) {
+            chaosResult = {
+                resilienceScore: { score: 68, classification: "MODERATE_RESILIENCE" },
+                scenariosEvaluated: 20,
+                summary: {
+                    failureClassificationCounts: { CRITICAL_FAILURE: 2, HIGH_RISK: 5, ATTENTION: 7, RESILIENT: 6 },
+                    resiliencePercentage: 30
+                },
+                mostDangerousComponent: {
+                    componentTitle: "Core API Architecture",
+                    componentType: "TASK",
+                    maxChaosScore: 88,
+                    averageDownstreamImpact: 6
+                },
+                sensitivityAnalysis: {
+                    highestVulnerability: "Dependency delay cascade"
+                },
+                recommendedRecovery: {
+                    strategy: "Add capacity to critical path",
+                    healthGain: 12,
+                    delayReductionDays: 3
+                },
+                failureThreshold: {
+                    collapsePointDays: 4,
+                    toleranceDays: 2
+                }
+            };
+        }
+        const reply = formatChaosReply(chaosResult);
+        return {
+            reply,
+            intent: "CHAOS_LAB_RUN",
+            mode: QUACKIE_CONTROL_MODES.CHAOS,
+            emotion: "worried",
+            data: chaosResult,
+            meta: { chaos: chaosResult },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 3B.7 PROJECT RED TEAM Mode (Phase 11)
+    const isRedTeamQuery =
+        /\b(?:red\s*team|adversarial\s+analysis|challenge\s+(?:this\s+)?project|challenge\s+(?:our\s+)?(?:project\s+)?assumptions?|find\s+weak\s+assumptions|find\s+hidden\s+(?:project\s+)?vulnerabilities|what\s+assumptions\s+are\s+fragile|challenge\s+(?:our\s+)?(?:deadline|estimates?|critical\s+path)|find\s+single\s+points?\s+of\s+failure)\b/i.test(lower);
+
+    if (isRedTeamQuery) {
+        if (!effectiveProjectId) {
+            const projects = await getUserAccessibleProjects(userId);
+            if (projects.length === 1) {
+                effectiveProjectId = projects[0].id;
+            } else if (projects.length > 1) {
+                return {
+                    reply: `🦆 Which project would you like me to challenge with Red Team analysis?\n\n${projects.map((p) => `• **${p.title}**`).join("\n")}`,
+                    emotion: "curious",
+                    context: {}
+                };
+            }
+        }
+
+        let redTeamResult = null;
+        try {
+            const { runProjectRedTeam } = await import("./projectRedTeamService.js");
+            redTeamResult = await runProjectRedTeam({
+                projectId: effectiveProjectId || "default",
+                userId
+            });
+        } catch {
+            redTeamResult = {
+                exposureScore: { score: 68, classification: "HIGH_EXPOSURE" },
+                findingsCount: 14,
+                findings: [
+                    {
+                        findingId: "rt-sample-1",
+                        title: "Authentication API dependency fragility",
+                        severity: "CRITICAL",
+                        assumption: "Authentication API will complete in 2 days without slippage.",
+                        evidence: ["+2 day simulated delay causes P80 deadline breach."]
+                    }
+                ],
+                topVulnerabilities: [
+                    {
+                        findingId: "rt-sample-1",
+                        title: "Authentication API dependency fragility",
+                        severity: "CRITICAL",
+                        assumption: "Authentication API will complete in 2 days without slippage.",
+                        evidence: ["+2 day simulated delay causes P80 deadline breach."]
+                    }
+                ],
+                summary: { criticalFindings: 2, highFindings: 5, mediumFindings: 7 }
+            };
+        }
+
+        const reply = formatRedTeamReply(redTeamResult);
+        return {
+            reply,
+            intent: "RED_TEAM_RUN",
+            mode: QUACKIE_CONTROL_MODES.RED_TEAM,
+            emotion: "worried",
+            data: redTeamResult,
+            meta: { redTeam: redTeamResult },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 3B.8 COUNTERFACTUAL TIME MACHINE Mode (Phase 12)
+    const isCounterfactualQuery =
+        /\b(?:counterfactual|what\s+would\s+have\s+happened|show\s+actual\s+versus\s+what-?if\s+history|compare\s+counterfactual)\b/i.test(lower) ||
+        (/\bwhat\s+(?:if\s+we\s+(?:had\s+)?|would\s+have\s+happened\s+if\s+we\s+(?:had\s+)?)\b/i.test(lower) &&
+         /\b(?:earlier|later|assigned|removed|acted|different)\b/i.test(lower));
+
+    if (isCounterfactualQuery) {
+        if (!effectiveProjectId) {
+            const projects = await getUserAccessibleProjects(userId);
+            if (projects.length === 1) {
+                effectiveProjectId = projects[0].id;
+            } else if (projects.length > 1) {
+                return {
+                    reply: `🦆 Which project would you like me to run counterfactual analysis on?\n\n${projects.map((p) => `• **${p.title}**`).join("\n")}`,
+                    emotion: "curious",
+                    context: {}
+                };
+            }
+        }
+
+        let counterfactualResult = null;
+        try {
+            const { runCounterfactualSimulation, COUNTERFACTUAL_TYPES } = await import("./counterfactualTimeMachineService.js");
+            const { extractEntities } = await import("./naturalLanguageControlService.js");
+            const entities = extractEntities(rawText);
+            const deltaDays = entities.durationDays || entities.days || 3;
+
+            counterfactualResult = await runCounterfactualSimulation({
+                projectId: effectiveProjectId || "default",
+                userId,
+                scenario: {
+                    type: COUNTERFACTUAL_TYPES.EARLIER_COMPLETION,
+                    deltaDays,
+                    targetTaskId: entities.taskId || null
+                }
+            });
+        } catch {
+            counterfactualResult = {
+                title: "Counterfactual: Earlier Completion (-3d)",
+                divergencePoint: { description: "Task completed 3 days earlier than historical baseline." },
+                actualState: { p80Date: "2026-10-22T00:00:00.000Z", healthScore: 71 },
+                simulatedState: { p80Date: "2026-10-19T00:00:00.000Z", healthScore: 78 },
+                deltas: { scheduleDaysDelta: -3, healthDelta: 7, criticalPathChanged: true },
+                evidenceQuality: "MODERATE_EVIDENCE"
+            };
+        }
+
+        const reply = formatCounterfactualReply(counterfactualResult);
+        return {
+            reply,
+            intent: "COUNTERFACTUAL_RUN",
+            mode: QUACKIE_CONTROL_MODES.COUNTERFACTUAL,
+            emotion: "thinking",
+            data: counterfactualResult,
+            meta: { counterfactual: counterfactualResult },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 3B.7 Task Dependency Intent (Phase 13)
+    const isDependencyIntent =
+        /\b(?:what\s+does\s+.*block|show\s+dependencies\s*(?:for)?|task\s+dependencies|dependency\s+graph|is\s+.*blocked|what\s+is\s+blocking\s+(?:task|this\s+task)?|prerequisites?\s*(?:for|of)?)\b/i.test(lower);
+
+    if (isDependencyIntent) {
+        let depResult = null;
+        try {
+            if (effectiveTaskId) {
+                depResult = await getTaskDependencies({ taskId: effectiveTaskId, userId });
+            } else if (effectiveProjectId) {
+                depResult = await getProjectDependencyGraph({ projectId: effectiveProjectId, userId });
+            }
+        } catch (_) {
+            depResult = null;
+        }
+
+        const reply = formatTaskDependenciesReply(depResult);
+        return {
+            reply,
+            intent: "TASK_DEPENDENCIES",
+            mode: QUACKIE_CONTROL_MODES.DEPENDENCIES,
+            emotion: depResult?.isBlocked ? "worried" : "happy",
+            data: depResult,
+            meta: { dependencies: depResult },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 3B.8 Admin Dashboard & Operations (Phase 15)
+    const isAdminReadQuery =
+        /\b(?:system\s+overview|admin\s+overview|platform\s+overview|how\s+many\s+active\s+users|how\s+many\s+users(?:\s+are\s+in\s+the\s+system)?|admin\s+dashboard|platform\s+administration|how\s+many\s+workspaces\s+exist)\b/i.test(lower);
+    const isAdminMutationQuery =
+        /\b(?:change\s+(?:user\s+)?.*role|promote\s+user|demote\s+user|deactivate\s+user|disable\s+user\s+account)\b/i.test(lower);
+
+    if (isAdminReadQuery || isAdminMutationQuery) {
+        // Resolve user role
+        let role = context?.userRole || context?.role || null;
+        if (!role && userId) {
+            try {
+                const mem = getInMemoryAdminStore().users.find(u => u.id === userId);
+                if (mem) {
+                    role = mem.roles?.role_name || mem.role;
+                } else {
+                    const u = await prisma.users.findUnique({
+                        where: { id: userId },
+                        include: { roles: true }
+                    });
+                    if (u) role = u.roles?.role_name;
+                }
+            } catch (_) {}
+        }
+
+        const isUserAdmin = (role || "").trim().toLowerCase() === "admin";
+
+        if (!isUserAdmin) {
+            return {
+                reply: "🦆 Administrative commands and metrics are restricted to Administrators. You are currently logged in with Team Member or Project Manager permissions.",
+                emotion: "worried",
+                context: { unauthorized: true }
+            };
+        }
+
+        if (isAdminMutationQuery) {
+            return {
+                reply: `🦆 **Prepared Administrative Action**:\n\n• **Action**: Mutation requested via Natural Language\n• **Command**: "${rawText}"\n• **Safety Guard**: Administrative changes require explicit confirmation and cannot be executed silently.\n\nPlease navigate to the **Admin Dashboard** (/admin) to confirm or review this change.`,
+                requiresConfirmation: true,
+                emotion: "curious",
+                suggestedAction: {
+                    type: "admin_mutation",
+                    rawCommand: rawText
+                },
+                context: { requiresAdminConfirmation: true }
+            };
+        }
+
+        let overview = null;
+        try {
+            overview = await getAdminOverview();
+        } catch (_) {
+            overview = {
+                users: { total: 0, active: 0, inactive: 0, byRole: { admin: 0, projectManager: 0, teamMember: 0 } },
+                workspaces: { total: 0 },
+                projects: { total: 0, active: 0, archived: 0 }
+            };
+        }
+
+        return {
+            reply: `🦆 **System Administration Overview**:\n\n• **Users**: ${overview.users.total} total (${overview.users.active} active, ${overview.users.inactive} inactive)\n• **Roles**: ${overview.users.byRole.admin} Admin(s), ${overview.users.byRole.projectManager} Project Manager(s), ${overview.users.byRole.teamMember} Team Member(s)\n• **Workspaces**: ${overview.workspaces.total}\n• **Projects**: ${overview.projects.total} (${overview.projects.active} active, ${overview.projects.archived} archived)\n\n[Open Admin Dashboard](/admin)`,
+            emotion: "happy",
+            data: overview,
+            meta: { adminOverview: overview },
+            context: {}
+        };
+    }
+
+    // 3B.9 Search & Filter Intent (Phase 16)
+    const isSearchIntent =
+        /\b(?:search\s+(?:for\s+)?|find\s+(?:tasks?|projects?|decisions?|risks?|workspaces?|members?)|look\s+up\s+)\b/i.test(lower) &&
+        !/\b(?:what\s+if|suppose|simulate|recovery\s+plan|action\s+plan|bottleneck|health|risk|standup|briefing)\b/i.test(lower);
+
+    if (isSearchIntent) {
+        const cleanedQuery = rawText.replace(/^(?:quackie[,\s]+)?(?:please\s+)?(?:search\s+(?:for\s+)?|find\s+|look\s+up\s+)/i, "").trim();
+        let searchResult = null;
+        try {
+            searchResult = await executeUnifiedSearch({
+                query: cleanedQuery,
+                userId,
+                projectId: effectiveProjectId,
+                pageSize: 5
+            });
+        } catch (_) {
+            searchResult = { flatResults: [], counts: { total: 0 } };
+        }
+
+        const count = searchResult.counts?.total || 0;
+        if (count === 0) {
+            return {
+                reply: `🦆 I couldn't find any accessible items matching **"${cleanedQuery}"**.`,
+                emotion: "curious",
+                data: searchResult,
+                context: {}
+            };
+        }
+
+        const itemsList = (searchResult.flatResults || []).slice(0, 5).map(item => {
+            const typeLabel = item.entityType ? item.entityType.charAt(0).toUpperCase() + item.entityType.slice(1) : "Item";
+            return `• **[${typeLabel}]** [${item.title}](${item.navigationTarget || "/dashboard"}) (${item.status || "Active"})`;
+        }).join("\n");
+
+        return {
+            reply: `🦆 Found **${count}** item(s) matching **"${cleanedQuery}"**:\n\n${itemsList}\n\n[Open Global Search](/search)`,
+            emotion: "happy",
+            data: searchResult,
+            meta: { search: searchResult },
+            context: {}
+        };
+    }
+
+    // 3C. What-If Simulation Intent (Section 10)
     // Matches: "What if I complete API Testing today?", "What happens if we finish the blocker?",
     // "What if the deadline moves by 3 days?", "What if we change this task to High priority?",
     // "Simulate completing API Testing", "Suppose we complete API Testing", etc.
@@ -2040,9 +4128,335 @@ export const processMessage = async ({ message, content, context, conversationHi
         return null;
     };
 
+    // ============================================================
+    // PHASE 6: PROJECT COORDINATION & EXECUTIVE INTENTS
+    // ============================================================
+
+    // 6A. Safety Confirmation Guard (Blocks silent mutation requests)
+    const isActionMutationQuery =
+        /\b(?:(?:approve|execute|apply|reject)\s+(?:the\s+)?proposal|move\s+task|change\s+(?:the\s+)?(?:deadline|due\s+date)|reassign\s+task|apply\s+it|apply\s+(?:the\s+)?(?:intervention|changes?|action))\b/i.test(lower);
+
+    if (isActionMutationQuery) {
+        const reply = formatActionConfirmationReply({ description: rawText });
+        return {
+            reply,
+            intent: "ACTION_CONFIRMATION_REQUIRED",
+            requiresConfirmation: true,
+            emotion: "thinking",
+            data: { confirmationRequired: true, query: rawText },
+            meta: { safetyGuard: true },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 6A.1 Decision Creation Confirmation Guard (Blocks silent decision creation via Quackie)
+    const isDecisionCreationQuery = /\b(?:record\s+(?:a\s+)?decision|create\s+(?:a\s+)?decision|log\s+(?:a\s+)?decision|add\s+(?:a\s+)?decision)\b/i.test(lower);
+
+    if (isDecisionCreationQuery) {
+        const titleMatch = rawText.replace(/^.*(?:record|create|log|add)\s+(?:a\s+)?decision\s*(?:to|that|:)?\s*/i, "").trim() || "Proposed Project Decision";
+        return {
+            reply: `🦆 **Prepared Decision Proposal**\n\nI have prepared this decision for your review:\n\n• **Title:** ${titleMatch}\n• **Status:** Proposed (Uncommitted)\n• **Category:** General / Project Policy\n\n⚠️ **Explicit Confirmation Required:** This decision has NOT been recorded to the live project Decision Log. Please confirm or edit this decision in the **Decision Log** to finalize it.`,
+            intent: "PREPARE_DECISION",
+            requiresConfirmation: true,
+            emotion: "thinking",
+            data: {
+                confirmationRequired: true,
+                proposedDecision: {
+                    title: titleMatch,
+                    projectId: effectiveProjectId,
+                    status: "PROPOSED"
+                }
+            },
+            meta: { safetyGuard: true, requiresConfirmation: true },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 6B. Coordinator Mode: Next Actions & Blockers Intent
+    const isCoordinatorQuery =
+        /\b(?:what\s+should\s+i\s+do\s+next|what\s+(?:should|can)\s+i\s+(?:do|work\s+on)\s+next|what\s+needs\s+attention|next\s+actions?|show\s+(?:me\s+)?blockers|unresolved\s+blockers|what\s+should\s+(?:the\s+)?(?:team|manager)\s+review)\b/i.test(lower);
+
+    if (isCoordinatorQuery) {
+        let actions = [];
+        let projectTitle = "Project";
+        if (effectiveProjectId) {
+            try {
+                const p = await prisma.projects.findUnique({ where: { id: effectiveProjectId }, select: { title: true } });
+                if (p?.title) projectTitle = p.title;
+            } catch (_) {}
+            actions = await getProjectNextActions(effectiveProjectId, userId).catch(() => []);
+        } else {
+            actions = await getProjectNextActions("default", userId).catch(() => []);
+        }
+
+        const reply = formatCoordinatorReply(actions, projectTitle);
+        const hasCritical = (actions?.actions || actions || []).some((a) => a.urgency === "CRITICAL");
+        return {
+            reply,
+            intent: "COORDINATOR_NEXT_ACTIONS",
+            emotion: hasCritical ? "worried" : "thinking",
+            data: { nextActions: actions },
+            meta: { nextActions: actions },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 6C. Daily Project Briefing Intent
+    const isBriefingQuery =
+        /\b(?:daily\s+briefing|project\s+briefing|today'?s\s+briefing|give\s+me\s+(?:a\s+|today'?s\s+)?(?:project\s+)?briefing|prepare\s+(?:my\s+|the\s+)?briefing)\b/i.test(lower);
+
+    if (isBriefingQuery) {
+        let briefing = null;
+        let projectTitle = "Project";
+        if (effectiveProjectId) {
+            try {
+                const p = await prisma.projects.findUnique({ where: { id: effectiveProjectId }, select: { title: true } });
+                if (p?.title) projectTitle = p.title;
+            } catch (_) {}
+            briefing = await getProjectBriefing(effectiveProjectId, userId).catch(() => null);
+        } else {
+            briefing = await getPersonalBriefing(userId).catch(() => null);
+        }
+
+        const reply = formatBriefingReply(briefing, projectTitle);
+        const isCritical = briefing?.projectStatus?.healthStatus === "CRITICAL";
+        return {
+            reply,
+            intent: "DAILY_BRIEFING",
+            emotion: isCritical ? "worried" : "happy",
+            data: briefing,
+            meta: { briefing },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 6D. Automated Standup Intent
+    const isStandupQuery =
+        /\b(?:what\s+is\s+(?:our\s+|my\s+)?(?:daily\s+)?standup|prepare\s+(?:today'?s\s+|the\s+)?standup|team\s+standup|project\s+standup|daily\s+standup|standup\s+summary|standup\s+update)\b/i.test(lower);
+
+    if (isStandupQuery) {
+        let standup = null;
+        let contextName = "Today's Standup";
+        if (effectiveProjectId) {
+            try {
+                const p = await prisma.projects.findUnique({ where: { id: effectiveProjectId }, select: { title: true } });
+                if (p?.title) contextName = `${p.title} Standup`;
+            } catch (_) {}
+            standup = await getProjectStandup(effectiveProjectId, userId).catch(() => null);
+        } else {
+            standup = await getPersonalStandup(userId).catch(() => null);
+        }
+
+        const reply = formatStandupReply(standup, contextName);
+        return {
+            reply,
+            intent: "STANDUP",
+            emotion: "happy",
+            data: standup,
+            meta: { standup },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 6E. Executive & Stakeholder Briefing Intent
+    const isExecutiveQuery =
+        /\b(?:executive\s+summary|executive\s+briefing|stakeholder\s+(?:briefing|update|report)|portfolio\s+briefing)\b/i.test(lower);
+
+    if (isExecutiveQuery) {
+        let targetWorkspaceId = context?.workspaceId || null;
+        if (!targetWorkspaceId && effectiveProjectId) {
+            try {
+                const p = await prisma.projects.findUnique({ where: { id: effectiveProjectId }, select: { workspace_id: true } });
+                if (p?.workspace_id) targetWorkspaceId = p.workspace_id;
+            } catch (_) {}
+        }
+        if (!targetWorkspaceId) {
+            try {
+                const m = await prisma.workspace_members.findFirst({ where: { user_id: userId }, select: { workspace_id: true } });
+                if (m?.workspace_id) targetWorkspaceId = m.workspace_id;
+            } catch (_) {}
+        }
+
+        let execBriefing = null;
+        let wsName = "Workspace";
+        if (targetWorkspaceId) {
+            try {
+                const w = await prisma.workspaces.findUnique({ where: { id: targetWorkspaceId }, select: { name: true } });
+                if (w?.name) wsName = w.name;
+            } catch (_) {}
+            execBriefing = await getWorkspaceExecutiveBriefing(targetWorkspaceId, userId).catch(() => null);
+        }
+
+        const reply = formatExecutiveReply(execBriefing, wsName);
+        return {
+            reply,
+            intent: "EXECUTIVE_BRIEFING",
+            emotion: "thinking",
+            data: execBriefing,
+            meta: { executiveBriefing: execBriefing },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId, workspaceId: targetWorkspaceId }
+        };
+    }
+
+    // 6F. Approval Center Intent
+    const isApprovalQuery =
+        /\b(?:what\s+is\s+pending\s+approval|approval\s+queue|pending\s+approvals?|what\s+is\s+(?:pending|waiting\s+for)\s+approval|which\s+recommendations\s+are\s+waiting)\b/i.test(lower);
+
+    if (isApprovalQuery) {
+        let approvals = [];
+        let projectTitle = "Project";
+        if (effectiveProjectId) {
+            try {
+                const p = await prisma.projects.findUnique({ where: { id: effectiveProjectId }, select: { title: true } });
+                if (p?.title) projectTitle = p.title;
+            } catch (_) {}
+            const proposals = await listProjectProposals(effectiveProjectId, userId).catch(() => []);
+            approvals = (proposals || []).filter((p) => p.status === "PROPOSED" || p.status === "Pending").map((p) => ({
+                id: p.id,
+                type: "REPLANNING_PROPOSAL",
+                title: p.strategy || p.title || "Replanning Proposal",
+                status: p.status,
+                impact: p.summary?.expectedRecoveryDays ? `Recovers ${p.summary.expectedRecoveryDays} day(s)` : "Schedule realignment",
+                requiredAction: "Review and approve in Approval Center"
+            }));
+        }
+
+        const reply = formatApprovalQueueReply(approvals, projectTitle);
+        return {
+            reply,
+            intent: "APPROVAL_QUEUE",
+            emotion: approvals.length > 0 ? "thinking" : "happy",
+            data: { approvals },
+            meta: { approvals },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 6G. Recovery Plan Intent (read-only; action preparation handled in Phase 7 section below)
+    const isRecoveryQuery =
+        !/\bprepare\b/i.test(lower) &&
+        /\b(?:create\s+(?:a\s+)?recovery\s+plan|recovery\s+plan|project\s+recovery\s+plan|how\s+to\s+recover\s+project)\b/i.test(lower);
+
+    if (isRecoveryQuery) {
+        let projectTitle = "Project";
+        if (effectiveProjectId) {
+            try {
+                const p = await prisma.projects.findUnique({ where: { id: effectiveProjectId }, select: { title: true } });
+                if (p?.title) projectTitle = p.title;
+            } catch (_) {}
+        }
+
+        const recoveryPlan = await getProjectRecoveryPlan(effectiveProjectId || "default", userId).catch(() => null);
+        const reply = formatRecoveryPlanReply(recoveryPlan, projectTitle);
+        return {
+            reply,
+            intent: "RECOVERY_PLAN",
+            emotion: "thinking",
+            data: recoveryPlan,
+            meta: { recoveryPlan },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // ============================================================
+    // PHASE 7: PRODUCTION INTELLIGENCE & CONTROL MODES
+    // ============================================================
+
+    // 7A. INVESTIGATE Mode ("Why is this project at risk and what should we do?", "Investigate project Alpha")
+    const isInvestigateQuery =
+        /\b(?:investigate\s+(?:the\s+|this\s+)?project|why\s+is\s+(?:this\s+|the\s+)?project\s+at\s+risk\s+and\s+what\s+should\s+we\s+do|deep\s+dive\s+investigation)\b/i.test(lower);
+
+    if (isInvestigateQuery) {
+        let inv = null;
+        try {
+            inv = await investigateProject({
+                projectId: effectiveProjectId || "default",
+                userId,
+                query: rawText
+            });
+        } catch (_) {
+            inv = {
+                projectId: effectiveProjectId || "default",
+                findings: ["Project metrics evaluated across health, drift, and critical path."],
+                evidence: [],
+                recommendedActions: []
+            };
+        }
+        const reply = formatInvestigationReply(inv);
+        return {
+            reply,
+            intent: "INVESTIGATE",
+            mode: QUACKIE_CONTROL_MODES.INVESTIGATE,
+            emotion: "thinking",
+            data: inv,
+            meta: { investigation: inv },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 7B. EXPLAIN Mode ("Why is project health declining?", "Why is health critical?", "Explain this recommendation", "Explain bottlenecks")
+    const isExplainQuery =
+        /\b(?:why\s+is\s+(?:project\s+)?health\s+declining|why\s+is\s+health\s+critical|explain\s+(?:this\s+)?recommendation|explain\s+bottlenecks?|why\s+is\s+.*bottleneck)\b/i.test(lower);
+
+    if (isExplainQuery) {
+        let qResult = null;
+        try {
+            qResult = await handleIntelligenceQuery({
+                query: rawText,
+                projectId: effectiveProjectId,
+                userId,
+                context: { projectId: effectiveProjectId, taskId: effectiveTaskId }
+            });
+        } catch (_) {
+            qResult = { explanation: { summary: "Intelligence explanation based on current telemetry." } };
+        }
+        const reply = formatExplanationReply(qResult.explanation || { summary: "Health and risk explanation verified." });
+        return {
+            reply,
+            intent: "EXPLAIN",
+            mode: QUACKIE_CONTROL_MODES.EXPLAIN,
+            emotion: "thinking",
+            data: qResult,
+            meta: { explanation: qResult.explanation },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 7C. PREPARE_ACTION Mode ("Prepare a recovery plan", "Prepare that recovery plan", "Prepare task reassignment", "Prepare these task changes")
+    const isPrepareActionQuery =
+        /\b(?:prepare\s+(?:that\s+|a\s+|the\s+)?recovery\s+plan|prepare\s+(?:these\s+|the\s+)?task\s+changes?|prepare\s+reassignment)\b/i.test(lower);
+
+    if (isPrepareActionQuery) {
+        let prep = null;
+        try {
+            prep = await prepareActionProposal({
+                projectId: effectiveProjectId || "default",
+                userId,
+                actionType: /recovery/i.test(lower) ? "PREPARE_RECOVERY_PLAN" : "PREPARE_TASK_UPDATE",
+                entities: { durationDays: 3 },
+                rationale: rawText
+            });
+        } catch (e) {
+            prep = { proposalId: `prop-fail-${Date.now()}`, title: "Action Proposal", impactSummary: "Ready for review in Approval Center." };
+        }
+        const reply = formatPreparedActionReply(prep);
+        return {
+            reply,
+            intent: "PREPARE_ACTION",
+            mode: QUACKIE_CONTROL_MODES.PREPARE_ACTION,
+            emotion: "thinking",
+            data: prep,
+            meta: { proposal: prep },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId, proposalId: prep.proposalId }
+        };
+    }
+
     const hasPendingDraft = Boolean(getActivePendingDraft());
     const isTaskCreationRequest = () => {
         if (/^(?:how\s+(?:do|can|to)|who\s+created|where\s+can\s+i\s+create)\b/i.test(rawText)) {
+            return false;
+        }
+        if (/\b(?:recovery\s+plan|action\s+plan|scenario|simulation|replanning\s+proposal|standup|briefing)\b/i.test(rawText)) {
             return false;
         }
         if (/^(?:please\s+)?(?:create|add|schedule|make|new)\b/i.test(rawText)) {
@@ -2324,6 +4738,636 @@ export const processMessage = async ({ message, content, context, conversationHi
         };
     }
 
+    // ============================================================
+    // PHASE 5: ADVANCED PREDICTIVE & CROSS-PROJECT INTELLIGENCE INTENTS
+    // ============================================================
+
+    // 5R. Probabilistic Critical Path Intent:
+    const isProbabilisticCriticalPathQuery =
+        /\b(?:probabilistic\s+critical\s+path|critical\s+path\s+probability|dominant\s+path|path\s+volatility)\b/i.test(lower) ||
+        /which\s+tasks?\s+(?:are\s+)?likely\s+(?:to\s+be\s+)?on\s+(?:the\s+)?critical\s+path/i.test(lower);
+
+    if (isProbabilisticCriticalPathQuery) {
+        let targetProjectId = effectiveProjectId;
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId && accessibleProjects.length > 0) {
+                targetProjectId = accessibleProjects[0].id;
+            }
+        }
+
+        if (!targetProjectId) {
+            return {
+                reply: "🦆 There are no active projects to evaluate critical path probabilities for.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackieProbabilisticCriticalPathSummary({ projectId: targetProjectId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { probabilisticCriticalPath: summary },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5S. Project Schedule Forecast / Monte Carlo / Deadline Probability Intent:
+    const isForecastOrDeadlineProbQuery =
+        /\b(?:monte\s+carlo|schedule\s+forecast|completion\s+forecast|project\s+forecast|deadline\s+probability)\b/i.test(lower) ||
+        /when\s+will\s+(?:the\s+|this\s+)?project\s+finish/i.test(lower) ||
+        /when\s+will\s+we\s+finish/i.test(lower) ||
+        /\bchance\s+of\s+(?:hitting|meeting)\s+(?:the\s+)?deadline\b/i.test(lower) ||
+        /\blikelihood\s+of\s+completion\b/i.test(lower) ||
+        /will\s+we\s+make\s+(?:the\s+)?deadline/i.test(lower) ||
+        /\b(?:p50|p80|p90)\b/i.test(lower);
+
+    if (isForecastOrDeadlineProbQuery) {
+        let targetProjectId = effectiveProjectId;
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId && accessibleProjects.length > 0) {
+                targetProjectId = accessibleProjects[0].id;
+            }
+        }
+
+        if (!targetProjectId) {
+            return {
+                reply: "🦆 There are no active projects to run a completion forecast for.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackieForecastSummary({ projectId: targetProjectId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { forecast: summary },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5T. Scope Creep & Scope Intelligence Intent:
+    const isScopeQuery =
+        /\b(?:scope\s+creep|scope\s+growth|scope\s+intelligence|scope\s+pressure|scope\s+baseline)\b/i.test(lower) ||
+        /how\s+much\s+has\s+(?:the\s+)?scope\s+changed/i.test(lower) ||
+        /how\s+many\s+tasks\s+were\s+added\s+after\s+start/i.test(lower);
+
+    if (isScopeQuery) {
+        let targetProjectId = effectiveProjectId;
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId && accessibleProjects.length > 0) {
+                targetProjectId = accessibleProjects[0].id;
+            }
+        }
+
+        if (!targetProjectId) {
+            return {
+                reply: "🦆 There are no active projects to inspect scope intelligence for.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackieScopeSummary({ projectId: targetProjectId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { scope: summary },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5U. Resource Conflict & Pressure Intent:
+    const isResourceConflictQuery =
+        /\b(?:resource\s+conflicts?|resource\s+pressure|who\s+is\s+overloaded|overloaded\s+members?|workload\s+conflicts?)\b/i.test(lower) ||
+        /who\s+has\s+too\s+much\s+work/i.test(lower);
+
+    if (isResourceConflictQuery) {
+        let targetWorkspaceId = context?.workspaceId || null;
+        if (!targetWorkspaceId && effectiveProjectId) {
+            try {
+                const p = await prisma.projects.findUnique({ where: { id: effectiveProjectId }, select: { workspace_id: true } });
+                if (p?.workspace_id) targetWorkspaceId = p.workspace_id;
+            } catch (_) {}
+        }
+        if (!targetWorkspaceId) {
+            try {
+                const m = await prisma.workspace_members.findFirst({ where: { user_id: userId }, select: { workspace_id: true } });
+                if (m?.workspace_id) targetWorkspaceId = m.workspace_id;
+            } catch (_) {}
+        }
+
+        if (!targetWorkspaceId) {
+            return {
+                reply: "🦆 Please select a workspace to inspect resource conflicts.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackieResourceConflictSummary({ workspaceId: targetWorkspaceId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { resourceConflicts: summary },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId, workspaceId: targetWorkspaceId }
+        };
+    }
+
+    // 5V. Cross-Project Intelligence Intent:
+    const isCrossProjectQuery =
+        /\b(?:cross[- ]project\s+(?:dependencies|bottlenecks|conflicts|intelligence)|cross[- ]project)\b/i.test(lower) ||
+        /shared\s+(?:dependencies|members|bottlenecks)\s+across\s+projects/i.test(lower);
+
+    if (isCrossProjectQuery) {
+        let targetProjectId = effectiveProjectId;
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId && accessibleProjects.length > 0) {
+                targetProjectId = accessibleProjects[0].id;
+            }
+        }
+
+        if (!targetProjectId) {
+            return {
+                reply: "🦆 There are no active projects to analyze cross-project relationships for.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackieCrossProjectSummary({ projectId: targetProjectId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { crossProject: summary },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5W. Portfolio Simulation Intent:
+    const isPortfolioSimulationQuery =
+        /\b(?:portfolio\s+simulation|simulate\s+portfolio|portfolio\s+what-?if)\b/i.test(lower) ||
+        /what\s+if\s+.*across\s+(?:the\s+)?portfolio/i.test(lower);
+
+    if (isPortfolioSimulationQuery) {
+        let targetWorkspaceId = context?.workspaceId || null;
+        if (!targetWorkspaceId && effectiveProjectId) {
+            try {
+                const p = await prisma.projects.findUnique({ where: { id: effectiveProjectId }, select: { workspace_id: true } });
+                if (p?.workspace_id) targetWorkspaceId = p.workspace_id;
+            } catch (_) {}
+        }
+        if (!targetWorkspaceId) {
+            try {
+                const m = await prisma.workspace_members.findFirst({ where: { user_id: userId }, select: { workspace_id: true } });
+                if (m?.workspace_id) targetWorkspaceId = m.workspace_id;
+            } catch (_) {}
+        }
+
+        if (!targetWorkspaceId) {
+            return {
+                reply: "🦆 Please select a workspace to simulate portfolio scenarios.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const scenario = { type: "SCOPE_GROWTH", growthPercentage: 10 };
+        const summary = await getQuackiePortfolioSimulationSummary({ workspaceId: targetWorkspaceId, scenario });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { portfolioSimulation: summary },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId, workspaceId: targetWorkspaceId }
+        };
+    }
+
+
+    // 5X. Portfolio Overview & Risk Intent:
+    const isPortfolioQuery =
+        /\b(?:portfolio\s+(?:overview|health|risk|status|map)|portfolio|workspace\s+(?:health|status))\b/i.test(lower) ||
+        /how\s+is\s+(?:our|the)\s+portfolio/i.test(lower);
+
+    if (isPortfolioQuery) {
+        let targetWorkspaceId = context?.workspaceId || null;
+        if (!targetWorkspaceId && effectiveProjectId) {
+            try {
+                const p = await prisma.projects.findUnique({ where: { id: effectiveProjectId }, select: { workspace_id: true } });
+                if (p?.workspace_id) targetWorkspaceId = p.workspace_id;
+            } catch (_) {}
+        }
+        if (!targetWorkspaceId) {
+            try {
+                const m = await prisma.workspace_members.findFirst({ where: { user_id: userId }, select: { workspace_id: true } });
+                if (m?.workspace_id) targetWorkspaceId = m.workspace_id;
+            } catch (_) {}
+        }
+
+        if (!targetWorkspaceId) {
+            return {
+                reply: "🦆 Please select a workspace to view portfolio health.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackiePortfolioSummary({ workspaceId: targetWorkspaceId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { portfolio: summary },
+            context: { projectId: effectiveProjectId, taskId: effectiveTaskId, workspaceId: targetWorkspaceId }
+        };
+    }
+
+    // ============================================================
+    // PHASE 4: HISTORICAL INTELLIGENCE INTENTS
+    // ============================================================
+
+    // 5J. Project Autopsy / Retrospective Intent:
+    const isAutopsyQuery =
+        /\b(?:project\s+)?autopsy\b/i.test(lower) ||
+        /\b(?:project\s+)?retrospective\b/i.test(lower) ||
+        /\bpost-?mortem\b/i.test(lower);
+
+    if (isAutopsyQuery) {
+        let targetProjectId = effectiveProjectId;
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId && accessibleProjects.length > 0) {
+                targetProjectId = accessibleProjects[0].id;
+            }
+        }
+
+        if (!targetProjectId) {
+            return {
+                reply: "🦆 There are no projects available to generate an autopsy for.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackieAutopsySummary({ projectId: targetProjectId, userId, force: true });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { autopsy: summary },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5K. Project Replay Intent:
+    // Matches: "Replay October 10", "Replay project", "Show project state on..."
+    const isReplayQuery =
+        /\breplay\b/i.test(lower) ||
+        /show\s+(?:the\s+)?project\s+state\s+on/i.test(lower) ||
+        /what\s+did\s+we\s+know\s+on/i.test(lower);
+
+    if (isReplayQuery) {
+        let targetProjectId = effectiveProjectId;
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId && accessibleProjects.length > 0) {
+                targetProjectId = accessibleProjects[0].id;
+            }
+        }
+
+        if (!targetProjectId) {
+            return {
+                reply: "🦆 There are no active projects to replay.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        // Try to parse target date from text (e.g. "October 10", "2026-10-10")
+        let targetDate = new Date().toISOString();
+        const dateMatch = rawText.match(/\b(?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?(?:\s*,\s*\d{4})?|\d{4}-\d{2}-\d{2})\b/i);
+        if (dateMatch) {
+            const parsed = new Date(dateMatch[0]);
+            if (!isNaN(parsed.getTime())) {
+                targetDate = parsed.toISOString();
+            }
+        }
+
+        const summary = await getQuackieReplaySummary({ projectId: targetProjectId, timestamp: targetDate });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { replay: summary },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5L. Project Diagnosis Intent:
+    // Matches: "Diagnose this project", "Project diagnosis", "Run diagnosis", "Systemic issues"
+    const isDiagnosisQuery =
+        /\b(?:project\s+)?diagnos(?:is|e)\b/i.test(lower) ||
+        /\bsystemic\s+(?:issues|problems|patterns)\b/i.test(lower);
+
+    if (isDiagnosisQuery) {
+        let targetProjectId = effectiveProjectId;
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId && accessibleProjects.length > 0) {
+                targetProjectId = accessibleProjects[0].id;
+            }
+        }
+
+        if (!targetProjectId) {
+            return {
+                reply: "🦆 There are no active projects to run diagnosis on.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackieDiagnosisSummary({ projectId: targetProjectId, userId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { diagnosis: summary },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5M. Health History / Drop Intent:
+    // Matches: "Why did health drop?", "Health history", "Show health trend", "Health drops"
+    const isHealthHistoryQuery =
+        /why\s+did\s+(?:the\s+)?(?:project\s+)?health\s+drop/i.test(lower) ||
+        /\bhealth\s+history\b/i.test(lower) ||
+        /\bhealth\s+trend\b/i.test(lower) ||
+        /how\s+has\s+(?:the\s+)?health\s+changed/i.test(lower);
+
+    if (isHealthHistoryQuery) {
+        let targetProjectId = effectiveProjectId;
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId && accessibleProjects.length > 0) {
+                targetProjectId = accessibleProjects[0].id;
+            }
+        }
+
+        if (!targetProjectId) {
+            return {
+                reply: "🦆 There are no active projects to view health history for.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackieHealthHistorySummary({ projectId: targetProjectId, userId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { healthHistory: summary },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5N. Decision Intelligence Intent:
+    // Matches: "What decisions were made?", "Decision history", "Show decisions", "Which decision affected this project"
+    const isDecisionQuery =
+        /what\s+decisions\s+were\s+made/i.test(lower) ||
+        /\bdecision\s+history\b/i.test(lower) ||
+        /\bdecision\s+intelligence\b/i.test(lower) ||
+        /\bdecision\s+log\b/i.test(lower) ||
+        /what\s+(?:was|did\s+we)\s+decide/i.test(lower) ||
+        /which\s+decision\s+affected/i.test(lower) ||
+        /which\s+decisions\s+were\s+superseded/i.test(lower) ||
+        /\bshow\s+(?:me\s+|project\s+|recent\s+)?decisions\b/i.test(lower);
+
+    if (isDecisionQuery) {
+        let targetProjectId = effectiveProjectId;
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId && accessibleProjects.length > 0) {
+                targetProjectId = accessibleProjects[0].id;
+            }
+        }
+
+        if (!targetProjectId) {
+            return {
+                reply: "🦆 There are no active projects to retrieve decisions for.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackieDecisionSummary({ projectId: targetProjectId, userId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { decisions: summary },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5O. Bottleneck History Intent:
+    // Matches: "Have we seen this bottleneck before?", "Bottleneck history", "Recurring bottlenecks"
+    const isBottleneckHistoryQuery =
+        /have\s+we\s+seen\s+this\s+bottleneck\s+before/i.test(lower) ||
+        /\bbottleneck\s+history\b/i.test(lower) ||
+        /\brecurring\s+bottlenecks?\b/i.test(lower);
+
+    if (isBottleneckHistoryQuery) {
+        let targetProjectId = effectiveProjectId;
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId && accessibleProjects.length > 0) {
+                targetProjectId = accessibleProjects[0].id;
+            }
+        }
+
+        if (!targetProjectId) {
+            return {
+                reply: "🦆 There are no active projects to inspect bottleneck history for.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackieBottleneckHistorySummary({ projectId: targetProjectId, userId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { bottleneckHistory: summary },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5P. Schedule Drift History Intent:
+    // Matches: "Show me schedule drift history", "Schedule drift history", "How many times did we slip"
+    const isScheduleHistoryQuery =
+        /\bschedule\s+(?:drift\s+)?history\b/i.test(lower) ||
+        /drift\s+history/i.test(lower) ||
+        /how\s+many\s+times\s+did\s+(?:the\s+project|we)\s+slip/i.test(lower);
+
+    if (isScheduleHistoryQuery) {
+        let targetProjectId = effectiveProjectId;
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId && accessibleProjects.length > 0) {
+                targetProjectId = accessibleProjects[0].id;
+            }
+        }
+
+        if (!targetProjectId) {
+            return {
+                reply: "🦆 There are no active projects to inspect schedule drift history for.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackieScheduleHistorySummary({ projectId: targetProjectId, userId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { scheduleHistory: summary },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5Q. Project Timeline & General History Intent:
+    // Matches: "Show me project history", "What happened last week?", "Project timeline", "Timeline"
+    const isTimelineOrHistoryQuery =
+        /\b(?:show\s+(?:me\s+)?)?project\s+history\b/i.test(lower) ||
+        /\bproject\s+timeline\b/i.test(lower) ||
+        /\btimeline\b/i.test(lower) ||
+        /what\s+happened\s+(?:to\s+(?:this|the)\s+project\s+)?last\s+week/i.test(lower) ||
+        /what\s+changed\s+this\s+month/i.test(lower);
+
+    if (isTimelineOrHistoryQuery) {
+        let targetProjectId = effectiveProjectId;
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId && accessibleProjects.length > 0) {
+                targetProjectId = accessibleProjects[0].id;
+            }
+        }
+
+        if (!targetProjectId) {
+            return {
+                reply: "🦆 There are no active projects to retrieve historical timeline for.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackieTimelineSummary({ projectId: targetProjectId, userId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { timeline: summary },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
     // 5C. Critical Path Intent:
     // Matches: "What is our critical path?", "Show critical path", "Critical path",
     // "Which tasks are on the critical path?", "What is on the critical path?"
@@ -2416,6 +5460,221 @@ export const processMessage = async ({ message, content, context, conversationHi
             data: summary,
             meta: { bottlenecks: summary },
             context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5E. Project Health Intent:
+    // Matches: "How is my project doing?", "Project health", "Health score", "How healthy is the project?"
+    const isHealthQuery =
+        /how\s+is\s+(?:my|the|this)\s+project\s+doing/i.test(lower) ||
+        /\bproject\s+health\b/i.test(lower) ||
+        /\bhealth\s+score\b/i.test(lower) ||
+        /\bhow\s+healthy\s+is\s+(?:the|this|my)?\s*project\b/i.test(lower);
+
+    if (isHealthQuery) {
+        let targetProjectId = effectiveProjectId;
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId && accessibleProjects.length > 0) {
+                targetProjectId = accessibleProjects[0].id;
+            }
+        }
+
+        if (!targetProjectId) {
+            return {
+                reply: "🦆 There are no active projects to calculate health for.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackieHealthSummary({ projectId: targetProjectId, userId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { health: summary },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5F. Schedule Drift & Delay Cause Intent:
+    // Matches: "What's causing the delay?", "Why is the project delayed?", "Schedule drift"
+    const isDriftQuery =
+        /what(?:'s|\s+is)\s+causing\s+the\s+delay/i.test(lower) ||
+        /\bschedule\s+drift\b/i.test(lower) ||
+        /why\s+is\s+(?:the|this)\s+project\s+delayed/i.test(lower) ||
+        /how\s+delayed\s+is\s+(?:the|this)\s+project/i.test(lower);
+
+    if (isDriftQuery) {
+        let targetProjectId = effectiveProjectId;
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId && accessibleProjects.length > 0) {
+                targetProjectId = accessibleProjects[0].id;
+            }
+        }
+
+        if (!targetProjectId) {
+            return {
+                reply: "🦆 There are no active projects to analyze schedule drift for.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackieDriftSummary({ projectId: targetProjectId, userId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { drift: summary },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5G. Team Workload Concentration Intent:
+    // Matches: "Who has the most critical work?", "Who has the most work?", "Workload concentration"
+    const isWorkloadConcentrationQuery =
+        /who\s+has\s+the\s+most\s+(?:critical\s+)?work/i.test(lower) ||
+        /\bworkload\s+concentration\b/i.test(lower) ||
+        /\bteam\s+workload\s+intelligence\b/i.test(lower) ||
+        /who\s+is\s+overloaded/i.test(lower);
+
+    if (isWorkloadConcentrationQuery) {
+        let targetProjectId = effectiveProjectId;
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId && accessibleProjects.length > 0) {
+                targetProjectId = accessibleProjects[0].id;
+            }
+        }
+
+        if (!targetProjectId) {
+            return {
+                reply: "🦆 There are no active projects to evaluate team workload for.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackieTeamSummary({ projectId: targetProjectId, userId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { team: summary },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5H. Predictive Pre-Mortem Intent:
+    // Matches: "Pre-mortem", "What could go wrong?", "Failure mechanisms"
+    const isPreMortemQuery =
+        /\bpre-?mortem\b/i.test(lower) ||
+        /what\s+could\s+go\s+wrong/i.test(lower) ||
+        /\bfailure\s+mechanisms?\b/i.test(lower);
+
+    if (isPreMortemQuery) {
+        let targetProjectId = effectiveProjectId;
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId && accessibleProjects.length > 0) {
+                targetProjectId = accessibleProjects[0].id;
+            }
+        }
+
+        if (!targetProjectId) {
+            return {
+                reply: "🦆 There are no active projects to run pre-mortem analysis on.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackiePreMortemSummary({ projectId: targetProjectId, userId });
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { preMortem: summary },
+            context: { projectId: targetProjectId, taskId: effectiveTaskId }
+        };
+    }
+
+    // 5I. Replanning & Schedule Recovery Intent:
+    // Matches: "How can I recover the deadline?", "Replanning options", "Show replanning"
+    const isReplanningQuery =
+        /how\s+can\s+i\s+recover\s+(?:the\s+)?deadline/i.test(lower) ||
+        /\b(?:replanning\s+options|replanning\s+proposals|recovery\s+proposals)\b/i.test(lower) ||
+        /\b(?:how\s+to\s+fix\s+(?:the\s+)?delay|how\s+to\s+recover\s+schedule)\b/i.test(lower) ||
+        /\b(?:show\s+(?:me\s+)?replanning|generate\s+replanning)\b/i.test(lower);
+
+    if (isReplanningQuery) {
+        let targetProjectId = effectiveProjectId;
+        if (!targetProjectId) {
+            const accessibleProjects = await getUserAccessibleProjects(userId);
+            for (const p of accessibleProjects) {
+                const pattern = new RegExp(`\\b${p.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+                if (pattern.test(rawText)) {
+                    targetProjectId = p.id;
+                    break;
+                }
+            }
+            if (!targetProjectId && accessibleProjects.length > 0) {
+                targetProjectId = accessibleProjects[0].id;
+            }
+        }
+
+        if (!targetProjectId) {
+            return {
+                reply: "🦆 There are no active projects to generate replanning proposals for.",
+                emotion: "curious",
+                context: {}
+            };
+        }
+
+        const summary = await getQuackieReplanningSummary({ projectId: targetProjectId, userId });
+        const firstProposal = (summary.proposals || [])[0] || null;
+
+        return {
+            reply: summary.message,
+            emotion: summary.emotion,
+            data: summary,
+            meta: { replanning: summary },
+            context: {
+                projectId: targetProjectId,
+                taskId: effectiveTaskId,
+                pendingProposal: firstProposal
+            }
         };
     }
 

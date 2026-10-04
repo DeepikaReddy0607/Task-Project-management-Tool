@@ -1,14 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "./Navbar";
 import Sidebar from "./Sidebar";
 import QuackieAssistant from "../components/assistant/QuackieAssistant";
+import GlobalSearchModal from "../components/search/GlobalSearchModal";
 
 function MainLayout({ children }) {
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
 
   const closeMobileNavigation = () => {
     setMobileNavigationOpen(false);
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchModalOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   return (
     <div className="min-h-screen">
@@ -19,6 +32,7 @@ function MainLayout({ children }) {
           <Navbar
             mobileNavigationOpen={mobileNavigationOpen}
             onMenuToggle={() => setMobileNavigationOpen((isOpen) => !isOpen)}
+            onOpenSearch={() => setSearchModalOpen(true)}
           />
 
           <main className="taskflow-page-enter flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
@@ -26,6 +40,12 @@ function MainLayout({ children }) {
           </main>
         </div>
       </div>
+
+      {/* Global Search & Command Modal (Ctrl/Cmd + K) */}
+      <GlobalSearchModal
+        isOpen={searchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+      />
 
       {/* Globally available Quackie Assistant */}
       <QuackieAssistant />
