@@ -9,6 +9,7 @@ import PageHeader from "../../components/ui/PageHeader";
 import ProjectXRay from "../../components/projects/ProjectXRay";
 import ProjectIntelligence from "../../components/intelligence/ProjectIntelligence";
 import ProjectAttachmentSection from "../../components/projects/ProjectAttachmentSection";
+import FileSection from "../../components/files/FileSection";
 import { projectOptions, projectUsers } from "../../data/projectMockData";
 import MainLayout from "../../layouts/MainLayout";
 import { getWorkspaces } from "../../services/api/workspaceApi";
@@ -64,6 +65,7 @@ function Projects() {
   const [formError, setFormError] = useState("");
   const [riskSort, setRiskSort] = useState({ key: "severity", direction: "desc" });
   const [memberUserId, setMemberUserId] = useState("user-noah");
+  const [filesByProject, setFilesByProject] = useState({});
   const { setPageContext } = useAssistantContext();
 
   useEffect(() => {
@@ -101,6 +103,8 @@ function Projects() {
   const closeDialog = () => { setDialog(null); setFormError(""); };
   const openProjectForm = (mode) => { setProjectForm(mode === "edit" ? { title: selectedProject.title, description: selectedProject.description, category: selectedProject.category, priority: selectedProject.priority, status: selectedProject.status, startDate: selectedProject.startDate, endDate: selectedProject.endDate } : emptyProjectForm); setFormError(""); setDialog(mode); };
   const updateProjectForm = (field, value) => setProjectForm((current) => ({ ...current, [field]: value }));
+  const addProjectFile = (projectId, file) => setFilesByProject((current) => ({ ...current, [projectId]: [...(current[projectId] || []), { ...file, projectId }] }));
+  const deleteProjectFile = (projectId, fileId) => setFilesByProject((current) => ({ ...current, [projectId]: (current[projectId] || []).filter((file) => file.id !== fileId) }));
   const saveProject = async (event) => {
   event.preventDefault();
 
@@ -355,6 +359,14 @@ if (!workspaceId || !workspace) {
         <Card className="p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><div className="flex items-center gap-2"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--color-peach-soft)] text-[var(--color-peach)]"><FiShield size={18} /></span><div><h3 className="font-[var(--font-display)] text-lg font-semibold text-[var(--color-text)]">Risks</h3><p className="text-sm text-[var(--color-text-muted)]">Potential blockers with clear ownership.</p></div></div></div>{canManage && !selectedProject.isArchived && <Button variant="soft" onClick={() => { setRiskForm(emptyRiskForm); setFormError(""); setDialog("createRisk"); }}><FiPlus size={16} /> Add risk</Button>}</div><div className="mt-5 flex flex-wrap items-center gap-2 text-xs"><span className="font-semibold uppercase tracking-[0.08em] text-[var(--color-text-subtle)]">Sort</span>{["severity", "probability", "status", "createdAt"].map((key) => <button key={key} type="button" onClick={() => changeRiskSort(key)} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 font-semibold transition ${riskSort.key === key ? "bg-[var(--color-brand-soft)] text-[var(--color-brand-hover)]" : "bg-[var(--color-canvas-soft)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)]"}`}>{key === "createdAt" ? "Created" : key[0].toUpperCase() + key.slice(1)}{riskSort.key === key && (riskSort.direction === "asc" ? <FiArrowUp size={13} /> : <FiArrowDown size={13} />)}</button>)}</div>{sortedRisks.length ? <ul className="mt-4 divide-y divide-[var(--color-border)]">{sortedRisks.map((risk) => <li key={risk.id} className="py-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-[var(--color-text)]">{risk.title}</p><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${priorityClasses[risk.severity]}`}>{risk.severity}</span><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusClasses[risk.status]}`}>{risk.status}</span></div><p className="mt-1 text-sm text-[var(--color-text-muted)]">{risk.description || "No description provided."}</p><p className="mt-2 text-xs text-[var(--color-text-subtle)]">Probability: {risk.probability} · Owner: {getUser(risk.ownerId)?.name} · Created {formatDate(risk.createdAt)}</p>{risk.mitigationPlan && <p className="mt-2 rounded-lg bg-[var(--color-canvas-soft)] px-3 py-2 text-xs text-[var(--color-text-muted)]"><strong className="text-[var(--color-text)]">Mitigation:</strong> {risk.mitigationPlan}</p>}</div>{canManage && !selectedProject.isArchived && <div className="flex shrink-0 gap-1"><button type="button" onClick={() => { setRiskForm({ title: risk.title, description: risk.description, severity: risk.severity, probability: risk.probability, ownerId: risk.ownerId, mitigationPlan: risk.mitigationPlan }); setFormError(""); setDialog({ type: "editRisk", risk }); }} className="rounded-lg p-2 text-[var(--color-text-subtle)] hover:bg-[var(--color-canvas-soft)] hover:text-[var(--color-text)]" aria-label={`Edit ${risk.title}`}><FiEdit2 size={16} /></button>{risk.status === "Open" && <button type="button" onClick={() => setDialog({ type: "closeRisk", risk })} className="rounded-lg p-2 text-[var(--color-brand-hover)] hover:bg-[var(--color-surface-sage)]" aria-label={`Close ${risk.title}`}><FiCheck size={16} /></button>}</div>}</div></li>)}</ul> : <div className="mt-5 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] px-4 py-8 text-center"><FiShield className="mx-auto text-[var(--color-brand)]" size={24} /><p className="mt-2 text-sm font-semibold text-[var(--color-text)]">No risks recorded</p><p className="mt-1 text-xs text-[var(--color-text-muted)]">Add a risk when the team identifies a potential blocker.</p></div>}</Card>
       </div>
     )}
+    <FileSection
+      key={`project-files-${selectedProject.id}`}
+      entityId={selectedProject.id}
+      entityLabel="project"
+      files={filesByProject[selectedProject.id] || []}
+      onAddFile={addProjectFile}
+      onDeleteFile={deleteProjectFile}
+    />
   </Dialog>}
   {dialog === "archive" && <Dialog title="Archive project" onClose={closeDialog}><div className="flex gap-3 rounded-[var(--radius-md)] bg-[var(--color-danger-soft)] p-4 text-sm text-[var(--color-text)]"><FiAlertTriangle className="mt-0.5 shrink-0 text-[var(--color-danger)]" size={19} /><p>Archive <strong>{selectedProject?.title}</strong>? It will be removed from the active project list in this local session.</p></div><div className="mt-6 flex justify-end gap-2"><Button variant="secondary" onClick={closeDialog}>Cancel</Button><Button onClick={archiveProject} className="bg-[var(--color-danger)] hover:bg-[var(--color-danger)]"><FiArchive size={16} /> Archive project</Button></div></Dialog>}
   {dialog === "addMember" && <Dialog title="Add project member" onClose={closeDialog}><p className="text-sm text-[var(--color-text-muted)]">Choose a workspace teammate to add as a project contributor. This uses local mock data only.</p><FieldSelect id="project-member" label="Teammate" value={memberUserId} onChange={(event) => setMemberUserId(event.target.value)}>{addableUsers.map((user) => <option key={user.id} value={user.id}>{user.name} — {user.email}</option>)}</FieldSelect><div className="mt-6 flex justify-end gap-2"><Button variant="secondary" onClick={closeDialog}>Cancel</Button><Button onClick={addMember}><FiUserPlus size={16} /> Add member</Button></div></Dialog>}

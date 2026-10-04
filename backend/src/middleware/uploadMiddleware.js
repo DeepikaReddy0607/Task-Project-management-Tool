@@ -5,6 +5,7 @@ import crypto from "crypto";
 
 // Ensure storage directory exists
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads", "attachments");
+
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
@@ -31,21 +32,40 @@ const DANGEROUS_EXTENSIONS = new Set([
   ".pl",
 ]);
 
-// Multer Disk Storage with UUID-based filenames to prevent collisions and path traversal
+// Allowed MIME types
+const ALLOWED_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "application/pdf",
+  "text/plain",
+  "application/zip",
+  "application/x-zip-compressed",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+]);
+
+// Multer disk storage with UUID-based filenames
+// to prevent collisions and path traversal.
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, UPLOAD_DIR);
   },
+
   filename: (req, file, cb) => {
-    // Sanitize extension and generate unique storage filename
-    const safeBaseName = path.basename(file.originalname);
+    const safeBaseName = path.basename(file.originalname || "");
     const ext = path.extname(safeBaseName).toLowerCase();
     const uniqueName = `${crypto.randomUUID()}${ext}`;
+
     cb(null, uniqueName);
   },
 });
 
-// File filter for dangerous files
+// File validation
 const fileFilter = (req, file, cb) => {
   const safeBaseName = path.basename(file.originalname || "");
   const ext = path.extname(safeBaseName).toLowerCase();
@@ -55,6 +75,13 @@ const fileFilter = (req, file, cb) => {
       new Error(
         `Upload blocked: Executable or script files with extension '${ext}' are not permitted.`
       ),
+      false
+    );
+  }
+
+  if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+    return cb(
+      new Error(`File type ${file.mimetype} is not allowed.`),
       false
     );
   }
@@ -75,7 +102,8 @@ const upload = multer({
 });
 
 /**
- * Express middleware wrapper for single file upload with safe error handling
+ * Express middleware wrapper for single file upload
+ * with safe error handling.
  */
 export const uploadSingleAttachment = (req, res, next) => {
   const singleUpload = upload.single("file");
@@ -85,30 +113,35 @@ export const uploadSingleAttachment = (req, res, next) => {
       if (err.code === "LIMIT_FILE_SIZE") {
         return res.status(400).json({
           success: false,
-          message: `File size exceeds the allowed limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB.`,
+          message: `File size exceeds the allowed limit of ${
+            MAX_FILE_SIZE / (1024 * 1024)
+          }MB.`,
         });
       }
+
       return res.status(400).json({
         success: false,
         message: `Upload error: ${err.message}`,
       });
-    } else if (err) {
+    }
+
+    if (err) {
       return res.status(400).json({
         success: false,
         message: err.message || "File validation failed.",
       });
     }
 
-    // Check for empty file
+    // Reject empty files
     if (req.file && req.file.size === 0) {
-      // Remove empty file from disk
       try {
         if (fs.existsSync(req.file.path)) {
           fs.unlinkSync(req.file.path);
         }
       } catch (e) {
-        // ignore
+        // Ignore cleanup failure
       }
+
       return res.status(400).json({
         success: false,
         message: "Cannot upload an empty file.",
@@ -120,4 +153,5 @@ export const uploadSingleAttachment = (req, res, next) => {
 };
 
 export { UPLOAD_DIR };
+
 export default upload;

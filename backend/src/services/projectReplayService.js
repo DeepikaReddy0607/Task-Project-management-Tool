@@ -65,10 +65,12 @@ export const replayProjectPointInTime = async (projectId, targetTimestamp) => {
         };
     }
 
-    // Retrieve events in a 48-hour window around this snapshot
+    // Retrieve events and decisions in a 48-hour window around this replay point in time and snapshot
     const snapTime = new Date(nearestSnapshot.captured_at).getTime();
-    const windowStart = new Date(snapTime - 48 * 60 * 60 * 1000);
-    const windowEnd = new Date(snapTime + 48 * 60 * 60 * 1000);
+    const minTime = Math.min(targetTime, snapTime);
+    const maxTime = Math.max(targetTime, snapTime);
+    const windowStart = new Date(minTime - 48 * 60 * 60 * 1000);
+    const windowEnd = new Date(maxTime + 48 * 60 * 60 * 1000);
 
     const timeline = await getProjectTimeline(projectId, {
         from: windowStart.toISOString(),

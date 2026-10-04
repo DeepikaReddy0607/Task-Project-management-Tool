@@ -15,6 +15,7 @@ import {
 
 import Quackie from "../../components/brand/Quackie";
 import CommentSection from "../../components/tasks/CommentSection";
+import FileSection from "../../components/files/FileSection";
 import SubtaskSection from "../../components/tasks/SubtaskSection";
 import TaskDependencySection from "../../components/tasks/TaskDependencySection";
 import TaskAttachmentSection from "../../components/tasks/TaskAttachmentSection";
@@ -316,6 +317,7 @@ function Tasks() {
   const [notice, setNotice] = useState("");
 
   const [commentsByTask, setCommentsByTask] = useState({});
+  const [filesByTask, setFilesByTask] = useState({});
   const [loadingCommentsByTask, setLoadingCommentsByTask] = useState({});
   const [commentsErrorByTask, setCommentsErrorByTask] = useState({});
 
@@ -437,6 +439,20 @@ function Tasks() {
       [taskId]: [...(prev[taskId] || []), persisted],
     }));
     return persisted;
+  };
+
+  const addTaskFile = (taskId, file) => {
+    setFilesByTask((current) => ({
+      ...current,
+      [taskId]: [...(current[taskId] || []), { ...file, taskId }],
+    }));
+  };
+
+  const deleteTaskFile = (taskId, fileId) => {
+    setFilesByTask((current) => ({
+      ...current,
+      [taskId]: (current[taskId] || []).filter((file) => file.id !== fileId),
+    }));
   };
 
   const handleUpdateComment = async (taskId, commentId, content) => {
@@ -2404,6 +2420,15 @@ function Tasks() {
               onAddComment={addComment}
               onUpdateComment={handleUpdateComment}
               onDeleteComment={handleDeleteComment}
+            />
+
+            <FileSection
+              key={`task-files-${selectedTask.id}`}
+              entityId={selectedTask.id}
+              entityLabel="task"
+              files={filesByTask[selectedTask.id] || []}
+              onAddFile={addTaskFile}
+              onDeleteFile={deleteTaskFile}
             />
           </Dialog>
         )}
