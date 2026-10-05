@@ -1,4 +1,4 @@
-import { FiBell, FiCalendar, FiCheckSquare, FiColumns, FiFolder, FiGrid, FiLayers, FiLogOut, FiSettings, FiUser, FiX } from "react-icons/fi";
+import { FiActivity, FiBell, FiCalendar, FiCheckSquare, FiColumns, FiFolder, FiGrid, FiLayers, FiLogOut, FiSettings, FiUser, FiX } from "react-icons/fi";
 import { TbCrystalBall } from "react-icons/tb";
 import { useLocation, useNavigate } from "react-router-dom";
 import TaskFlowMark from "../components/brand/TaskFlowMark";
@@ -7,6 +7,7 @@ import { logoutUser } from "../services/api/authApi";
 
 const primaryNavigation = [
   { label: "Dashboard", icon: FiGrid, path: "/" },
+  { label: "Activity", icon: FiActivity, path: "/activity" },
   { label: "Workspaces", icon: FiLayers, path: "/workspaces" },
   { label: "My Tasks", icon: FiCheckSquare, path: "/tasks" },
   { label: "Kanban", icon: FiColumns, path: "/kanban" },
