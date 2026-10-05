@@ -2,10 +2,17 @@ import api from "./axios";
 
 /**
  * Fetch notifications for authenticated user
- * @param {Object} params - { page, limit, unreadOnly }
  */
-export const getNotifications = async (params = {}) => {
-    const response = await api.get("/notifications", { params });
+export const getNotifications = async () => {
+    const response = await api.get("/notifications");
+    return response.data;
+};
+
+/**
+ * Fetch the unread notification count for the authenticated user.
+ */
+export const getUnreadNotificationCount = async () => {
+    const response = await api.get("/notifications/unread-count");
     return response.data;
 };
 
