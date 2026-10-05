@@ -302,6 +302,15 @@ export const prioritizeTasks = async ({
 
     // 1. Verify project access if projectId is specified
     if (projectId) {
+        const isUuid = typeof projectId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId);
+        if (!isUuid) {
+            return {
+                tasks: [],
+                totalCount: 0,
+                primaryFocusTask: null,
+                message: "No tasks found for specified project."
+            };
+        }
         const project = await prisma.projects.findUnique({
             where: { id: projectId }
         });

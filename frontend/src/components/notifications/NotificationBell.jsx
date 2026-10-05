@@ -156,10 +156,28 @@ function NotificationBell() {
 
         setIsOpen(false);
 
-        if (notif.taskId) {
+        const intelligenceTypes = [
+            "CRITICAL_PATH_CHANGED",
+            "NEW_CRITICAL_TASK",
+            "CRITICAL_TASK_OVERDUE",
+            "BOTTLENECK_ESCALATED",
+            "NEW_MAJOR_BOTTLENECK",
+            "PROJECT_DURATION_INCREASED",
+            "CYCLE_DETECTED"
+        ];
+        const isIntelligenceAlert =
+            intelligenceTypes.includes(notif.type) ||
+            notif.type?.startsWith("CRITICAL_PATH_") ||
+            notif.type?.startsWith("BOTTLENECK_") ||
+            notif.type?.startsWith("CYCLE_");
+
+        if (isIntelligenceAlert && notif.projectId) {
+            const taskParam = notif.taskId ? `&taskId=${notif.taskId}` : "";
+            navigate(`/projects?projectId=${notif.projectId}&tab=intelligence${taskParam}`);
+        } else if (notif.taskId) {
             navigate("/tasks");
         } else if (notif.projectId) {
-            navigate(`/projects/${notif.projectId}`);
+            navigate(`/projects?projectId=${notif.projectId}`);
         }
     };
 

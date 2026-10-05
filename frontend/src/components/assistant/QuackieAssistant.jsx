@@ -350,7 +350,27 @@ function QuackieAssistant() {
                                                     <span className="truncate flex-1 text-[11px] font-medium text-[var(--color-text)]">
                                                         {alert.message}
                                                     </span>
-                                                    {alert.taskId && (
+                                                    {((alert.type === "CRITICAL_PATH_CHANGED" ||
+                                                      alert.type === "NEW_CRITICAL_TASK" ||
+                                                      alert.type === "CRITICAL_TASK_OVERDUE" ||
+                                                      alert.type === "BOTTLENECK_ESCALATED" ||
+                                                      alert.type === "NEW_MAJOR_BOTTLENECK" ||
+                                                      alert.type === "PROJECT_DURATION_INCREASED" ||
+                                                      alert.type === "CYCLE_DETECTED" ||
+                                                      alert.type?.startsWith("CRITICAL_PATH_") ||
+                                                      alert.type?.startsWith("BOTTLENECK_") ||
+                                                      alert.type?.startsWith("CYCLE_")) && alert.projectId) ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                closeAssistant();
+                                                                navigate(`/projects?projectId=${alert.projectId}&tab=intelligence${alert.taskId ? `&taskId=${alert.taskId}` : ""}`);
+                                                            }}
+                                                            className="shrink-0 rounded-md bg-[var(--color-brand)] px-2 py-0.5 text-[10px] font-semibold text-white shadow-2xs transition hover:bg-[var(--color-brand-hover)]"
+                                                        >
+                                                            View Intelligence
+                                                        </button>
+                                                    ) : alert.taskId ? (
                                                         <button
                                                             type="button"
                                                             onClick={() => handleQuickAction("Explain this task")}
@@ -358,8 +378,7 @@ function QuackieAssistant() {
                                                         >
                                                             View Task
                                                         </button>
-                                                    )}
-                                                    {alert.projectId && !alert.taskId && (
+                                                    ) : alert.projectId ? (
                                                         <button
                                                             type="button"
                                                             onClick={() => handleQuickAction("Summarize this project")}
@@ -367,7 +386,7 @@ function QuackieAssistant() {
                                                         >
                                                             Analyze Project
                                                         </button>
-                                                    )}
+                                                    ) : null}
                                                 </div>
                                             ))}
                                         </div>

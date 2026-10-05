@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import TaskFlowMark from "../components/brand/TaskFlowMark";
 import NotificationBell from "../components/notifications/NotificationBell";
 
-function Navbar({ mobileNavigationOpen, onMenuToggle }) {
+function Navbar({ mobileNavigationOpen, onMenuToggle, onOpenSearch }) {
   const navigate = useNavigate();
 
   return (
@@ -12,8 +12,35 @@ function Navbar({ mobileNavigationOpen, onMenuToggle }) {
         <button type="button" onClick={onMenuToggle} aria-label={mobileNavigationOpen ? "Close navigation" : "Open navigation"} aria-expanded={mobileNavigationOpen} className="flex h-10 w-10 items-center justify-center rounded-xl text-[var(--color-text-muted)] transition hover:bg-[var(--color-surface)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[color-mix(in_srgb,var(--color-focus)_20%,transparent)] lg:hidden"><FiMenu size={20} /></button>
         <div className="flex shrink-0 items-center lg:hidden"><TaskFlowMark /></div>
         <button type="button" onClick={() => navigate("/workspaces")} className="hidden items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-[var(--color-text-muted)] transition hover:bg-white/70 hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[color-mix(in_srgb,var(--color-focus)_15%,transparent)] md:flex"><span className="h-2.5 w-2.5 rounded-full bg-[var(--color-brand)] shadow-[0_0_0_4px_var(--color-surface-sage)]" aria-hidden="true" /><span>My Workspace</span><FiChevronDown size={15} aria-hidden="true" /></button>
-        <div className="ml-auto hidden md:block"><label className="relative block"><span className="sr-only">Search workspace</span><FiSearch size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-subtle)]" aria-hidden="true" /><input type="search" placeholder="Search tasks and projects" className="h-10 w-52 rounded-xl border border-[var(--color-border)] bg-white/65 py-2 pl-10 pr-4 text-sm text-[var(--color-text)] outline-none transition duration-[var(--duration-base)] placeholder:text-[var(--color-text-subtle)] hover:bg-white/85 focus:w-64 focus:border-[var(--color-brand)] focus:bg-white focus:ring-4 focus:ring-[color-mix(in_srgb,var(--color-focus)_12%,transparent)]" /></label></div>
+        
+        {/* Global Search Trigger */}
+        <div className="ml-auto hidden md:block">
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            className="flex h-10 w-60 items-center justify-between rounded-xl border border-[var(--color-border)] bg-white/70 px-3 py-2 text-xs font-medium text-[var(--color-text-subtle)] transition duration-[var(--duration-base)] hover:bg-white hover:border-[var(--color-brand)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[color-mix(in_srgb,var(--color-focus)_12%,transparent)]"
+          >
+            <span className="flex items-center gap-2">
+              <FiSearch size={15} className="text-[var(--color-text-subtle)]" />
+              <span>Search TaskFlow...</span>
+            </span>
+            <kbd className="flex items-center gap-0.5 rounded border border-[var(--color-border)] bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-muted)]">
+              <span>⌘</span><span>K</span>
+            </kbd>
+          </button>
+        </div>
+
         <div className="flex items-center gap-2">
+          {/* Mobile Search Button */}
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            aria-label="Open search"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-[var(--color-text-muted)] transition hover:bg-white hover:text-[var(--color-text)] md:hidden"
+          >
+            <FiSearch size={18} />
+          </button>
+
           <NotificationBell />
           <button type="button" onClick={() => navigate("/profile")} aria-label="Open profile" className="group flex items-center gap-2 rounded-xl p-1.5 transition hover:bg-white hover:shadow-[var(--shadow-soft)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[color-mix(in_srgb,var(--color-focus)_15%,transparent)]"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-surface-sage)] text-sm font-bold text-[var(--color-brand-hover)] ring-2 ring-white">G</span><span className="hidden text-left lg:block"><span className="block text-xs font-semibold text-[var(--color-text)]">TaskFlow Member</span><span className="block text-[0.6875rem] text-[var(--color-text-subtle)]">Personal workspace</span></span><FiChevronDown size={15} className="hidden text-[var(--color-text-subtle)] lg:block" aria-hidden="true" /></button>
         </div>

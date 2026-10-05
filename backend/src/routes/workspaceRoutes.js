@@ -45,4 +45,52 @@ router.patch(
     updateMemberRole
 );
 
+// ============================================================
+// PHASE 5: WORKSPACE PORTFOLIO INTELLIGENCE
+// ============================================================
+import {
+    getPortfolio,
+    getCrossProject,
+    getResourceConflictsController,
+    getPortfolioRiskMapController,
+    simulatePortfolioScenarioController
+} from "../controllers/projectController.js";
+
+router.get("/:workspaceId/intelligence/portfolio", authMiddleware, getPortfolio);
+router.get("/:id/intelligence/portfolio", authMiddleware, getPortfolio);
+
+router.get("/:workspaceId/intelligence/cross-project", authMiddleware, getCrossProject);
+router.get("/:id/intelligence/cross-project", authMiddleware, getCrossProject);
+
+router.get("/:workspaceId/intelligence/resource-conflicts", authMiddleware, getResourceConflictsController);
+router.get("/:id/intelligence/resource-conflicts", authMiddleware, getResourceConflictsController);
+
+router.get("/:workspaceId/intelligence/risk-map", authMiddleware, getPortfolioRiskMapController);
+router.get("/:id/intelligence/risk-map", authMiddleware, getPortfolioRiskMapController);
+
+router.post("/:workspaceId/intelligence/simulate", authMiddleware, simulatePortfolioScenarioController);
+router.post("/:id/intelligence/simulate", authMiddleware, simulatePortfolioScenarioController);
+
+// ============================================================
+// PHASE 6: WORKSPACE COORDINATION & EXECUTIVE BRIEFING
+// ============================================================
+import {
+    getWorkspaceBriefingController,
+    getWorkspaceCoordinationController,
+    getWorkspaceApprovalsController,
+    getWorkspaceActionsController
+} from "../controllers/projectController.js";
+
+router.get("/:workspaceId/intelligence/briefing", authMiddleware, getWorkspaceBriefingController);
+router.get("/:id/intelligence/briefing", authMiddleware, getWorkspaceBriefingController);
+
+router.get("/:workspaceId/intelligence/coordination", authMiddleware, getWorkspaceCoordinationController);
+router.get("/:id/intelligence/coordination", authMiddleware, getWorkspaceCoordinationController);
+
+router.get("/:workspaceId/intelligence/approvals", authMiddleware, getWorkspaceApprovalsController);
+router.get("/:id/intelligence/approvals", authMiddleware, getWorkspaceApprovalsController);
+
+router.get("/:workspaceId/intelligence/actions", authMiddleware, getWorkspaceActionsController);
+router.get("/:id/intelligence/actions", authMiddleware, getWorkspaceActionsController);
+
 export default router;

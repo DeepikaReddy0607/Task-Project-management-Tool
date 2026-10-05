@@ -15,7 +15,10 @@ import {
 
 import Quackie from "../../components/brand/Quackie";
 import CommentSection from "../../components/tasks/CommentSection";
+import FileSection from "../../components/files/FileSection";
 import SubtaskSection from "../../components/tasks/SubtaskSection";
+import TaskDependencySection from "../../components/tasks/TaskDependencySection";
+import TaskAttachmentSection from "../../components/tasks/TaskAttachmentSection";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
@@ -314,6 +317,7 @@ function Tasks() {
   const [notice, setNotice] = useState("");
 
   const [commentsByTask, setCommentsByTask] = useState({});
+  const [filesByTask, setFilesByTask] = useState({});
   const [loadingCommentsByTask, setLoadingCommentsByTask] = useState({});
   const [commentsErrorByTask, setCommentsErrorByTask] = useState({});
 
@@ -435,6 +439,20 @@ function Tasks() {
       [taskId]: [...(prev[taskId] || []), persisted],
     }));
     return persisted;
+  };
+
+  const addTaskFile = (taskId, file) => {
+    setFilesByTask((current) => ({
+      ...current,
+      [taskId]: [...(current[taskId] || []), { ...file, taskId }],
+    }));
+  };
+
+  const deleteTaskFile = (taskId, fileId) => {
+    setFilesByTask((current) => ({
+      ...current,
+      [taskId]: (current[taskId] || []).filter((file) => file.id !== fileId),
+    }));
   };
 
   const handleUpdateComment = async (taskId, commentId, content) => {
@@ -2380,6 +2398,19 @@ function Tasks() {
               }
             />
 
+            <TaskDependencySection
+              key={`dep-${selectedTask.id}`}
+              taskId={selectedTask.id}
+              projectId={selectedTask.projectId}
+              availableTasks={tasks.filter((t) => t.projectId === selectedTask.projectId && t.id !== selectedTask.id)}
+              formatDate={formatDate}
+            />
+
+            <TaskAttachmentSection
+              key={`att-${selectedTask.id}`}
+              taskId={selectedTask.id}
+            />
+
             <CommentSection
               key={selectedTask.id}
               taskId={selectedTask.id}
@@ -2389,6 +2420,15 @@ function Tasks() {
               onAddComment={addComment}
               onUpdateComment={handleUpdateComment}
               onDeleteComment={handleDeleteComment}
+            />
+
+            <FileSection
+              key={`task-files-${selectedTask.id}`}
+              entityId={selectedTask.id}
+              entityLabel="task"
+              files={filesByTask[selectedTask.id] || []}
+              onAddFile={addTaskFile}
+              onDeleteFile={deleteTaskFile}
             />
           </Dialog>
         )}

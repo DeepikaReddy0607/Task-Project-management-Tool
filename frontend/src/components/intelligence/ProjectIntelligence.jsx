@@ -10,24 +10,72 @@ import {
   FiSearch,
   FiShield,
   FiZap,
+  FiUsers,
   FiMaximize2
 } from "react-icons/fi";
 import { useSocketEvent } from "../../context/SocketContext";
-import { getCriticalPath, getBottlenecks } from "../../services/api/intelligenceApi";
+import {
+  getIntelligenceOverview,
+  getCriticalPath,
+  getBottlenecks,
+  createScenario,
+  simulateScenario,
+  getReplanningProposals,
+  generateReplanning,
+  approveProposal,
+  rejectProposal,
+  executeProposal
+} from "../../services/api/intelligenceApi";
 import CriticalPathGraph from "./CriticalPathGraph";
 import BottleneckRadar from "./BottleneckRadar";
+import ProjectHealthScorecard from "./ProjectHealthScorecard";
+import ScheduleDriftCard from "./ScheduleDriftCard";
+import DeadlineRiskPanel from "./DeadlineRiskPanel";
+import PreMortemPanel from "./PreMortemPanel";
+import TeamWorkloadPanel from "./TeamWorkloadPanel";
+import KnowledgeRiskPanel from "./KnowledgeRiskPanel";
+import ScenarioBuilder from "./ScenarioBuilder";
+import ScenarioResults from "./ScenarioResults";
+import ScenarioComparison from "./ScenarioComparison";
+import ReplanningPanel from "./ReplanningPanel";
+import ProposalPreview from "./ProposalPreview";
+import ProjectHealthHistory from "./ProjectHealthHistory";
+import ProjectHistoryTimeline from "./ProjectHistoryTimeline";
+import DecisionIntelligencePanel from "./DecisionIntelligencePanel";
+import ProjectReplay from "./ProjectReplay";
+import ProjectDiagnosisPanel from "./ProjectDiagnosisPanel";
+import ProjectAutopsy from "./ProjectAutopsy";
+import ProjectForecastPanel from "./ProjectForecastPanel";
+import ScopeIntelligencePanel from "./ScopeIntelligencePanel";
 
-export default function ProjectIntelligence({ projectId, className = "" }) {
+export default function ProjectIntelligence({ projectId, initialTaskId = null, className = "" }) {
+  const [overviewData, setOverviewData] = useState(null);
   const [criticalPathData, setCriticalPathData] = useState(null);
   const [bottleneckData, setBottleneckData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState("all"); // 'all' | 'critical-path' | 'bottlenecks'
-  const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const [activeTab, setActiveTab] = useState("all"); // 'all' | 'health' | 'critical-path' | 'bottlenecks' | 'team' | 'simulate' | 'replanning'
+  const [selectedTaskId, setSelectedTaskId] = useState(() => initialTaskId || (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("taskId") : null));
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Phase 3 States
+  const [simulationResult, setSimulationResult] = useState(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [proposals, setProposals] = useState([]);
+  const [isLoadingProposals, setIsLoadingProposals] = useState(false);
+  const [activeProposalForPreview, setActiveProposalForPreview] = useState(null);
+  const [isExecutingProposal, setIsExecutingProposal] = useState(false);
+  const [proposalError, setProposalError] = useState(null);
+  const [executionSuccess, setExecutionSuccess] = useState(null);
+
   const debounceTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (initialTaskId) {
+      setSelectedTaskId(initialTaskId);
+    }
+  }, [initialTaskId]);
 
   const loadIntelligence = useCallback(async (isManualRefresh = false) => {
     if (!projectId) return;
@@ -35,14 +83,22 @@ export default function ProjectIntelligence({ projectId, className = "" }) {
 
     try {
       setError(null);
-      const [cpRes, bnRes] = await Promise.all([
-        getCriticalPath(projectId),
-        getBottlenecks(projectId),
-      ]);
-
-      // Both endpoints return { success, data }
-      setCriticalPathData(cpRes?.data || null);
-      setBottleneckData(bnRes?.data || null);
+      // Fetch unified overview
+      try {
+        const overviewRes = await getIntelligenceOverview(projectId);
+        const data = overviewRes?.data || {};
+        setOverviewData(data);
+        setCriticalPathData(data.criticalPath || null);
+        setBottleneckData(data.bottlenecks || null);
+      } catch (overviewErr) {
+        // Fallback to separate endpoints if overview is unavailable
+        const [cpRes, bnRes] = await Promise.all([
+          getCriticalPath(projectId),
+          getBottlenecks(projectId),
+        ]);
+        setCriticalPathData(cpRes?.data || null);
+        setBottleneckData(bnRes?.data || null);
+      }
     } catch (err) {
       console.error("Failed to load project intelligence:", err);
       const status = err.response?.status;
@@ -102,7 +158,7 @@ export default function ProjectIntelligence({ projectId, className = "" }) {
           Computing Project Intelligence...
         </h4>
         <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-          Running Critical Path Method (CPM) and analyzing dependency bottlenecks.
+          Synthesizing Digital Twin, Critical Path Method, and Predictive Health Scorecard.
         </p>
       </div>
     );
@@ -127,15 +183,110 @@ export default function ProjectIntelligence({ projectId, className = "" }) {
     );
   }
 
+  // Phase 3 Actions
+  const handleSimulate = async (scenarioData) => {
+    setIsSimulating(true);
+    try {
+      const created = await createScenario(projectId, scenarioData);
+      const sId = created?.data?.scenarioId;
+      if (sId) {
+        const simRes = await simulateScenario(projectId, sId, scenarioData.mutations);
+        setSimulationResult(simRes?.data || simRes);
+      }
+    } catch (err) {
+      console.error("Simulation failed:", err);
+    } finally {
+      setIsSimulating(false);
+    }
+  };
+
+  const handleGenerateReplanning = async (strategy = "ALL") => {
+    setIsLoadingProposals(true);
+    try {
+      const res = await generateReplanning(projectId, strategy);
+      setProposals(res?.data?.proposals || []);
+    } catch (err) {
+      console.error("Replanning failed:", err);
+    } finally {
+      setIsLoadingProposals(false);
+    }
+  };
+
+  const handleApproveProposal = async (proposal) => {
+    setProposalError(null);
+    try {
+      await approveProposal(projectId, proposal.proposalId);
+      proposal.status = "APPROVED";
+      setActiveProposalForPreview(proposal);
+    } catch (err) {
+      setProposalError(err.response?.data?.message || err.message);
+    }
+  };
+
+  const handleRejectProposal = async (proposalId) => {
+    try {
+      await rejectProposal(projectId, proposalId);
+      setProposals((prev) =>
+        prev.map((p) => (p.proposalId === proposalId ? { ...p, status: "REJECTED" } : p))
+      );
+    } catch (err) {
+      console.error("Reject failed:", err);
+    }
+  };
+
+  const handleConfirmExecution = async (proposalId) => {
+    setIsExecutingProposal(true);
+    setProposalError(null);
+    try {
+      const res = await executeProposal(projectId, proposalId);
+      setActiveProposalForPreview(null);
+      setExecutionSuccess(`Plan applied successfully! Applied ${res?.data?.appliedChangesCount || 0} change(s).`);
+      void loadIntelligence(true);
+    } catch (err) {
+      setProposalError(err.response?.data?.message || err.message || "Failed to execute proposal.");
+    } finally {
+      setIsExecutingProposal(false);
+    }
+  };
+
   const cpSummary = criticalPathData?.summary || {};
   const bnSummary = bottleneckData?.summary || {};
   const hasCycle = Boolean(criticalPathData?.hasCycle || bottleneckData?.hasCycle);
+  const healthData = overviewData?.health;
+  const driftData = overviewData?.drift;
+  const deadlineRisks = overviewData?.deadlineRisks || [];
+  const preMortemData = overviewData?.preMortem;
+  const teamWorkloadData = overviewData?.teamWorkload;
+  const knowledgeRiskData = overviewData?.knowledgeRisk;
 
   return (
     <div className={`space-y-5 ${className}`}>
       {/* Executive KPI Summary Cards */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Metric 1: Critical Path Duration */}
+        {/* Metric 1: Project Health */}
+        <div className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-2xs">
+          <div className="flex items-center justify-between text-[var(--color-text-subtle)]">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">
+              Project Health
+            </span>
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <FiShield size={15} />
+            </span>
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-bold tracking-tight text-[var(--color-text)]">
+              {healthData?.score ?? (hasCycle ? 40 : 100)}/100
+            </span>
+            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+              {healthData?.status ?? (hasCycle ? "CRITICAL" : "HEALTHY")}
+            </span>
+          </div>
+          <p className="mt-1 text-[11px] text-[var(--color-text-subtle)]">
+            {healthData?.history?.trend ? `Trend: ${healthData.history.trend}` : "Deterministic multi-factor score"}
+          </p>
+        </div>
+
+        {/* Metric 2: Critical Path Duration */}
         <div className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-2xs">
           <div className="flex items-center justify-between text-[var(--color-text-subtle)]">
             <span className="text-[11px] font-semibold uppercase tracking-wider">
@@ -162,7 +313,7 @@ export default function ProjectIntelligence({ projectId, className = "" }) {
           </p>
         </div>
 
-        {/* Metric 2: Critical Tasks Count */}
+        {/* Metric 3: Critical Tasks Count */}
         <div className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-2xs">
           <div className="flex items-center justify-between text-[var(--color-text-subtle)]">
             <span className="text-[11px] font-semibold uppercase tracking-wider">
@@ -174,7 +325,7 @@ export default function ProjectIntelligence({ projectId, className = "" }) {
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold tracking-tight text-rose-600 dark:text-rose-400">
-              {cpSummary.criticalTasksCount ?? 0}
+              {cpSummary.criticalTasksCount ?? (criticalPathData?.criticalTasks?.length || 0)}
             </span>
             <span className="text-xs text-[var(--color-text-muted)]">
               of {cpSummary.totalTasks ?? 0} tasks
@@ -187,7 +338,7 @@ export default function ProjectIntelligence({ projectId, className = "" }) {
           </p>
         </div>
 
-        {/* Metric 3: Active Bottlenecks */}
+        {/* Metric 4: Active Bottlenecks */}
         <div className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-2xs">
           <div className="flex items-center justify-between text-[var(--color-text-subtle)]">
             <span className="text-[11px] font-semibold uppercase tracking-wider">
@@ -199,7 +350,7 @@ export default function ProjectIntelligence({ projectId, className = "" }) {
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold tracking-tight text-orange-600 dark:text-orange-400">
-              {bnSummary.totalBottlenecks ?? 0}
+              {bnSummary.totalBottlenecks ?? (bottleneckData?.bottlenecks?.length || 0)}
             </span>
             <span className="text-xs text-[var(--color-text-muted)]">
               {bnSummary.criticalCount ? `${bnSummary.criticalCount} critical` : "monitored"}
@@ -211,47 +362,15 @@ export default function ProjectIntelligence({ projectId, className = "" }) {
               : "Workflows flowing smoothly"}
           </p>
         </div>
-
-        {/* Metric 4: Graph Health */}
-        <div className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-2xs">
-          <div className="flex items-center justify-between text-[var(--color-text-subtle)]">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">
-              Graph Topology
-            </span>
-            <span
-              className={`flex h-7 w-7 items-center justify-center rounded-lg ${
-                hasCycle
-                  ? "bg-rose-500/10 text-rose-600"
-                  : "bg-emerald-500/10 text-emerald-600"
-              }`}
-            >
-              {hasCycle ? <FiAlertTriangle size={15} /> : <FiCheckCircle size={15} />}
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span
-              className={`text-lg font-bold tracking-tight ${
-                hasCycle ? "text-rose-600" : "text-emerald-600 dark:text-emerald-400"
-              }`}
-            >
-              {hasCycle ? "Cycle Detected" : "Valid DAG"}
-            </span>
-          </div>
-          <p className="mt-1 text-[11px] text-[var(--color-text-subtle)]">
-            {hasCycle
-              ? "Prerequisite circular dependency"
-              : "Strict topological ordering"}
-          </p>
-        </div>
       </div>
 
-      {/* View Switcher & Action Bar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[var(--color-border)] pb-3">
-        <div className="flex items-center gap-1 rounded-lg bg-[var(--color-canvas-soft)] p-1 border border-[var(--color-border)]">
+      {/* Interactive Navigation & Control Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] pb-3">
+        <div className="flex items-center gap-1 rounded-lg bg-[var(--color-surface-hover)] p-1 border border-[var(--color-border)]">
           <button
             type="button"
             onClick={() => setActiveTab("all")}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
               activeTab === "all"
                 ? "bg-[var(--color-surface)] text-[var(--color-text)] shadow-xs"
                 : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
@@ -261,25 +380,146 @@ export default function ProjectIntelligence({ projectId, className = "" }) {
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab("health")}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+              activeTab === "health"
+                ? "bg-[var(--color-surface)] text-[var(--color-text)] shadow-xs"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            }`}
+          >
+            Health & Risk
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab("critical-path")}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
               activeTab === "critical-path"
                 ? "bg-[var(--color-surface)] text-[var(--color-text)] shadow-xs"
                 : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
             }`}
           >
-            Critical Path Graph
+            Critical Path
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("bottlenecks")}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
               activeTab === "bottlenecks"
                 ? "bg-[var(--color-surface)] text-[var(--color-text)] shadow-xs"
                 : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
             }`}
           >
-            Bottleneck Radar
+            Bottlenecks
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("team")}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+              activeTab === "team"
+                ? "bg-[var(--color-surface)] text-[var(--color-text)] shadow-xs"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            }`}
+          >
+            Team Capacity
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("simulate")}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+              activeTab === "simulate"
+                ? "bg-[var(--color-surface)] text-[var(--color-text)] shadow-xs"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            }`}
+          >
+            What-If Simulate
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("forecast")}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+              activeTab === "forecast"
+                ? "bg-[var(--color-surface)] text-[var(--color-text)] shadow-xs"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            }`}
+          >
+            Forecast
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("scope")}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+              activeTab === "scope"
+                ? "bg-[var(--color-surface)] text-[var(--color-text)] shadow-xs"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            }`}
+          >
+            Scope
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("replanning")}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+              activeTab === "replanning"
+                ? "bg-[var(--color-surface)] text-[var(--color-text)] shadow-xs"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            }`}
+          >
+            Replanning
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("history")}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+              activeTab === "history"
+                ? "bg-[var(--color-surface)] text-[var(--color-text)] shadow-xs"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            }`}
+          >
+            History & Timeline
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("decisions")}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+              activeTab === "decisions"
+                ? "bg-[var(--color-surface)] text-[var(--color-text)] shadow-xs"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            }`}
+          >
+            Decisions
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("replay")}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+              activeTab === "replay"
+                ? "bg-[var(--color-surface)] text-[var(--color-text)] shadow-xs"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            }`}
+          >
+            Replay
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("diagnosis")}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+              activeTab === "diagnosis"
+                ? "bg-[var(--color-surface)] text-[var(--color-text)] shadow-xs"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            }`}
+          >
+            Diagnosis
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("autopsy")}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+              activeTab === "autopsy"
+                ? "bg-[var(--color-surface)] text-[var(--color-text)] shadow-xs"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            }`}
+          >
+            Autopsy
           </button>
         </div>
 
@@ -288,9 +528,9 @@ export default function ProjectIntelligence({ projectId, className = "" }) {
             <button
               type="button"
               onClick={() => setSelectedTaskId(null)}
-              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-canvas-soft)]"
+              className="inline-flex items-center gap-1 rounded-md bg-[var(--color-brand-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--color-brand)] border border-[var(--color-brand-border)] hover:bg-[var(--color-brand)]/20"
             >
-              Clear Selection
+              Clear Selection (1 Task) ✕
             </button>
           )}
 
@@ -298,92 +538,189 @@ export default function ProjectIntelligence({ projectId, className = "" }) {
             type="button"
             onClick={() => void loadIntelligence(true)}
             disabled={isRefreshing}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text)] shadow-2xs hover:bg-[var(--color-canvas-soft)] disabled:opacity-50"
-            title="Recalculate project intelligence"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text)] shadow-xs hover:bg-[var(--color-surface-hover)] disabled:opacity-50"
           >
-            <FiRefreshCw size={13} className={isRefreshing ? "animate-spin" : ""} />
-            <span>{isRefreshing ? "Analyzing..." : "Refresh"}</span>
+            <FiRefreshCw size={13} className={isRefreshing ? "animate-spin" : ""} /> Refresh
           </button>
         </div>
       </div>
 
-      {/* Main Content Panels */}
-      {activeTab === "all" ? (
-        <div className="space-y-6">
-          {/* Critical Path Section */}
-          <section className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-[var(--font-display)] text-sm font-bold text-[var(--color-text)]">
-                  Critical Path Diagram
-                </h3>
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  Topological schedule flow identifying the sequence of zero-slack tasks controlling the delivery deadline.
-                </p>
-              </div>
-            </div>
-            <CriticalPathGraph
-              data={criticalPathData}
-              selectedTaskId={selectedTaskId}
-              onSelectTask={setSelectedTaskId}
-            />
-          </section>
+      {/* Main Intelligence Views */}
 
-          {/* Bottleneck Radar Section */}
-          <section className="space-y-2 pt-2 border-t border-[var(--color-border)]">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-[var(--font-display)] text-sm font-bold text-[var(--color-text)]">
-                  Bottleneck Radar
-                </h3>
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  Ranked workflow bottlenecks scored by downstream task blockage, critical path membership, overdue delay, and priority.
-                </p>
-              </div>
-            </div>
-            <BottleneckRadar
-              data={bottleneckData}
+      {/* 1. Health & Risk Overview */}
+      {(activeTab === "all" || activeTab === "health") && (
+        <div className="space-y-4">
+          {healthData && <ProjectHealthScorecard healthData={healthData} />}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {driftData && <ScheduleDriftCard driftData={driftData} />}
+            <DeadlineRiskPanel
+              deadlineRisks={deadlineRisks}
               selectedTaskId={selectedTaskId}
-              onSelectTask={setSelectedTaskId}
+              onSelectTask={(id) => setSelectedTaskId(id)}
             />
-          </section>
+          </div>
+
+          {preMortemData && (
+            <PreMortemPanel
+              preMortemData={preMortemData}
+              onSelectTask={(id) => setSelectedTaskId(id)}
+            />
+          )}
         </div>
-      ) : activeTab === "critical-path" ? (
+      )}
+
+      {/* 2. Critical Path Graph View */}
+      {(activeTab === "all" || activeTab === "critical-path") && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-[var(--font-display)] text-sm font-bold text-[var(--color-text)]">
-                Critical Path Diagram
-              </h3>
-              <p className="text-xs text-[var(--color-text-muted)]">
-                Topological schedule flow identifying the sequence of zero-slack tasks controlling the delivery deadline.
-              </p>
-            </div>
+            <h3 className="text-sm font-bold text-[var(--color-text)] flex items-center gap-2">
+              <FiClock className="w-4 h-4 text-blue-500" />
+              Critical Path Sequence
+            </h3>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              Interactive topological view
+            </span>
           </div>
           <CriticalPathGraph
             data={criticalPathData}
             selectedTaskId={selectedTaskId}
-            onSelectTask={setSelectedTaskId}
+            onSelectTask={(id) => setSelectedTaskId(id)}
           />
         </div>
-      ) : (
+      )}
+
+      {/* 3. Bottleneck Radar View */}
+      {(activeTab === "all" || activeTab === "bottlenecks") && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-[var(--font-display)] text-sm font-bold text-[var(--color-text)]">
-                Bottleneck Radar
-              </h3>
-              <p className="text-xs text-[var(--color-text-muted)]">
-                Ranked workflow bottlenecks scored by downstream task blockage, critical path membership, overdue delay, and priority.
-              </p>
-            </div>
+            <h3 className="text-sm font-bold text-[var(--color-text)] flex items-center gap-2">
+              <FiZap className="w-4 h-4 text-orange-500" />
+              Bottleneck Radar & Root Causes
+            </h3>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              Ranked constraint analysis
+            </span>
           </div>
           <BottleneckRadar
             data={bottleneckData}
             selectedTaskId={selectedTaskId}
-            onSelectTask={setSelectedTaskId}
+            onSelectTask={(id) => setSelectedTaskId(id)}
           />
         </div>
+      )}
+
+      {/* 4. Team Capacity & Knowledge Risk View */}
+      {(activeTab === "all" || activeTab === "team") && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <TeamWorkloadPanel teamWorkloadData={teamWorkloadData} />
+          <KnowledgeRiskPanel knowledgeRiskData={knowledgeRiskData} />
+        </div>
+      )}
+
+      {/* 5. What-If Simulation View */}
+      {(activeTab === "all" || activeTab === "simulate") && (
+        <div className="space-y-4">
+          <ScenarioBuilder
+            tasks={overviewData?.digitalTwin?.tasks?.items || []}
+            members={overviewData?.digitalTwin?.team?.members || []}
+            onSimulate={handleSimulate}
+            isLoading={isSimulating}
+          />
+          {simulationResult && (
+            <ScenarioResults
+              simulationResult={simulationResult}
+              onReset={() => setSimulationResult(null)}
+            />
+          )}
+        </div>
+      )}
+
+      {/* 6. Intelligent Replanning View */}
+      {(activeTab === "all" || activeTab === "replanning") && (
+        <div className="space-y-4">
+          {executionSuccess && (
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-800 dark:text-emerald-200 flex items-center justify-between">
+              <span>{executionSuccess}</span>
+              <button
+                type="button"
+                onClick={() => setExecutionSuccess(null)}
+                className="text-xs font-semibold hover:underline"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+          <ReplanningPanel
+            proposals={proposals}
+            onGenerate={handleGenerateReplanning}
+            onPreview={(p) => setActiveProposalForPreview(p)}
+            onApprove={handleApproveProposal}
+            onReject={handleRejectProposal}
+            isLoading={isLoadingProposals}
+          />
+        </div>
+      )}
+
+      {/* 6B. Schedule Forecast View */}
+      {activeTab === "forecast" && (
+        <div className="space-y-4">
+          <ProjectForecastPanel projectId={projectId} />
+        </div>
+      )}
+
+      {/* 6C. Scope Creep Intelligence View */}
+      {activeTab === "scope" && (
+        <div className="space-y-4">
+          <ScopeIntelligencePanel projectId={projectId} />
+        </div>
+      )}
+
+      {/* 7. Historical Health & Timeline View */}
+      {activeTab === "history" && (
+        <div className="space-y-6">
+          <ProjectHealthHistory projectId={projectId} />
+          <ProjectHistoryTimeline projectId={projectId} />
+        </div>
+      )}
+
+      {/* 8. Decision Intelligence View */}
+      {activeTab === "decisions" && (
+        <div className="space-y-4">
+          <DecisionIntelligencePanel projectId={projectId} />
+        </div>
+      )}
+
+      {/* 9. Time-Travel Replay View */}
+      {activeTab === "replay" && (
+        <div className="space-y-4">
+          <ProjectReplay projectId={projectId} />
+        </div>
+      )}
+
+      {/* 10. Diagnosis View */}
+      {activeTab === "diagnosis" && (
+        <div className="space-y-4">
+          <ProjectDiagnosisPanel projectId={projectId} />
+        </div>
+      )}
+
+      {/* 11. Autopsy & Retrospective View */}
+      {activeTab === "autopsy" && (
+        <div className="space-y-4">
+          <ProjectAutopsy projectId={projectId} />
+        </div>
+      )}
+
+      {/* Proposal Preview & Confirmation Modal */}
+      {activeProposalForPreview && (
+        <ProposalPreview
+          proposal={activeProposalForPreview}
+          onClose={() => setActiveProposalForPreview(null)}
+          onConfirmExecution={handleConfirmExecution}
+          isExecuting={isExecutingProposal}
+          error={proposalError}
+        />
       )}
     </div>
   );

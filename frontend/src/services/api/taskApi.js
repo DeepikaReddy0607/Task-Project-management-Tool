@@ -62,6 +62,28 @@ export const archiveTask = async (taskId) => {
   return response.data;
 };
 
+// Task Dependencies (Phase 13)
+export const getTaskDependencies = async (taskId) => {
+  const response = await api.get(`/tasks/${taskId}/dependencies`);
+  return response.data;
+};
+
+export const addTaskDependency = async (taskId, dependsOnTaskId) => {
+  const response = await api.post(`/tasks/${taskId}/dependencies`, { dependsOnTaskId });
+  return response.data;
+};
+
+export const removeTaskDependency = async (taskId, dependsOnTaskId) => {
+  const response = await api.delete(`/tasks/${taskId}/dependencies/${dependsOnTaskId}`);
+  return response.data;
+};
+
+export const getProjectDependencies = async (projectId) => {
+  const response = await api.get(`/projects/${projectId}/dependencies`);
+  return response.data;
+};
+
+
 // Update task status
 export const updateTaskStatus = async (taskId, status) => {
   const response = await api.patch(
