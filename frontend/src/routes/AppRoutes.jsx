@@ -12,6 +12,7 @@ import Tasks from "../pages/tasks/Tasks";
 import Calendar from "../pages/calendar/Calendar";
 import Kanban from "../pages/kanban/Kanban";
 import Activity from "../pages/activity/Activity";
+import Reports from "../pages/reports/Reports";
 import FirstTimeExperience from "../components/onboarding/FirstTimeExperience";
 import WhatIf from "../pages/WhatIf";
 import PortfolioIntelligence from "../pages/PortfolioIntelligence";
@@ -41,6 +42,7 @@ function AppRoutes() {
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/kanban" element={<Kanban />} />
             <Route path="/activity" element={<Activity />} />
+            <Route path="/reports" element={<Reports />} />
             <Route path="/what-if" element={<WhatIf />} />
 
             <Route path="/portfolio" element={<PortfolioIntelligence />} />

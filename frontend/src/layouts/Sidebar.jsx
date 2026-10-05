@@ -1,6 +1,7 @@
 import {
   FiActivity,
   FiBell,
+  FiBarChart2,
   FiCalendar,
   FiCheckSquare,
   FiColumns,
@@ -23,6 +24,7 @@ import { logoutUser } from "../services/api/authApi";
 const primaryNavigation = [
   { label: "Dashboard", icon: FiGrid, path: "/" },
   { label: "Activity", icon: FiActivity, path: "/activity" },
+  { label: "Reports & Analytics", icon: FiBarChart2, path: "/reports" },
   { label: "Workspaces", icon: FiLayers, path: "/workspaces" },
   { label: "My Tasks", icon: FiCheckSquare, path: "/tasks" },
   { label: "Kanban", icon: FiColumns, path: "/kanban" },
