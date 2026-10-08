@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.js";
 import { canManageProject } from "../utils/projectAuthorization.js";
-
+import { createNotification } from "./notificationService.js";
+import sendEmail from "./emailService.js";
 
 // ============================================================
 // CREATE PROJECT
@@ -277,6 +278,54 @@ const updateProject = async (
             })
         }
     });
+
+    // Get all project members
+    const projectMembers = await prisma.project_members.findMany({
+        where: {
+            project_id: projectId
+        },
+        select: {
+            user_id: true
+        }
+    });
+
+    // Notify all project members except the user who made the update
+    for (const member of projectMembers) {
+        if (member.user_id === userId) {
+            continue;
+        }
+
+        await createNotification({
+            userId: member.user_id,
+            type: "PROJECT_UPDATED",
+            message: `Project "${updatedProject.title}" has been updated.`,
+            relatedEntityType: "PROJECT",
+            relatedEntityId: updatedProject.id
+        });
+
+        const memberUser = await prisma.users.findUnique({
+            where: {
+                id: member.user_id
+            },
+            select: {
+                email: true
+            }
+        });
+
+        if (memberUser?.email) {
+            await sendEmail({
+                to: memberUser.email,
+                subject: `Project Updated: ${updatedProject.title}`,
+                text: `The project "${updatedProject.title}" has been updated.`,
+                html: `
+                    <h2>Project Updated</h2>
+                    <p>The following project has been updated:</p>
+                    <p><strong>${updatedProject.title}</strong></p>
+                    <p>Please log in to TaskFlow to view the latest changes.</p>
+                `
+            });
+        }
+    }
 
     return updatedProject;
 };

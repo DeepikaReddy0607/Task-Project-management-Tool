@@ -1,73 +1,146 @@
 import {
+    createNotification,
     getUserNotifications,
-    markNotificationAsRead,
-    markAllNotificationsAsRead
-} from "../services/quackieAlertService.js";
+    getUnreadCount,
+    markAsRead,
+    markAllAsRead
+} from "../services/notificationService.js";
 
-export const getNotifications = async (req, res) => {
+const createNotificationController = async (req, res) => {
     try {
-        const userId = req.user.userId;
-        const { page, limit, unreadOnly } = req.query;
-
-        const result = await getUserNotifications({
+        const {
             userId,
-            page,
-            limit,
-            unreadOnly: unreadOnly === "true" || unreadOnly === true
-        });
+            type,
+            message,
+            relatedEntityType,
+            relatedEntityId
+        } = req.body;
 
-        return res.status(200).json(result);
-    } catch (error) {
-        console.error("Get notifications error:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Failed to fetch notifications.",
-            error: error.message
-        });
-    }
-};
-
-export const markAsRead = async (req, res) => {
-    try {
-        const userId = req.user.userId;
-        const { id } = req.params;
-
-        if (!id) {
+        if (!userId || !type || !message) {
             return res.status(400).json({
                 success: false,
-                message: "Notification ID is required."
+                message: "userId, type and message are required"
             });
         }
 
-        const result = await markNotificationAsRead({
-            notificationId: id,
-            userId
+        const notification = await createNotification({
+            userId,
+            type,
+            message,
+            relatedEntityType,
+            relatedEntityId
         });
 
-        return res.status(200).json(result);
+        return res.status(201).json({
+            success: true,
+            message: "Notification created successfully",
+            data: notification
+        });
     } catch (error) {
-        console.error("Mark notification as read error:", error);
-        const status = error.message.includes("not found") || error.message.includes("access denied") ? 404 : 500;
-        return res.status(status).json({
+        console.error("Create notification error:", error);
+
+        return res.status(500).json({
             success: false,
-            message: error.message || "Failed to mark notification as read."
+            message: "Failed to create notification",
+            error: error.message
         });
     }
 };
 
-export const markAllRead = async (req, res) => {
+const getNotificationsController = async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const notifications =
+            await getUserNotifications(req.user.id);
 
-        const result = await markAllNotificationsAsRead({ userId });
-
-        return res.status(200).json(result);
+        return res.status(200).json({
+            success: true,
+            data: notifications
+        });
     } catch (error) {
-        console.error("Mark all notifications as read error:", error);
+        console.error("Get notifications error:", error);
+
         return res.status(500).json({
             success: false,
-            message: "Failed to mark all notifications as read.",
+            message: "Failed to fetch notifications",
             error: error.message
         });
     }
+};
+
+const getUnreadCountController = async (req, res) => {
+    try {
+        const count =
+            await getUnreadCount(req.user.id);
+
+        return res.status(200).json({
+            success: true,
+            unreadCount: count
+        });
+    } catch (error) {
+        console.error("Get unread count error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to get unread notification count",
+            error: error.message
+        });
+    }
+};
+
+const markAsReadController = async (req, res) => {
+    try {
+        const notification =
+            await markAsRead(
+                req.params.id,
+                req.user.id
+            );
+
+        return res.status(200).json({
+            success: true,
+            message: "Notification marked as read",
+            data: notification
+        });
+    } catch (error) {
+        console.error(
+            "Mark notification as read error:",
+            error
+        );
+
+        return res.status(404).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+const markAllAsReadController = async (req, res) => {
+    try {
+        const result =
+            await markAllAsRead(req.user.id);
+
+        return res.status(200).json({
+            success: true,
+            message: "All notifications marked as read",
+            updatedCount: result.count
+        });
+    } catch (error) {
+        console.error(
+            "Mark all notifications as read error:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to mark all notifications as read",
+            error: error.message
+        });
+    }
+};
+
+export {
+    createNotificationController,
+    getNotificationsController,
+    getUnreadCountController,
+    markAsReadController,
+    markAllAsReadController
 };

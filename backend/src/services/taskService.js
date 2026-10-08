@@ -1,4 +1,6 @@
 import prisma from "../config/prisma.js";
+import { createNotification } from "./notificationService.js";
+import sendEmail from "./emailService.js";
 
 const VALID_TASK_STATUSES = [
     "Backlog",
@@ -358,7 +360,10 @@ const updateTask = async (
         where: {
             id: taskId
         },
-        data: updateData,
+        data: {
+            assigned_to: assignedTo,
+            updated_at: new Date()
+        },
         include: {
             projects: {
                 select: {
@@ -383,6 +388,27 @@ const updateTask = async (
                 }
             }
         }
+    });
+
+    // Create notification for assigned user
+    await createNotification({
+        userId: assignedTo,
+        type: "TASK_ASSIGNED",
+        message: `You have been assigned the task "${updatedTask.title}".`,
+        relatedEntityType: "TASK",
+        relatedEntityId: updatedTask.id
+    });
+
+    await sendEmail({
+        to: updatedTask.users_tasks_assigned_toTousers.email,
+        subject: `Task Assigned: ${updatedTask.title}`,
+        text: `You have been assigned the task "${updatedTask.title}".`,
+        html: `
+            <h2>Task Assigned</h2>
+            <p>You have been assigned the task:</p>
+            <p><strong>${updatedTask.title}</strong></p>
+            <p>Please log in to TaskFlow to view the task details.</p>
+        `
     });
 
     return updatedTask;

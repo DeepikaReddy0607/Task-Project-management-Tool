@@ -1,5 +1,6 @@
 import prisma from "../config/prisma.js";
-
+import { createNotification } from "./notificationService.js";
+import sendEmail from "./emailService.js";
 
 // Create a comment on a task
 const createComment = async (
@@ -62,6 +63,41 @@ const createComment = async (
         }
     });
 
+    // Notify the assigned user about the new comment
+    if (task.assigned_to && task.assigned_to !== userId) {
+        await createNotification({
+            userId: task.assigned_to,
+            type: "NEW_COMMENT",
+            message: `New comment on your task "${task.title}".`,
+            relatedEntityType: "TASK",
+            relatedEntityId: task.id
+        });
+
+        const assignedUser = await prisma.users.findUnique({
+            where: {
+                id: task.assigned_to
+            },
+            select: {
+                email: true
+            }
+        });
+
+        if (assignedUser?.email) {
+            await sendEmail({
+                to: assignedUser.email,
+                subject: `New Comment on Task: ${task.title}`,
+                text: `A new comment was added to your task "${task.title}".`,
+                html: `
+                    <h2>New Comment</h2>
+                    <p>A new comment was added to your task:</p>
+                    <p><strong>${task.title}</strong></p>
+                    <p>Please log in to TaskFlow to view the comment.</p>
+                `
+            });
+        }
+    }
+
+    return comment;
     return {
         comment,
         workspaceId: task.projects.workspace_id
