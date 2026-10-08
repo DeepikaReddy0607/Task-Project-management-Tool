@@ -250,12 +250,12 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
       aria-modal="true"
     >
       <div
-        className="w-full max-w-3xl rounded-2xl bg-white shadow-2xl border border-[var(--color-border)] overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150"
+        className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl border border-[var(--color-border)] overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header / Search Input */}
-        <div className="relative flex items-center border-b border-[var(--color-border)] px-4 py-3 bg-white">
-          <FiSearch size={20} className="text-[var(--color-text-subtle)] shrink-0 mr-3" />
+        <div className="relative flex items-center border-b border-[var(--color-border)] px-6 py-4 bg-white">
+          <FiSearch size={22} className="text-[var(--color-text-subtle)] shrink-0 mr-3.5" />
           <input
             ref={inputRef}
             type="text"
@@ -264,29 +264,29 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
               setFilters((prev) => ({ ...prev, q: e.target.value }))
             }
             placeholder="Search tasks, projects, decisions, risks, members... (Type to search)"
-            className="flex-1 bg-transparent text-base text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-subtle)] font-medium"
+            className="flex-1 bg-transparent text-base sm:text-lg text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-subtle)] font-medium"
           />
           {filters.q && (
             <button
               type="button"
               onClick={() => setFilters((prev) => ({ ...prev, q: "" }))}
-              className="p-1 rounded-md text-[var(--color-text-subtle)] hover:text-[var(--color-text)] mr-2"
+              className="p-1.5 rounded-md text-[var(--color-text-subtle)] hover:text-[var(--color-text)] mr-2"
               aria-label="Clear search input"
             >
-              <FiX size={16} />
+              <FiX size={18} />
             </button>
           )}
           <button
             type="button"
             onClick={onClose}
-            className="text-xs font-semibold px-2 py-1 rounded bg-slate-100 text-[var(--color-text-muted)] hover:bg-slate-200"
+            className="text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-100 text-[var(--color-text-muted)] hover:bg-slate-200 transition"
           >
             ESC
           </button>
         </div>
 
         {/* Filter Controls & Tabs */}
-        <div className="px-4 py-2.5 bg-slate-50 border-b border-[var(--color-border)]">
+        <div className="px-6 py-3 bg-slate-50 border-b border-[var(--color-border)]">
           <FilterBar
             filters={filters}
             onChange={handleFilterChange}
@@ -307,7 +307,7 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
         </div>
 
         {/* Results List */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-1.5 min-h-[220px]">
+        <div className="flex-1 overflow-y-auto p-5 space-y-2 min-h-[220px]">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 text-sm text-[var(--color-text-muted)]">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-brand)] border-t-transparent mb-3" />
@@ -328,7 +328,7 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
                   key={`${entityType}-${item.id}`}
                   onClick={() => handleSelect(item)}
                   onMouseEnter={() => setSelectedIndex(idx)}
-                  className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition border ${
+                  className={`flex items-center justify-between p-3.5 sm:p-4 rounded-xl cursor-pointer transition border ${
                     isSelected
                       ? "bg-[var(--color-surface)] border-[var(--color-brand)] shadow-xs"
                       : "border-transparent hover:bg-slate-50 hover:border-slate-200"
@@ -336,13 +336,13 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
                     <div
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${badge.bg}`}
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${badge.bg}`}
                     >
-                      <Icon size={18} />
+                      <Icon size={19} />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-[var(--color-text)] truncate">
+                        <span className="text-sm font-bold text-[var(--color-text)] truncate">
                           {item.title || item.name || "Untitled"}
                         </span>
                         <span
@@ -351,7 +351,7 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
                           {badge.label}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)] truncate max-w-lg mt-0.5">
+                      <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)] truncate max-w-xl mt-1">
                         {item.projectTitle && (
                           <span className="font-medium text-slate-700">
                             {item.projectTitle} •

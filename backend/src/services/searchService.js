@@ -469,9 +469,18 @@ export const executeUnifiedSearch = async ({
 
         // F. Members / Users (Strict Permission Scoping + Redaction)
         if (targetType === "all" || targetType === "members") {
+            let isWorkspaceManager = false;
+            if (workspaceId) {
+                const ws = inMemoryStore.workspaces.find(w => (w.id === workspaceId));
+                const wm = inMemoryStore.workspaceMembers.find(m => (m.workspace_id || m.workspaceId) === workspaceId && (m.user_id || m.userId) === userId);
+                if (ws?.owner_id === userId || ws?.ownerId === userId || wm?.role === "Admin" || wm?.workspace_role === "Admin" || wm?.role === "Owner") {
+                    isWorkspaceManager = true;
+                }
+            }
+
             // Accessible users: users who are in the user's accessible workspaces
             let allowedUserIds = new Set();
-            if (scope.isAdmin) {
+            if (scope.isAdmin || isWorkspaceManager) {
                 inMemoryStore.users.forEach(u => allowedUserIds.add(u.id));
             } else {
                 inMemoryStore.workspaceMembers
@@ -855,6 +864,79 @@ export const executeUnifiedSearch = async ({
                     }));
                 }).catch(err => {
                     console.warn("Risks search query error:", err.message);
+                })
+            );
+        }
+
+        // Members / Users query
+        if (targetType === "all" || targetType === "members") {
+            let isWorkspaceManager = false;
+            if (workspaceId) {
+                try {
+                    const [ws, wm] = await Promise.all([
+                        prisma.workspaces.findUnique({ where: { id: workspaceId }, select: { owner_id: true } }),
+                        prisma.workspace_members.findUnique({
+                            where: { workspace_id_user_id: { workspace_id: workspaceId, user_id: userId } },
+                            select: { workspace_role: true }
+                        })
+                    ]);
+                    if (ws?.owner_id === userId || wm?.workspace_role === "Owner" || wm?.workspace_role === "Admin") {
+                        isWorkspaceManager = true;
+                    }
+                } catch {
+                    // ignore
+                }
+            }
+
+            let userWhere = {};
+            if (!scope.isAdmin && !isWorkspaceManager) {
+                userWhere.OR = [
+                    { id: userId },
+                    { workspace_members: { some: { workspace_id: { in: effectiveWorkspaceIds } } } },
+                    { workspaces: { some: { id: { in: effectiveWorkspaceIds } } } }
+                ];
+            }
+            if (q) {
+                const searchFilters = [
+                    { first_name: { contains: q, mode: "insensitive" } },
+                    { last_name: { contains: q, mode: "insensitive" } },
+                    { email: { contains: q, mode: "insensitive" } }
+                ];
+                if (userWhere.OR) {
+                    userWhere = {
+                        AND: [
+                            { OR: userWhere.OR },
+                            { OR: searchFilters }
+                        ]
+                    };
+                } else {
+                    userWhere.OR = searchFilters;
+                }
+            }
+
+            promises.push(
+                prisma.users.findMany({
+                    where: userWhere,
+                    take: 50,
+                    orderBy: { created_at: "desc" },
+                    include: {
+                        roles: { select: { role_name: true } }
+                    }
+                }).then(rawUsers => {
+                    grouped.members = rawUsers.map(u => {
+                        const safe = sanitizeUser(u);
+                        return {
+                            id: safe.id,
+                            entityType: "member",
+                            title: safe.fullName || safe.email,
+                            description: safe.email,
+                            role: safe.role,
+                            createdAt: safe.createdAt,
+                            navigationTarget: scope.isAdmin ? `/admin?userId=${safe.id}` : `/profile`
+                        };
+                    });
+                }).catch(err => {
+                    console.warn("Members search query error:", err.message);
                 })
             );
         }

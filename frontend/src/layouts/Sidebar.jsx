@@ -14,6 +14,9 @@ import {
   FiX,
   FiCompass,
   FiShield,
+  FiCpu,
+  FiPieChart,
+  FiLock,
 } from "react-icons/fi";
 import { TbCrystalBall } from "react-icons/tb";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -21,23 +24,27 @@ import TaskFlowMark from "../components/brand/TaskFlowMark";
 import NavItem from "../components/navigation/NavItem";
 import { logoutUser } from "../services/api/authApi";
 
-const primaryNavigation = [
+const coreNavigation = [
   { label: "Dashboard", icon: FiGrid, path: "/" },
-  { label: "Activity", icon: FiActivity, path: "/activity" },
-  { label: "Reports & Analytics", icon: FiBarChart2, path: "/reports" },
   { label: "Workspaces", icon: FiLayers, path: "/workspaces" },
+  { label: "Projects", icon: FiFolder, path: "/projects" },
   { label: "My Tasks", icon: FiCheckSquare, path: "/tasks" },
   { label: "Kanban", icon: FiColumns, path: "/kanban" },
-  { label: "Projects", icon: FiFolder, path: "/projects" },
   { label: "Calendar", icon: FiCalendar, path: "/calendar" },
-  { label: "What-If", icon: TbCrystalBall, path: "/what-if" },
-  { label: "Coordination", icon: FiCompass, path: "/coordination" },
 ];
 
-const secondaryNavigation = [
+const intelligenceNavigation = [
+  { label: "Command Center", icon: FiCpu, path: "/command-center" },
+  { label: "Coordination", icon: FiCompass, path: "/coordination" },
+  { label: "What-If Simulation", icon: TbCrystalBall, path: "/what-if" },
+  { label: "Portfolio Intelligence", icon: FiPieChart, path: "/portfolio" },
+  { label: "Reports & Analytics", icon: FiBarChart2, path: "/reports" },
+  { label: "Activity", icon: FiActivity, path: "/activity" },
+];
+
+const accountNavigation = [
   { label: "Profile", icon: FiUser, path: "/profile" },
-  { label: "Notifications", icon: FiBell },
-  { label: "Settings", icon: FiSettings },
+  { label: "Change Password", icon: FiLock, path: "/profile/change-password" },
 ];
 
 function Sidebar({ isOpen = false, onClose }) {
@@ -86,11 +93,12 @@ function Sidebar({ isOpen = false, onClose }) {
           </button>
         </div>
         <nav className="flex-1 overflow-y-auto px-4 py-6" aria-label="Primary navigation">
+          {/* CORE WORK */}
           <p className="mb-3 px-3 text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-[var(--color-text-subtle)]">
-            Workspace
+            Core Work
           </p>
           <div className="space-y-1">
-            {primaryNavigation.map((item) => (
+            {coreNavigation.map((item) => (
               <NavItem
                 key={item.label}
                 {...item}
@@ -99,6 +107,26 @@ function Sidebar({ isOpen = false, onClose }) {
               />
             ))}
           </div>
+
+          {/* INTELLIGENCE & PLANNING */}
+          <p className="mb-3 mt-8 px-3 text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-[var(--color-brand)]">
+            Intelligence & Planning
+          </p>
+          <div className="space-y-1">
+            {intelligenceNavigation.map((item) => (
+              <NavItem
+                key={item.label}
+                {...item}
+                active={
+                  location.pathname === item.path ||
+                  location.pathname.startsWith(`${item.path}/`)
+                }
+                onClick={() => navigateTo(item.path)}
+              />
+            ))}
+          </div>
+
+          {/* ADMINISTRATION */}
           {isAdmin && (
             <>
               <p className="mb-3 mt-8 px-3 text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-purple-600">
@@ -115,20 +143,17 @@ function Sidebar({ isOpen = false, onClose }) {
               </div>
             </>
           )}
+
+          {/* ACCOUNT */}
           <p className="mb-3 mt-8 px-3 text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-[var(--color-text-subtle)]">
             Account
           </p>
           <div className="space-y-1">
-            {secondaryNavigation.map((item) => (
+            {accountNavigation.map((item) => (
               <NavItem
                 key={item.label}
                 {...item}
-                active={
-                  item.path
-                    ? location.pathname === item.path ||
-                      location.pathname.startsWith(`${item.path}/`)
-                    : false
-                }
+                active={location.pathname === item.path}
                 onClick={() => navigateTo(item.path)}
               />
             ))}

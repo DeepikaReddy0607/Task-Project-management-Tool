@@ -46,10 +46,16 @@ const eventLabels = {
 };
 
 /*
- * Convert a Date object into YYYY-MM-DD.
+ * Convert a Date object into YYYY-MM-DD in the user's local timezone.
  */
 const toDateKey = (date) => {
-  return date.toISOString().slice(0, 10);
+  if (!date) return "";
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return "";
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 };
 
 /*

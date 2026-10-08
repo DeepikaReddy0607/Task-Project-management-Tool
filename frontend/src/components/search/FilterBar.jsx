@@ -118,7 +118,7 @@ export default function FilterBar({
                 key={type.id}
                 type="button"
                 onClick={() => handleInputChange("type", type.id)}
-                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                   active
                     ? "bg-[var(--color-brand)] text-white shadow-xs"
                     : "bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:bg-slate-200 hover:text-[var(--color-text)]"
@@ -127,7 +127,7 @@ export default function FilterBar({
                 <span>{type.label}</span>
                 {count !== undefined && (
                   <span
-                    className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] ${
                       active
                         ? "bg-white/25 text-white"
                         : "bg-slate-300 text-[var(--color-text-muted)]"
@@ -182,7 +182,7 @@ export default function FilterBar({
                     page: 1,
                   });
                 }}
-                className="rounded-lg border border-[var(--color-border)] bg-white px-2 py-1.5 text-xs font-medium text-[var(--color-text)] outline-none focus:border-[var(--color-brand)] max-w-[130px] truncate"
+                className="rounded-lg border border-[var(--color-border)] bg-white px-2.5 py-1.5 text-xs font-medium text-[var(--color-text)] outline-none focus:border-[var(--color-brand)] min-w-[120px] max-w-[180px] truncate"
               >
                 <option value="">All Workspaces</option>
                 {workspaces.map((ws) => (
@@ -204,7 +204,7 @@ export default function FilterBar({
                 id="filter-project"
                 value={filters.projectId || ""}
                 onChange={(e) => handleInputChange("projectId", e.target.value)}
-                className="rounded-lg border border-[var(--color-border)] bg-white px-2 py-1.5 text-xs font-medium text-[var(--color-text)] outline-none focus:border-[var(--color-brand)] max-w-[130px] truncate"
+                className="rounded-lg border border-[var(--color-border)] bg-white px-2.5 py-1.5 text-xs font-medium text-[var(--color-text)] outline-none focus:border-[var(--color-brand)] min-w-[120px] max-w-[180px] truncate"
               >
                 <option value="">All Projects</option>
                 {availableProjects.map((prj) => (
@@ -265,7 +265,7 @@ export default function FilterBar({
               placeholder="User ID or name..."
               value={filters.assigneeId || ""}
               onChange={(e) => handleInputChange("assigneeId", e.target.value)}
-              className="w-28 rounded-lg border border-[var(--color-border)] bg-white px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-brand)] placeholder:text-[var(--color-text-subtle)]"
+              className="w-32 rounded-lg border border-[var(--color-border)] bg-white px-2.5 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-brand)] placeholder:text-[var(--color-text-subtle)]"
             />
           </div>
 

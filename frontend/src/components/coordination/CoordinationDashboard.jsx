@@ -18,6 +18,8 @@ import StandupPanel from "./StandupPanel";
 import ApprovalCenter from "./ApprovalCenter";
 import ActionPlanPanel from "./ActionPlanPanel";
 import StakeholderBriefingPanel from "./StakeholderBriefingPanel";
+import PageHeader from "../ui/PageHeader";
+import Card from "../ui/Card";
 import { getWorkspaces } from "../../services/api/workspaceApi";
 import { getProjects } from "../../services/api/projectApi";
 import { getProjectCoordination, getWorkspaceCoordination } from "../../services/api/intelligenceApi";
@@ -90,163 +92,132 @@ export default function CoordinationDashboard({ initialProjectId, initialWorkspa
   }, [fetchCoordinationState]);
 
   return (
-    <div className={`p-4 md:p-8 max-w-7xl mx-auto space-y-6 ${className}`}>
-      {/* Top Banner / Hero */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 p-6 rounded-3xl bg-gradient-to-r from-zinc-900 via-zinc-800 to-indigo-950 text-white shadow-lg">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-extrabold uppercase tracking-widest text-indigo-400 bg-indigo-500/20 px-2.5 py-0.5 rounded-full border border-indigo-500/30">
-              Phase 6 Architecture
-            </span>
-            <span className="text-xs text-zinc-400">Autonomous Project Coordination</span>
-          </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-            Coordination & Executive Control Suite
-          </h1>
-          <p className="text-xs md:text-sm text-zinc-300 max-w-2xl leading-relaxed">
-            Autonomous daily briefings, 0-100 deterministic action plans, 5-vector standups, and approval governance with zero silent mutations.
-          </p>
-        </div>
+    <div className={`space-y-6 ${className}`}>
+      {/* Page Header with Workspace & Project Selectors */}
+      <PageHeader
+        title="Coordination & Executive Workflows"
+        description="Autonomous daily briefings, intelligent action plans, automated standups, and approval governance."
+        actions={
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-[var(--color-text-muted)]">
+                Workspace:
+              </span>
+              <select
+                value={selectedWorkspaceId}
+                onChange={(e) => {
+                  setSelectedWorkspaceId(e.target.value);
+                  setSelectedProjectId("");
+                }}
+                className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-medium text-[var(--color-text)] outline-none focus:border-[var(--color-brand)]"
+              >
+                {workspaces.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        {/* Workspace & Project Selectors */}
-        <div className="flex flex-wrap items-center gap-3 bg-white/10 p-3 rounded-2xl border border-white/10 backdrop-blur-md">
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase text-zinc-400 block">Workspace</label>
-            <select
-              value={selectedWorkspaceId}
-              onChange={(e) => {
-                setSelectedWorkspaceId(e.target.value);
-                setSelectedProjectId("");
-              }}
-              className="bg-zinc-800 text-white text-xs font-semibold rounded-xl px-3 py-1.5 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              {workspaces.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-[var(--color-text-muted)]">
+                Project:
+              </span>
+              <select
+                value={selectedProjectId}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-medium text-[var(--color-text)] outline-none focus:border-[var(--color-brand)]"
+              >
+                <option value="">— Entire Workspace —</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase text-zinc-400 block">Project</label>
-            <select
-              value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="bg-zinc-800 text-white text-xs font-semibold rounded-xl px-3 py-1.5 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">— Entire Workspace —</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Coordination State Status Bar */}
       {coordinationState && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xs">
-            <div className="text-[10px] uppercase font-bold text-zinc-400">Coordination State</div>
-            <div className="text-base font-extrabold text-zinc-900 dark:text-zinc-100 mt-1 flex items-center gap-2">
-              <span className={`h-2.5 w-2.5 rounded-full ${
-                coordinationState.status === "HEALTHY" || coordinationState.state === "HEALTHY" ? "bg-emerald-500" :
-                coordinationState.status === "CRITICAL" || coordinationState.state === "CRITICAL" ? "bg-rose-500" :
-                "bg-amber-500"
-              }`} />
+          <Card className="p-4">
+            <div className="text-[10px] uppercase font-bold text-[var(--color-text-subtle)] tracking-wider">
+              Coordination State
+            </div>
+            <div className="text-base font-bold text-[var(--color-text)] mt-1 flex items-center gap-2">
+              <span
+                className={`h-2.5 w-2.5 rounded-full ${
+                  coordinationState.status === "HEALTHY" || coordinationState.state === "HEALTHY"
+                    ? "bg-emerald-500"
+                    : coordinationState.status === "CRITICAL" || coordinationState.state === "CRITICAL"
+                    ? "bg-rose-500"
+                    : "bg-amber-500"
+                }`}
+              />
               {coordinationState.status || coordinationState.state || "ACTIVE"}
             </div>
-          </div>
+          </Card>
 
-          <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xs">
-            <div className="text-[10px] uppercase font-bold text-zinc-400">Immediate Actions</div>
-            <div className="text-base font-extrabold text-indigo-600 dark:text-indigo-400 mt-1">
+          <Card className="p-4">
+            <div className="text-[10px] uppercase font-bold text-[var(--color-text-subtle)] tracking-wider">
+              Immediate Actions
+            </div>
+            <div className="text-base font-bold text-[var(--color-brand)] mt-1">
               {coordinationState.actionQueue?.length || coordinationState.urgentActionsCount || 0} Queued
             </div>
-          </div>
+          </Card>
 
-          <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xs">
-            <div className="text-[10px] uppercase font-bold text-zinc-400">Active Blockers</div>
-            <div className="text-base font-extrabold text-rose-600 dark:text-rose-400 mt-1">
+          <Card className="p-4">
+            <div className="text-[10px] uppercase font-bold text-[var(--color-text-subtle)] tracking-wider">
+              Active Blockers
+            </div>
+            <div className="text-base font-bold text-[var(--color-danger)] mt-1">
               {coordinationState.blockerQueue?.length || coordinationState.blockersCount || 0} Escalated
             </div>
-          </div>
+          </Card>
 
-          <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xs">
-            <div className="text-[10px] uppercase font-bold text-zinc-400">Pending Approvals</div>
-            <div className="text-base font-extrabold text-amber-600 dark:text-amber-400 mt-1">
+          <Card className="p-4">
+            <div className="text-[10px] uppercase font-bold text-[var(--color-text-subtle)] tracking-wider">
+              Pending Approvals
+            </div>
+            <div className="text-base font-bold text-[var(--color-sun)] mt-1">
               {coordinationState.approvalQueue?.length || coordinationState.pendingApprovalsCount || 0} Pending
             </div>
-          </div>
+          </Card>
         </div>
       )}
 
       {/* Main Suite Tab Navigation */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-3">
-        <button
-          type="button"
-          onClick={() => setActiveTab("briefing")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
-            activeTab === "briefing"
-              ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-xs"
-              : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          }`}
-        >
-          <FiSun size={15} /> Daily Briefing
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("actions")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
-            activeTab === "actions"
-              ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-xs"
-              : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          }`}
-        >
-          <FiTarget size={15} /> Next Actions & Plans
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("standup")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
-            activeTab === "standup"
-              ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-xs"
-              : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          }`}
-        >
-          <FiMessageSquare size={15} /> Automated Standup
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("approvals")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
-            activeTab === "approvals"
-              ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-xs"
-              : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          }`}
-        >
-          <FiShield size={15} /> Approval Center
-        </button>
-
-        {selectedProjectId && (
-          <button
-            type="button"
-            onClick={() => setActiveTab("stakeholder")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
-              activeTab === "stakeholder"
-                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-xs"
-                : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            }`}
-          >
-            <FiFileText size={15} /> Stakeholder Report
-          </button>
-        )}
+      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] pb-3">
+        {[
+          { id: "briefing", label: "Daily Briefing", icon: FiSun },
+          { id: "actions", label: "Next Actions & Plans", icon: FiTarget },
+          { id: "standup", label: "Automated Standup", icon: FiMessageSquare },
+          { id: "approvals", label: "Approval Center", icon: FiShield },
+          ...(selectedProjectId
+            ? [{ id: "stakeholder", label: "Stakeholder Report", icon: FiFileText }]
+            : []),
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition ${
+                isActive
+                  ? "bg-[var(--color-brand)] text-white shadow-xs"
+                  : "text-[var(--color-text-muted)] hover:bg-[var(--color-canvas-soft)] hover:text-[var(--color-text)]"
+              }`}
+            >
+              <Icon size={15} /> {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab Panels */}

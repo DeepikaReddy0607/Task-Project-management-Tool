@@ -6,6 +6,7 @@ import {
   FiEdit2,
   FiLayers,
   FiPlus,
+  FiSearch,
   FiTrash2,
   FiUserMinus,
   FiUserPlus,
@@ -26,9 +27,11 @@ import {
   createWorkspace,
   updateWorkspace,
   deleteWorkspace as deleteWorkspaceApi,
+  addWorkspaceMember,
   updateWorkspaceMemberRole,
   removeWorkspaceMember,
 } from "../../services/api/workspaceApi";
+import { searchUnified } from "../../services/api/searchApi";
 
 const roleClasses = {
   Owner:
@@ -105,6 +108,13 @@ function Workspaces() {
     useState([]);
 
   const [dialog, setDialog] = useState(null);
+
+  const [addMemberSearch, setAddMemberSearch] = useState("");
+  const [addMemberResults, setAddMemberResults] = useState([]);
+  const [isSearchingMembers, setIsSearchingMembers] = useState(false);
+  const [selectedUserToAdd, setSelectedUserToAdd] = useState(null);
+  const [newMemberRole, setNewMemberRole] = useState("Member");
+  const [addMemberError, setAddMemberError] = useState("");
 
   const [formValues, setFormValues] = useState({
     name: "",
@@ -249,6 +259,11 @@ function Workspaces() {
   const closeDialog = () => {
     setDialog(null);
     setFormError("");
+    setAddMemberSearch("");
+    setAddMemberResults([]);
+    setSelectedUserToAdd(null);
+    setNewMemberRole("Member");
+    setAddMemberError("");
   };
 
   const openWorkspaceDialog = (mode) => {
@@ -381,6 +396,101 @@ function Workspaces() {
   /* ==========================================================
      ADD MEMBER
   ========================================================== */
+
+  const searchUsers = useCallback(async (query) => {
+    if (!query || query.trim().length < 2) {
+      setAddMemberResults([]);
+      return;
+    }
+    try {
+      setIsSearchingMembers(true);
+      setAddMemberError("");
+      const response = await searchUnified({
+        q: query.trim(),
+        type: "members",
+        workspaceId: selectedWorkspaceId,
+      });
+
+      const dataPayload = response?.data || response || {};
+      const rawList =
+        dataPayload?.results?.members ||
+        dataPayload?.flatResults ||
+        (Array.isArray(dataPayload?.results) ? dataPayload.results : null) ||
+        (Array.isArray(dataPayload) ? dataPayload : null) ||
+        [];
+
+      const memberList = rawList
+        .filter(
+          (item) =>
+            item &&
+            (item.entityType === "member" ||
+              item.type === "member" ||
+              item.description ||
+              item.email)
+        )
+        .map((item) => ({
+          id: item.id,
+          title:
+            item.title ||
+            `${item.firstName || ""} ${item.lastName || ""}`.trim() ||
+            item.name ||
+            item.description ||
+            item.email ||
+            "User",
+          description: item.description || item.email || "",
+          email: item.description || item.email || "",
+          role: item.role || item.globalRole || "Team Member",
+          entityType: "member",
+        }));
+
+      setAddMemberResults(memberList);
+    } catch (err) {
+      console.error("Failed to search members:", err);
+      setAddMemberError(
+        err.response?.data?.message || "Failed to search users."
+      );
+    } finally {
+      setIsSearchingMembers(false);
+    }
+  }, [selectedWorkspaceId]);
+
+  useEffect(() => {
+    if (dialog !== "addMember") return;
+    const timer = setTimeout(() => {
+      if (addMemberSearch.trim().length >= 2) {
+        void searchUsers(addMemberSearch);
+      } else {
+        setAddMemberResults([]);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [addMemberSearch, dialog, searchUsers]);
+
+  const handleAddMember = async () => {
+    if (!selectedWorkspaceId || !selectedUserToAdd) return;
+
+    try {
+      setIsSubmitting(true);
+      setAddMemberError("");
+
+      await addWorkspaceMember(selectedWorkspaceId, {
+        userId: selectedUserToAdd.id,
+        workspaceRole: newMemberRole,
+      });
+
+      const response = await getWorkspaceMembers(selectedWorkspaceId);
+      setSelectedWorkspaceMembers(response?.members || []);
+      void loadWorkspaces(true);
+      closeDialog();
+    } catch (error) {
+      console.error("Failed to add workspace member:", error);
+      setAddMemberError(
+        error.response?.data?.message || "Failed to add member to workspace."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   /* ==========================================================
      REMOVE MEMBER
@@ -845,8 +955,6 @@ function Workspaces() {
                     onClick={() =>
                       setDialog("addMember")
                     }
-                    disabled
-                    title="User search endpoint is required"
                   >
                     <FiUserPlus size={16} />
                     Add member
@@ -1111,24 +1219,182 @@ function Workspaces() {
           title="Add a member"
           onClose={closeDialog}
         >
-          <div className="rounded-[var(--radius-md)] bg-[var(--color-info-soft)] p-4 text-sm text-[var(--color-text)]">
-            <p className="font-semibold">
-              User selection is not connected yet.
-            </p>
+          <div className="space-y-4">
+            <div>
+              <label
+                htmlFor="search-member-input"
+                className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[var(--color-text-subtle)]"
+              >
+                Search user by name or email
+              </label>
+              <div className="relative">
+                <FiSearch
+                  size={17}
+                  className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-subtle)]"
+                />
+                <input
+                  id="search-member-input"
+                  type="text"
+                  value={addMemberSearch}
+                  onChange={(e) => setAddMemberSearch(e.target.value)}
+                  placeholder="Type name or email (min 2 characters)..."
+                  className="w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 pl-10 pr-4 text-sm text-[var(--color-text)] outline-none transition focus:border-[var(--color-brand)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--color-focus)_18%,transparent)]"
+                  autoFocus
+                />
+              </div>
+            </div>
 
-            <p className="mt-1 text-[var(--color-text-muted)]">
-              A real user-list/search API is required
-              before members can be selected here.
-            </p>
-          </div>
+            {addMemberError && (
+              <div className="flex items-start gap-2 rounded-lg bg-[var(--color-danger-soft)] p-3 text-xs text-[var(--color-danger)]">
+                <FiAlertTriangle size={15} className="mt-0.5 shrink-0" />
+                <span>{addMemberError}</span>
+              </div>
+            )}
 
-          <div className="mt-6 flex justify-end">
-            <Button
-              variant="secondary"
-              onClick={closeDialog}
-            >
-              Close
-            </Button>
+            {/* Results / List */}
+            <div className="max-h-56 overflow-y-auto rounded-[var(--radius-md)] border border-[var(--color-border)] divide-y divide-[var(--color-border)]">
+              {isSearchingMembers ? (
+                <div className="py-6 text-center text-xs text-[var(--color-text-muted)]">
+                  Searching users...
+                </div>
+              ) : addMemberSearch.trim().length >= 2 && addMemberResults.length === 0 ? (
+                <div className="py-6 text-center text-xs text-[var(--color-text-muted)]">
+                  No matching users found.
+                </div>
+              ) : addMemberSearch.trim().length < 2 ? (
+                <div className="py-6 text-center text-xs text-[var(--color-text-muted)]">
+                  Enter at least 2 characters to search across available teammates.
+                </div>
+              ) : (
+                addMemberResults.map((user) => {
+                  const userEmail = (user.description || user.email || "").toLowerCase().trim();
+                  const isAlreadyMember = selectedWorkspaceMembers.some((m) => {
+                    if (m.id && user.id && m.id === user.id) return true;
+                    if (m.userId && user.id && m.userId === user.id) return true;
+                    const mEmail = (m.email || "").toLowerCase().trim();
+                    return Boolean(mEmail && userEmail && mEmail === userEmail);
+                  });
+                  const isSelected = selectedUserToAdd?.id === user.id;
+                  const initials = (user.title || user.description || user.email || "U")
+                    .split(" ")
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((part) => part[0]?.toUpperCase())
+                    .join("") || "U";
+
+                  return (
+                    <div
+                      key={user.id}
+                      onClick={() => {
+                        if (!isAlreadyMember) {
+                          setSelectedUserToAdd(user);
+                        }
+                      }}
+                      className={`flex items-center justify-between p-3 transition ${
+                        isAlreadyMember
+                          ? "opacity-50 cursor-not-allowed bg-slate-50"
+                          : isSelected
+                          ? "bg-[var(--color-brand-soft)] border-l-4 border-l-[var(--color-brand)] cursor-pointer"
+                          : "hover:bg-[var(--color-canvas-soft)] cursor-pointer"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-sage)] text-xs font-bold text-[var(--color-brand-hover)]">
+                          {initials}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-semibold text-[var(--color-text)] truncate">
+                              {user.title}
+                            </p>
+                            {user.role && (
+                              <span className="rounded-full bg-[var(--color-surface-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--color-text-muted)] shrink-0">
+                                {user.role}
+                              </span>
+                            )}
+                          </div>
+                          {(user.description || user.email) && (
+                            <p className="text-[11px] text-[var(--color-text-muted)] truncate">
+                              {user.description || user.email}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {isAlreadyMember ? (
+                        <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                          Already in workspace
+                        </span>
+                      ) : isSelected ? (
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-brand)] text-white">
+                          <FiCheck size={12} />
+                        </span>
+                      ) : (
+                        <span className="text-xs font-medium text-[var(--color-brand)] hover:underline">
+                          Select
+                        </span>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Role selection when user is selected */}
+            {selectedUserToAdd && (
+              <div className="rounded-xl border border-[var(--color-brand-soft)] bg-[var(--color-canvas-soft)] p-3 space-y-2">
+                <div className="flex items-center justify-between pb-1 border-b border-[var(--color-border)]">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-[var(--color-text)] truncate">
+                      {selectedUserToAdd.title}
+                    </p>
+                    <p className="text-[11px] text-[var(--color-text-muted)] truncate">
+                      {selectedUserToAdd.description || selectedUserToAdd.email}
+                    </p>
+                  </div>
+                  {selectedUserToAdd.role && (
+                    <span className="rounded-full bg-[var(--color-surface-muted)] px-2 py-0.5 text-[10px] font-medium text-[var(--color-text-muted)]">
+                      {selectedUserToAdd.role}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-xs font-semibold text-[var(--color-text)]">
+                    Workspace Role:
+                  </span>
+                  <select
+                    value={newMemberRole}
+                    onChange={(e) => setNewMemberRole(e.target.value)}
+                    className="rounded-lg border border-[var(--color-border)] bg-white px-2.5 py-1 text-xs font-semibold text-[var(--color-text)] outline-none focus:border-[var(--color-brand)]"
+                  >
+                    <option value="Member">Member</option>
+                    <option value="Admin">Admin</option>
+                  </select>
+                </div>
+                <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
+                  {newMemberRole === "Admin"
+                    ? "Admins can manage projects, members, and settings in this workspace."
+                    : "Members can view and contribute to projects and tasks assigned to them."}
+                </p>
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-2 pt-2">
+              <Button
+                variant="secondary"
+                onClick={closeDialog}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAddMember}
+                disabled={!selectedUserToAdd || isSubmitting}
+              >
+                <FiUserPlus size={16} />
+                {isSubmitting ? "Adding..." : "Add to workspace"}
+              </Button>
+            </div>
           </div>
         </Dialog>
       )}

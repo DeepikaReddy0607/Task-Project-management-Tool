@@ -6,7 +6,9 @@
   "scripts": {
     "start": "tsx src/server.js",
     "dev": "tsx watch src/server.js",
-    "test": "node --test src/tests/*.test.js"
+    "test": "node --test src/tests/*.test.js",
+    "seed:roles": "node src/scripts/seedRoles.js",
+    "seed:admin": "node src/scripts/seedAdmin.js"
   },
   "keywords": [],
   "author": "",

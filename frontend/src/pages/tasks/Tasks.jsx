@@ -2421,15 +2421,6 @@ function Tasks() {
               onUpdateComment={handleUpdateComment}
               onDeleteComment={handleDeleteComment}
             />
-
-            <FileSection
-              key={`task-files-${selectedTask.id}`}
-              entityId={selectedTask.id}
-              entityLabel="task"
-              files={filesByTask[selectedTask.id] || []}
-              onAddFile={addTaskFile}
-              onDeleteFile={deleteTaskFile}
-            />
           </Dialog>
         )}
 

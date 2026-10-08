@@ -110,10 +110,8 @@ const addMember = async (req, res, next) => {
             id
         } = req.params;
 
-        const {
-            userId,
-            workspaceRole
-        } = req.body;
+        const userId = req.body.userId;
+        const workspaceRole = req.body.workspaceRole || req.body.role || "Member";
 
         // Validate workspace ID
         if (!id) {
