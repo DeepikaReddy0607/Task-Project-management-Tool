@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../config/prisma.js";
 import { sendPasswordResetEmail } from "./mailService.js";
+import { createActivity } from "./activityService.js";
 
 const registerUser = async (data) => {
     const {
@@ -96,6 +97,15 @@ const loginUser = async (email, password) => {
         throw new Error("Invalid email or password");
     }
 
+    const memberships = await prisma.workspace_members.findMany({
+        where: {
+            user_id: user.id
+        },
+        include: {
+            workspaces: true
+        }
+    });
+
     // 5. Create JWT token
     const token = jwt.sign(
         {
@@ -108,6 +118,17 @@ const loginUser = async (email, password) => {
             expiresIn: "1d"
         }
     );
+
+    for (const membership of memberships) {
+        await createActivity({
+            workspaceId: membership.workspace_id,
+            userId: user.id,
+            actionType: "LOGIN",
+            entityType: "USER",
+            entityId: user.id,
+            description: `${user.first_name} ${user.last_name} logged in`
+        });
+    }
 
     // 6. Return token and user information
     return {

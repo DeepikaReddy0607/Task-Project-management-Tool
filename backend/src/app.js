@@ -18,6 +18,8 @@ import intelligenceRoutes from "./routes/intelligenceRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import searchRoutes from "./routes/searchRoutes.js";
 import attachmentRoutes from "./routes/attachmentRoutes.js";
+import activityRoutes from "./routes/activityRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
 
 const app = express();
 
@@ -50,4 +52,7 @@ app.use("/api", notificationRoutes);
 app.use("/api/intelligence", intelligenceRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/search", searchRoutes);
+app.use("/api", activityRoutes);
+app.use("/api/reports", reportRoutes);
+
 export default app;

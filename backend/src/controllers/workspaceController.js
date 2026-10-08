@@ -10,6 +10,7 @@ import {
     deleteWorkspace
 } from "../services/workspaceService.js";
 import { emitRealtimeEvent } from "../socket.js";
+import { createActivity } from "../services/activityService.js";
 
 const create = async (req, res, next) => {
     try {
@@ -142,6 +143,15 @@ const addMember = async (req, res, next) => {
             workspaceRole
         );
 
+        await createActivity({
+            workspaceId: id,
+            userId: req.user.userId,
+            actionType: "MEMBER_ADDED",
+            entityType: "USER",
+            entityId: userId,
+            description: `Added user ${userId} to the workspace`
+        });
+
         emitRealtimeEvent({
             type: "workspace.member_added",
             workspaceId: id,
@@ -253,6 +263,15 @@ const removeMember = async (req, res, next) => {
             userId
         );
 
+        await createActivity({
+            workspaceId: id,
+            userId: req.user.userId,
+            actionType: "MEMBER_REMOVED",
+            entityType: "USER",
+            entityId: userId,
+            description: `Removed user ${userId} from the workspace`
+        });
+
         emitRealtimeEvent({
             type: "workspace.member_removed",
             workspaceId: id,
@@ -339,6 +358,15 @@ const updateMemberRole = async (req, res, next) => {
             userId,
             workspaceRole
         );
+
+        await createActivity({
+            workspaceId: id,
+            userId: req.user.userId,
+            actionType: "MEMBER_ROLE_CHANGED",
+            entityType: "USER",
+            entityId: userId,
+            description: `Changed user ${userId} role to ${workspaceRole}`
+        });
 
         emitRealtimeEvent({
             type: "workspace.member_role_changed",

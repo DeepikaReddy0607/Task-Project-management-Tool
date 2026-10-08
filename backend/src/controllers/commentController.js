@@ -5,6 +5,7 @@ import {
     deleteComment
 } from "../services/commentService.js";
 
+import { createActivity } from "../services/activityService.js";
 
 // Create comment
 const create = async (req, res, next) => {
@@ -35,16 +36,24 @@ const create = async (req, res, next) => {
         }
 
 
-        const comment = await createComment(
+        const result = await createComment(
             taskId,
             req.user.userId,
             content.trim()
         );
 
+        await createActivity({
+            workspaceId: result.workspaceId,
+            userId: req.user.userId,
+            actionType: "COMMENT_ADDED",
+            entityType: "COMMENT",
+            entityId: result.comment.id,
+            description: `Added a comment to task ${taskId}`
+        });
 
         return res.status(201).json({
             message: "Comment added successfully",
-            comment
+            comment: result.comment
         });
 
     } catch (error) {
@@ -142,12 +151,22 @@ const update = async (req, res, next) => {
         }
 
 
-        const comment = await updateComment(
+        const result = await updateComment(
             id,
             req.user.userId,
             content.trim()
         );
 
+        const comment = result.comment;
+
+        await createActivity({
+            workspaceId: result.workspaceId,
+            userId: req.user.userId,
+            actionType: "COMMENT_UPDATED",
+            entityType: "COMMENT",
+            entityId: comment.id,
+            description: `Updated a comment on task ${comment.task_id}`
+        });
 
         return res.status(200).json({
             message: "Comment updated successfully",
@@ -193,11 +212,19 @@ const remove = async (req, res, next) => {
         }
 
 
-        await deleteComment(
+        const result = await deleteComment(
             id,
             req.user.userId
         );
 
+        await createActivity({
+            workspaceId: result.workspaceId,
+            userId: req.user.userId,
+            actionType: "COMMENT_DELETED",
+            entityType: "COMMENT",
+            entityId: id,
+            description: `Deleted a comment from task ${result.taskId}`
+        });
 
         return res.status(200).json({
             message: "Comment deleted successfully"

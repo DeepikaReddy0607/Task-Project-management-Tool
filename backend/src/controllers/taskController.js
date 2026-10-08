@@ -10,6 +10,7 @@ import {
 } from "../services/taskService.js";
 import { prioritizeTasks } from "../services/taskPriorityService.js";
 import { emitRealtimeEvent } from "../socket.js";
+import { createActivity } from "../services/activityService.js";
 
 
 const create = async (req, res, next) => {
@@ -59,6 +60,15 @@ const create = async (req, res, next) => {
             estimatedHours,
             assignedTo
         );
+
+        await createActivity({
+            workspaceId: task.workspace_id,
+            userId: req.user.userId,
+            actionType: "TASK_CREATED",
+            entityType: "TASK",
+            entityId: task.id,
+            description: `Created task "${task.title}"`
+        });
 
         emitRealtimeEvent({
             type: "task.created",
@@ -217,6 +227,15 @@ const update = async (req, res, next) => {
             req.body
         );
 
+        await createActivity({
+            workspaceId: task.workspace_id,
+            userId: req.user.userId,
+            actionType: "TASK_UPDATED",
+            entityType: "TASK",
+            entityId: task.id,
+            description: `Updated task "${task.title}"`
+        });
+
         emitRealtimeEvent({
             type: "task.updated",
             projectId: task.project_id,
@@ -277,6 +296,15 @@ const assign = async (req, res, next) => {
             req.user.userId,
             assignedTo
         );
+
+        await createActivity({
+            workspaceId: task.workspace_id,
+            userId: req.user.userId,
+            actionType: "TASK_ASSIGNED",
+            entityType: "TASK",
+            entityId: task.id,
+            description: `Assigned task "${task.title}" to user ${assignedTo}`
+        });
 
         emitRealtimeEvent({
             type: "task.assigned",
@@ -425,6 +453,15 @@ const updateStatus = async (req, res, next) => {
             req.user.userId,
             status.trim()
         );
+
+        await createActivity({
+            workspaceId: task.workspace_id,
+            userId: req.user.userId,
+            actionType: "TASK_STATUS_CHANGED",
+            entityType: "TASK",
+            entityId: task.id,
+            description: `Changed task "${task.title}" status to ${status.trim()}`
+        });
 
         emitRealtimeEvent({
             type: "task.status_changed",

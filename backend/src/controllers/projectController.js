@@ -60,7 +60,7 @@ import { getProjectStandup, getPersonalStandup } from "../services/standupServic
 import { getProjectStakeholderBriefing } from "../services/stakeholderBriefingService.js";
 import { getProjectCoordination, getWorkspaceCoordination } from "../services/projectCoordinatorService.js";
 import { getProjectActionPlan, getProjectRecoveryPlan, getDailyActionPlan } from "../services/actionPlanService.js";
-
+import { createActivity } from "../services/activityService.js";
 
 const create = async (req, res, next) => {
     try {
@@ -107,6 +107,15 @@ const create = async (req, res, next) => {
             startDate,
             endDate
         );
+
+        await createActivity({
+            workspaceId: project.workspace_id || workspaceId,
+            userId: req.user.userId,
+            actionType: "PROJECT_CREATED",
+            entityType: "PROJECT",
+            entityId: project.id,
+            description: `Created project "${project.title}"`
+        });
 
         emitRealtimeEvent({
             type: "project.created",
@@ -1883,4 +1892,4 @@ export {
     getWorkspaceApprovalsController,
     getWorkspaceActionsController
 };
-
+

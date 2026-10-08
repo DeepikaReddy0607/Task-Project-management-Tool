@@ -98,6 +98,10 @@ const createComment = async (
     }
 
     return comment;
+    return {
+        comment,
+        workspaceId: task.projects.workspace_id
+    };
 };
 
 
@@ -177,6 +181,17 @@ const updateComment = async (
     const comment = await prisma.comments.findUnique({
         where: {
             id: commentId
+        },
+        include: {
+            tasks: {
+                include: {
+                    projects: {
+                        select: {
+                            workspace_id: true
+                        }
+                    }
+                }
+            }
         }
     });
 
@@ -215,7 +230,10 @@ const updateComment = async (
             }
         });
 
-    return updatedComment;
+    return {
+        comment: updatedComment,
+        workspaceId: comment.tasks.projects.workspace_id
+    };
 };
 
 
@@ -229,6 +247,17 @@ const deleteComment = async (
     const comment = await prisma.comments.findUnique({
         where: {
             id: commentId
+        },
+        include: {
+            tasks: {
+                include: {
+                    projects: {
+                        select: {
+                            workspace_id: true
+                        }
+                    }
+                }
+            }
         }
     });
 
@@ -252,7 +281,10 @@ const deleteComment = async (
         }
     });
 
-    return true;
+    return {
+        workspaceId: comment.tasks.projects.workspace_id,
+        taskId: comment.task_id
+    };
 };
 
 

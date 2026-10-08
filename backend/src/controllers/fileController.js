@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import prisma from "../config/prisma.js";
+import { createActivity } from "../services/activityService.js";
 
 /**
  * Upload file to a task
@@ -20,6 +21,13 @@ export const uploadTaskFile = async (req, res) => {
     const task = await prisma.tasks.findUnique({
       where: {
         id: taskId,
+      },
+      include: {
+        projects: {
+          select: {
+            workspace_id: true,
+          },
+        },
       },
     });
 
@@ -41,6 +49,15 @@ export const uploadTaskFile = async (req, res) => {
         file_type: req.file.mimetype,
         file_size: req.file.size,
       },
+    });
+
+    await createActivity({
+      workspaceId: task.projects.workspace_id,
+      userId: req.user.id,
+      actionType: "FILE_UPLOADED",
+      entityType: "ATTACHMENT",
+      entityId: attachment.id,
+      description: `Uploaded file "${req.file.originalname}" to task ${taskId}`,
     });
 
     return res.status(201).json({
@@ -82,6 +99,10 @@ export const uploadProjectFile = async (req, res) => {
       where: {
         id: projectId,
       },
+      select: {
+        id: true,
+        workspace_id: true,
+      },
     });
 
     if (!project) {
@@ -102,6 +123,15 @@ export const uploadProjectFile = async (req, res) => {
         file_type: req.file.mimetype,
         file_size: req.file.size,
       },
+    });
+
+    await createActivity({
+      workspaceId: project.workspace_id,
+      userId: req.user.id,
+      actionType: "FILE_UPLOADED",
+      entityType: "ATTACHMENT",
+      entityId: attachment.id,
+      description: `Uploaded file "${req.file.originalname}" to project ${projectId}`,
     });
 
     return res.status(201).json({
