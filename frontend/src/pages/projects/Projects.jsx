@@ -338,6 +338,45 @@ if (!workspaceId || !workspace) {
   </div>
 
   {(dialog === "create" || dialog === "edit") && <Dialog topmost={dialog === "edit"} title={dialog === "create" ? "Create project" : "Edit project"} onClose={closeDialog}><form onSubmit={saveProject} className="space-y-4"><Input id="project-title" label="Project title" value={projectForm.title} onChange={(event) => updateProjectForm("title", event.target.value)} error={formError} autoFocus /><label className="block text-sm font-medium text-[var(--color-text)]">Description<textarea value={projectForm.description} onChange={(event) => updateProjectForm("description", event.target.value)} rows={3} className="mt-2 w-full resize-y rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--color-focus)_18%,transparent)]" /></label><div className="grid gap-4 sm:grid-cols-3"><FieldSelect id="project-category" label="Category" value={projectForm.category} onChange={(event) => updateProjectForm("category", event.target.value)}>{projectOptions.categories.map((item) => <option key={item}>{item}</option>)}</FieldSelect><FieldSelect id="project-priority" label="Priority" value={projectForm.priority} onChange={(event) => updateProjectForm("priority", event.target.value)}>{projectOptions.priorities.map((item) => <option key={item}>{item}</option>)}</FieldSelect><FieldSelect id="project-status" label="Status" value={projectForm.status} onChange={(event) => updateProjectForm("status", event.target.value)}>{projectOptions.statuses.map((item) => <option key={item}>{item}</option>)}</FieldSelect></div><div className="grid gap-4 sm:grid-cols-2"><Input id="project-start" label="Start date" type="date" value={projectForm.startDate} onChange={(event) => updateProjectForm("startDate", event.target.value)} /><Input id="project-end" label="End date" type="date" value={projectForm.endDate} onChange={(event) => updateProjectForm("endDate", event.target.value)} /></div><div className="flex justify-end gap-2 pt-2"><Button variant="secondary" onClick={closeDialog}>Cancel</Button><Button type="submit"><FiCheck size={16} /> {dialog === "create" ? "Create project" : "Save changes"}</Button></div></form></Dialog>}
+      {selectedProject && <Dialog title={selectedProject.title} onClose={() => setSelectedProjectId(null)} wide>
+    <div className="flex flex-col gap-4 border-b border-[var(--color-border)] pb-5 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <div className="flex flex-wrap gap-2">
+          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClasses[selectedProject.status]}`}>{selectedProject.status}</span>
+          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${priorityClasses[selectedProject.priority]}`}>{selectedProject.priority}</span>
+          {selectedProject.isArchived && <span className="rounded-full bg-[var(--color-surface-muted)] px-2.5 py-1 text-xs font-semibold text-[var(--color-text-muted)]">Archived</span>}
+        </div>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[var(--color-text-muted)]">{selectedProject.description || "No project description yet."}</p>
+        <p className="mt-3 text-xs text-[var(--color-text-subtle)]">
+          {selectedProject.category} · {selectedProject.startDate ? `${formatDate(selectedProject.startDate)} to ${formatDate(selectedProject.endDate)}` : "Dates to be planned"} · Managed by {getUser(selectedProject.managerId)?.name}
+        </p>
+      </div>
+
+      <div className="flex shrink-0 flex-wrap gap-2">
+        <Button
+          variant="secondary"
+          onClick={() => navigate(`/command-center?projectId=${selectedProject.id}`)}
+          title="Launch simulations (Chaos Lab, Red Team, Shockwave, Counterfactual, Replay, Decision Log)"
+        >
+          <FiCpu size={16} /> Command Center
+        </Button>
+
+        {canManage && !selectedProject.isArchived && (
+          <>
+            <Button variant="secondary" onClick={() => openProjectForm("edit")}>
+              <FiEdit2 size={16} /> Edit
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setDialog("archive")}
+              className="text-[var(--color-danger)] hover:text-[var(--color-danger)]"
+            >
+              <FiArchive size={16} /> Archive
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
     <div className="mt-4 flex border-b border-[var(--color-border)]">
       <button type="button" onClick={() => setProjectModalTab("intelligence")} className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition ${projectModalTab === "intelligence" ? "border-[var(--color-brand)] text-[var(--color-brand)]" : "border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]"}`}><FiZap size={16} />⚡ Critical Path &amp; Bottlenecks</button>
       <button type="button" onClick={() => setProjectModalTab("xray")} className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition ${projectModalTab === "xray" ? "border-[var(--color-brand)] text-[var(--color-brand)]" : "border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]"}`}><FiActivity size={16} />🩻 Project X-Ray Diagnostic</button>
