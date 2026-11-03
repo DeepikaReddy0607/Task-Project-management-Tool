@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import {
     FiCamera,
@@ -74,6 +74,9 @@ function Avatar({
 
 
 function Profile() {
+    const location = useLocation();
+    const isSettings = location.pathname === "/settings";
+    const pageTitle = isSettings ? "Settings" : "Profile";
     const [profile, setProfile] = useState(emptyProfile);
     const [draft, setDraft] = useState(emptyProfile);
 
@@ -109,7 +112,7 @@ function Profile() {
                     email: user.email || "",
                     phone: user.phone || "",
                     role: user.role || "",
-                    profilePicture: ""
+                    profilePicture: user.profilePicture || user.profile_picture || ""
                 };
 
                 setProfile(normalizedProfile);
@@ -258,7 +261,10 @@ function Profile() {
                         draft.lastName.trim(),
 
                     phone:
-                        draft.phone.trim()
+                        draft.phone.trim(),
+
+                    profilePicture:
+                        draft.profilePicture || null
                 });
 
             const updatedUser =
@@ -277,11 +283,24 @@ function Profile() {
                 role:
                     updatedUser.role || "",
                 profilePicture:
+                    updatedUser.profilePicture ||
+                    updatedUser.profile_picture ||
                     draft.profilePicture || ""
             };
 
             setProfile(updatedProfile);
             setDraft(updatedProfile);
+
+            try {
+                const stored = JSON.parse(localStorage.getItem("taskflow_user") || "{}");
+                localStorage.setItem("taskflow_user", JSON.stringify({
+                    ...stored,
+                    ...updatedProfile
+                }));
+                window.dispatchEvent(new Event("taskflow_user_updated"));
+            } catch (storageErr) {
+                // Ignore storage parsing error
+            }
 
             setIsEditing(false);
             setSaveState("success");
@@ -310,7 +329,7 @@ function Profile() {
             <MainLayout>
                 <div className="space-y-6 sm:space-y-8">
                     <PageHeader
-                        title="Profile"
+                        title={pageTitle}
                         description="Manage your personal details and account preferences."
                     />
 
@@ -338,7 +357,7 @@ function Profile() {
             <MainLayout>
                 <div className="space-y-6 sm:space-y-8">
                     <PageHeader
-                        title="Profile"
+                        title={pageTitle}
                         description="Manage your personal details and account preferences."
                     />
 
@@ -361,7 +380,7 @@ function Profile() {
             <div className="space-y-6 sm:space-y-8">
 
                 <PageHeader
-                    title="Profile"
+                    title={pageTitle}
                     description="Manage your personal details and account preferences."
                     actions={
                         <Link to="/profile/change-password">

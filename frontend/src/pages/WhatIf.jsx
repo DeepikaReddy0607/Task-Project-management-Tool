@@ -130,6 +130,12 @@ export default function WhatIf() {
             projectId: selectedProjectId || null,
             projectTitle: p?.title || null
         });
+        return () => {
+            setPageContext({
+                projectId: null,
+                projectTitle: null
+            });
+        };
     }, [selectedProjectId, projects, setPageContext]);
 
     // Load accessible projects across all user workspaces

@@ -116,7 +116,8 @@ const createTask = async (
             projects: {
                 select: {
                     id: true,
-                    title: true
+                    title: true,
+                    workspace_id: true
                 }
             },
             users_tasks_created_byTousers: {
@@ -354,21 +355,23 @@ const updateTask = async (
                 : null;
     }
 
+    if (data.assignedTo !== undefined) {
+        updateData.assigned_to = data.assignedTo || null;
+    }
+
     updateData.updated_at = new Date();
 
     const updatedTask = await prisma.tasks.update({
         where: {
             id: taskId
         },
-        data: {
-            assigned_to: assignedTo,
-            updated_at: new Date()
-        },
+        data: updateData,
         include: {
             projects: {
                 select: {
                     id: true,
-                    title: true
+                    title: true,
+                    workspace_id: true
                 }
             },
             users_tasks_created_byTousers: {
@@ -390,26 +393,19 @@ const updateTask = async (
         }
     });
 
-    // Create notification for assigned user
-    await createNotification({
-        userId: assignedTo,
-        type: "TASK_ASSIGNED",
-        message: `You have been assigned the task "${updatedTask.title}".`,
-        relatedEntityType: "TASK",
-        relatedEntityId: updatedTask.id
-    });
-
-    await sendEmail({
-        to: updatedTask.users_tasks_assigned_toTousers.email,
-        subject: `Task Assigned: ${updatedTask.title}`,
-        text: `You have been assigned the task "${updatedTask.title}".`,
-        html: `
-            <h2>Task Assigned</h2>
-            <p>You have been assigned the task:</p>
-            <p><strong>${updatedTask.title}</strong></p>
-            <p>Please log in to TaskFlow to view the task details.</p>
-        `
-    });
+    if (data.assignedTo && data.assignedTo !== existingTask.assigned_to) {
+        try {
+            await createNotification({
+                userId: data.assignedTo,
+                type: "TASK_ASSIGNED",
+                message: `You have been assigned the task "${updatedTask.title}".`,
+                relatedEntityType: "TASK",
+                relatedEntityId: updatedTask.id
+            });
+        } catch (notifErr) {
+            console.warn("Task assign notification failed:", notifErr.message);
+        }
+    }
 
     return updatedTask;
 };
@@ -495,7 +491,8 @@ const assignTask = async (
             projects: {
                 select: {
                     id: true,
-                    title: true
+                    title: true,
+                    workspace_id: true
                 }
             },
             users_tasks_created_byTousers: {
@@ -571,6 +568,15 @@ const archiveTask = async (
         data: {
             is_archived: true,
             updated_at: new Date()
+        },
+        include: {
+            projects: {
+                select: {
+                    id: true,
+                    title: true,
+                    workspace_id: true
+                }
+            }
         }
     });
 
@@ -657,6 +663,8 @@ const updateTaskStatus = async (
         throw new Error("Workspace access denied");
     }
 
+    const oldStatus = task.status;
+
     // Update status
     const updatedTask = await prisma.tasks.update({
         where: {
@@ -670,7 +678,8 @@ const updateTaskStatus = async (
             projects: {
                 select: {
                     id: true,
-                    title: true
+                    title: true,
+                    workspace_id: true
                 }
             },
             users_tasks_created_byTousers: {
@@ -692,6 +701,7 @@ const updateTaskStatus = async (
         }
     });
 
+    updatedTask.oldStatus = oldStatus;
     return updatedTask;
 };
 

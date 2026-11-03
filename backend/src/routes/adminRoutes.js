@@ -28,6 +28,7 @@ router.use(authMiddleware, requireAdmin);
 
 // Administrative Overview
 router.get("/overview", getOverviewController);
+router.get("/dashboard", getOverviewController);
 
 // User Management
 router.get("/users", getUsersController);

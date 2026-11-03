@@ -62,6 +62,12 @@ export const archiveTask = async (taskId) => {
   return response.data;
 };
 
+// Delete task
+export const deleteTask = async (taskId) => {
+  const response = await api.delete(`/tasks/${taskId}`);
+  return response.data;
+};
+
 // Task Dependencies (Phase 13)
 export const getTaskDependencies = async (taskId) => {
   const response = await api.get(`/tasks/${taskId}/dependencies`);

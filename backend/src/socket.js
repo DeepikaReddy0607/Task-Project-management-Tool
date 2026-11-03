@@ -115,8 +115,11 @@ export const emitRealtimeEvent = ({
     projectId = null,
     taskId = null,
     userId = null,
+    oldStatus = null,
+    newStatus = null,
     data = null,
-    changes = null
+    changes = null,
+    ...extra
 }) => {
     if (!io) return;
 
@@ -143,8 +146,11 @@ export const emitRealtimeEvent = ({
         projectId,
         taskId,
         userId,
+        ...(oldStatus !== null ? { oldStatus } : {}),
+        ...(newStatus !== null ? { newStatus } : {}),
         data,
         changes,
+        ...extra,
         timestamp: new Date().toISOString()
     };
 
@@ -166,11 +172,15 @@ export const emitRealtimeEvent = ({
         targetRooms.add(`user:${userId}`);
     }
 
-    // Broadcast to targeted rooms
-    targetRooms.forEach((room) => {
-        io.to(room).emit(type, payload);
-        io.to(room).emit("taskflow:event", payload);
-    });
+    // Broadcast to targeted rooms with automatic socket deduplication across joined rooms
+    if (targetRooms.size > 0) {
+        let broadcaster = io;
+        targetRooms.forEach((room) => {
+            broadcaster = broadcaster.to(room);
+        });
+        broadcaster.emit(type, payload);
+        broadcaster.emit("taskflow:event", payload);
+    }
 
     // Asynchronously evaluate proactive alerts for business events (persistence-first)
     if (type !== "notification.created") {

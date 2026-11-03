@@ -45,6 +45,15 @@ export const archiveProject = async (projectId) => {
   return response.data;
 };
 
+// Delete project
+export const deleteProject = async (projectId) => {
+  const response = await api.delete(
+    `/projects/${projectId}`
+  );
+
+  return response.data;
+};
+
 // Add project member
 export const addProjectMember = async (projectId, memberData) => {
   const response = await api.post(

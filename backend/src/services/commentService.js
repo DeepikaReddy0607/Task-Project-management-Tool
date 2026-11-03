@@ -97,7 +97,6 @@ const createComment = async (
         }
     }
 
-    return comment;
     return {
         comment,
         workspaceId: task.projects.workspace_id

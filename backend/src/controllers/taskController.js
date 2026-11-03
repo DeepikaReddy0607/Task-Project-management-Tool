@@ -61,17 +61,25 @@ const create = async (req, res, next) => {
             assignedTo
         );
 
-        await createActivity({
-            workspaceId: task.workspace_id,
-            userId: req.user.userId,
-            actionType: "TASK_CREATED",
-            entityType: "TASK",
-            entityId: task.id,
-            description: `Created task "${task.title}"`
-        });
+        const workspaceId = task.projects?.workspace_id || task.workspace_id;
+        if (workspaceId) {
+            try {
+                await createActivity({
+                    workspaceId,
+                    userId: req.user.userId,
+                    actionType: "TASK_CREATED",
+                    entityType: "TASK",
+                    entityId: task.id,
+                    description: `Created task "${task.title}"`
+                });
+            } catch (actErr) {
+                console.error("Activity logging failed for task creation:", actErr);
+            }
+        }
 
         emitRealtimeEvent({
             type: "task.created",
+            workspaceId,
             projectId: task.project_id || projectId,
             taskId: task.id,
             userId: task.assigned_to || req.user.userId,
@@ -227,17 +235,25 @@ const update = async (req, res, next) => {
             req.body
         );
 
-        await createActivity({
-            workspaceId: task.workspace_id,
-            userId: req.user.userId,
-            actionType: "TASK_UPDATED",
-            entityType: "TASK",
-            entityId: task.id,
-            description: `Updated task "${task.title}"`
-        });
+        const workspaceId = task.projects?.workspace_id || task.workspace_id;
+        if (workspaceId) {
+            try {
+                await createActivity({
+                    workspaceId,
+                    userId: req.user.userId,
+                    actionType: "TASK_UPDATED",
+                    entityType: "TASK",
+                    entityId: task.id,
+                    description: `Updated task "${task.title}"`
+                });
+            } catch (actErr) {
+                console.error("Activity logging failed for task update:", actErr);
+            }
+        }
 
         emitRealtimeEvent({
             type: "task.updated",
+            workspaceId,
             projectId: task.project_id,
             taskId: task.id,
             userId: task.assigned_to || req.user.userId,
@@ -297,17 +313,25 @@ const assign = async (req, res, next) => {
             assignedTo
         );
 
-        await createActivity({
-            workspaceId: task.workspace_id,
-            userId: req.user.userId,
-            actionType: "TASK_ASSIGNED",
-            entityType: "TASK",
-            entityId: task.id,
-            description: `Assigned task "${task.title}" to user ${assignedTo}`
-        });
+        const workspaceId = task.projects?.workspace_id || task.workspace_id;
+        if (workspaceId) {
+            try {
+                await createActivity({
+                    workspaceId,
+                    userId: req.user.userId,
+                    actionType: "TASK_ASSIGNED",
+                    entityType: "TASK",
+                    entityId: task.id,
+                    description: `Assigned task "${task.title}" to user ${assignedTo}`
+                });
+            } catch (actErr) {
+                console.error("Activity logging failed for task assign:", actErr);
+            }
+        }
 
         emitRealtimeEvent({
             type: "task.assigned",
+            workspaceId,
             projectId: task.project_id,
             taskId: task.id,
             userId: assignedTo,
@@ -371,8 +395,25 @@ const archive = async (req, res, next) => {
             req.user.userId
         );
 
+        const workspaceId = task.projects?.workspace_id || task.workspace_id;
+        if (workspaceId) {
+            try {
+                await createActivity({
+                    workspaceId,
+                    userId: req.user.userId,
+                    actionType: "TASK_ARCHIVED",
+                    entityType: "TASK",
+                    entityId: task.id,
+                    description: `Archived task "${task.title}"`
+                });
+            } catch (actErr) {
+                console.error("Activity logging failed for task archive:", actErr);
+            }
+        }
+
         emitRealtimeEvent({
             type: "task.archived",
+            workspaceId,
             projectId: task.project_id,
             taskId: task.id,
             userId: req.user.userId,
@@ -454,20 +495,30 @@ const updateStatus = async (req, res, next) => {
             status.trim()
         );
 
-        await createActivity({
-            workspaceId: task.workspace_id,
-            userId: req.user.userId,
-            actionType: "TASK_STATUS_CHANGED",
-            entityType: "TASK",
-            entityId: task.id,
-            description: `Changed task "${task.title}" status to ${status.trim()}`
-        });
+        const workspaceId = task.projects?.workspace_id || task.workspace_id;
+        if (workspaceId) {
+            try {
+                await createActivity({
+                    workspaceId,
+                    userId: req.user.userId,
+                    actionType: "TASK_STATUS_CHANGED",
+                    entityType: "TASK",
+                    entityId: task.id,
+                    description: `Changed task "${task.title}" status to ${status.trim()}`
+                });
+            } catch (actErr) {
+                console.error("Activity logging failed for task status change:", actErr);
+            }
+        }
 
         emitRealtimeEvent({
-            type: "task.status_changed",
+            type: "task.status_updated",
+            workspaceId,
             projectId: task.project_id,
             taskId: task.id,
-            userId: task.assigned_to,
+            userId: task.assigned_to || req.user.userId,
+            oldStatus: task.oldStatus,
+            newStatus: status.trim(),
             changes: { status: status.trim() },
             data: task
         });

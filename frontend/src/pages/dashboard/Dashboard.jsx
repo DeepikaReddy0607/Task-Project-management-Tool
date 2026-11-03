@@ -52,6 +52,9 @@ const normalizeTask = (task) => {
       task?.project?.name ||
       "No project",
     assignee,
+    updatedAt: task?.updated_at || task?.updatedAt || null,
+    completedAt: task?.completed_at || task?.completedAt || null,
+    createdAt: task?.created_at || task?.createdAt || null,
   };
 };
 
@@ -313,6 +316,44 @@ function Dashboard() {
   // Real-time synchronization for Dashboard overview
   useSocketEvent("*", (event) => {
     if (!event?.type) return;
+
+    if (event.type === "task.status_updated" || event.type === "task.status_changed") {
+      const targetTaskId = event.taskId || event.data?.id;
+      const targetStatus = event.newStatus || event.changes?.status || event.data?.status;
+
+      if (targetTaskId && targetStatus) {
+        setTasks((current) => {
+          const exists = current.some((t) => t.id === targetTaskId);
+          if (exists) {
+            return current.map((t) =>
+              t.id === targetTaskId
+                ? {
+                    ...t,
+                    status: targetStatus,
+                    updatedAt: event.data?.updated_at || new Date().toISOString(),
+                    completedAt:
+                      targetStatus === "Completed"
+                        ? event.data?.completed_at || new Date().toISOString()
+                        : null
+                  }
+                : t
+            );
+          }
+          void loadDashboard(true);
+          return current;
+        });
+        return;
+      }
+    }
+
+    if (event.type === "task.archived") {
+      const targetTaskId = event.taskId || event.data?.id;
+      if (targetTaskId) {
+        setTasks((current) => current.filter((t) => t.id !== targetTaskId));
+        return;
+      }
+    }
+
     if (
       event.type.startsWith("task.") ||
       event.type.startsWith("subtask.") ||
@@ -523,12 +564,14 @@ function Dashboard() {
         return false;
       }
 
-      // Prefer updated_at/completed_at if available.
+      // Prefer completed_at/updated_at if available.
       const completionDate =
         task.completed_at ||
         task.completedAt ||
         task.updated_at ||
         task.updatedAt ||
+        task.dueDate ||
+        task.createdAt ||
         null;
 
       const date = parseDate(completionDate);

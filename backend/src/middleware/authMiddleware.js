@@ -32,6 +32,14 @@ const authMiddleware = (req, res, next) => {
 
         // Store decoded user information
         req.user = decoded;
+        if (req.user) {
+            if (!req.user.id && req.user.userId) {
+                req.user.id = req.user.userId;
+            }
+            if (!req.user.userId && req.user.id) {
+                req.user.userId = req.user.id;
+            }
+        }
 
         // Continue to the next middleware/controller
         next();

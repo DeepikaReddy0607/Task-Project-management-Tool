@@ -26,7 +26,8 @@ const updateProfile = async (req, res, next) => {
         const {
             firstName,
             lastName,
-            phone
+            phone,
+            profilePicture
         } = req.body;
 
         const user = await updateMyProfile(
@@ -34,7 +35,8 @@ const updateProfile = async (req, res, next) => {
             {
                 firstName,
                 lastName,
-                phone
+                phone,
+                profilePicture
             }
         );
 

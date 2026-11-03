@@ -10,4 +10,10 @@ router.get(
     getAll
 );
 
+router.get(
+    "/workspaces/:workspaceId/activity",
+    authMiddleware,
+    getAll
+);
+
 export default router;

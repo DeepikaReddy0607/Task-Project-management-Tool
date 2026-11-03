@@ -44,6 +44,7 @@ const intelligenceNavigation = [
 
 const accountNavigation = [
   { label: "Profile", icon: FiUser, path: "/profile" },
+  { label: "Settings", icon: FiSettings, path: "/settings" },
   { label: "Change Password", icon: FiLock, path: "/profile/change-password" },
 ];
 

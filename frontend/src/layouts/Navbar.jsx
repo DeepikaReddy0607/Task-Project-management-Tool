@@ -1,10 +1,61 @@
+import { useState, useEffect, useCallback } from "react";
 import { FiChevronDown, FiMenu, FiSearch } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import TaskFlowMark from "../components/brand/TaskFlowMark";
 import NotificationBell from "../components/notifications/NotificationBell";
+import { getProfile } from "../services/api/userApi";
 
 function Navbar({ mobileNavigationOpen, onMenuToggle, onOpenSearch }) {
   const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const raw = localStorage.getItem("taskflow_user");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const res = await getProfile();
+      if (res?.user) {
+        setCurrentUser(res.user);
+        try {
+          const stored = JSON.parse(localStorage.getItem("taskflow_user") || "{}");
+          localStorage.setItem("taskflow_user", JSON.stringify({ ...stored, ...res.user }));
+        } catch {
+          // Ignore
+        }
+      }
+    } catch {
+      // Ignore network errors in navbar sync
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshUser();
+
+    const handleSync = () => {
+      try {
+        const raw = localStorage.getItem("taskflow_user");
+        if (raw) setCurrentUser(JSON.parse(raw));
+      } catch {
+        // Ignore
+      }
+    };
+
+    window.addEventListener("taskflow_user_updated", handleSync);
+    window.addEventListener("storage", handleSync);
+    return () => {
+      window.removeEventListener("taskflow_user_updated", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
+  }, [refreshUser]);
+
+  const fullName = [currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(" ") || currentUser?.name || "TaskFlow Member";
+  const initials = ([currentUser?.firstName?.[0], currentUser?.lastName?.[0]].filter(Boolean).join("") || fullName[0] || "U").toUpperCase();
+  const avatarUrl = currentUser?.profilePicture || currentUser?.profile_picture || null;
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--color-border)] bg-[color-mix(in_srgb,var(--color-canvas-soft)_86%,transparent)] backdrop-blur-xl">
@@ -42,7 +93,18 @@ function Navbar({ mobileNavigationOpen, onMenuToggle, onOpenSearch }) {
           </button>
 
           <NotificationBell />
-          <button type="button" onClick={() => navigate("/profile")} aria-label="Open profile" className="group flex items-center gap-2 rounded-xl p-1.5 transition hover:bg-white hover:shadow-[var(--shadow-soft)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[color-mix(in_srgb,var(--color-focus)_15%,transparent)]"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-surface-sage)] text-sm font-bold text-[var(--color-brand-hover)] ring-2 ring-white">G</span><span className="hidden text-left lg:block"><span className="block text-xs font-semibold text-[var(--color-text)]">TaskFlow Member</span><span className="block text-[0.6875rem] text-[var(--color-text-subtle)]">Personal workspace</span></span><FiChevronDown size={15} className="hidden text-[var(--color-text-subtle)] lg:block" aria-hidden="true" /></button>
+          <button type="button" onClick={() => navigate("/profile")} aria-label="Open profile" className="group flex items-center gap-2 rounded-xl p-1.5 transition hover:bg-white hover:shadow-[var(--shadow-soft)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[color-mix(in_srgb,var(--color-focus)_15%,transparent)]">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={fullName} className="h-9 w-9 rounded-full object-cover ring-2 ring-white" />
+            ) : (
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-surface-sage)] text-sm font-bold text-[var(--color-brand-hover)] ring-2 ring-white">{initials}</span>
+            )}
+            <span className="hidden text-left lg:block">
+              <span className="block text-xs font-semibold text-[var(--color-text)] truncate max-w-[120px]">{fullName}</span>
+              <span className="block text-[0.6875rem] text-[var(--color-text-subtle)]">{currentUser?.role || "Team Member"}</span>
+            </span>
+            <FiChevronDown size={15} className="hidden text-[var(--color-text-subtle)] lg:block" aria-hidden="true" />
+          </button>
         </div>
       </div>
     </header>

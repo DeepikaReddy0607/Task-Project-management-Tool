@@ -49,12 +49,14 @@ const createNotificationController = async (req, res) => {
 
 const getNotificationsController = async (req, res) => {
     try {
+        const userId = req.user.userId || req.user.id;
         const notifications =
-            await getUserNotifications(req.user.id);
+            await getUserNotifications(userId);
 
         return res.status(200).json({
             success: true,
-            data: notifications
+            data: notifications,
+            notifications
         });
     } catch (error) {
         console.error("Get notifications error:", error);
@@ -69,8 +71,9 @@ const getNotificationsController = async (req, res) => {
 
 const getUnreadCountController = async (req, res) => {
     try {
+        const userId = req.user.userId || req.user.id;
         const count =
-            await getUnreadCount(req.user.id);
+            await getUnreadCount(userId);
 
         return res.status(200).json({
             success: true,
@@ -89,10 +92,11 @@ const getUnreadCountController = async (req, res) => {
 
 const markAsReadController = async (req, res) => {
     try {
+        const userId = req.user.userId || req.user.id;
         const notification =
             await markAsRead(
                 req.params.id,
-                req.user.id
+                userId
             );
 
         return res.status(200).json({
@@ -115,8 +119,9 @@ const markAsReadController = async (req, res) => {
 
 const markAllAsReadController = async (req, res) => {
     try {
+        const userId = req.user.userId || req.user.id;
         const result =
-            await markAllAsRead(req.user.id);
+            await markAllAsRead(userId);
 
         return res.status(200).json({
             success: true,

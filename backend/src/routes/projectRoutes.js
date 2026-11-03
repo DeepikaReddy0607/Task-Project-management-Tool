@@ -422,9 +422,15 @@ router.patch(
     update
 );
 
-// Archive a project
+// Archive / Delete a project
 router.patch(
     "/projects/:id/archive",
+    authMiddleware,
+    archive
+);
+
+router.delete(
+    "/projects/:id",
     authMiddleware,
     archive
 );

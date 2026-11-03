@@ -698,7 +698,7 @@ export const processEventForAlerts = async (eventPayload) => {
                     await checkPriorityShiftAlert({ userId: task.assigned_to });
                 }
             }
-        } else if (type === "task.status_changed" || type === "task.updated") {
+        } else if (type === "task.status_updated" || type === "task.status_changed" || type === "task.updated") {
             const task = data?.task || (taskId ? await prisma.tasks.findUnique({ where: { id: taskId } }) : null);
             if (task) {
                 await checkTaskOverdueAlert({ task });

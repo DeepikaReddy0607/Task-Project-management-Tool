@@ -164,7 +164,48 @@ function Kanban() {
 
   // Real-time synchronization for Kanban board
   useSocketEvent("*", (event) => {
-    if (event?.type?.startsWith("task.") || event?.type?.startsWith("subtask.")) {
+    if (!event?.type) return;
+
+    if (event.type === "task.status_updated" || event.type === "task.status_changed") {
+      const targetTaskId = event.taskId || event.data?.id;
+      const targetStatus = event.newStatus || event.changes?.status || event.data?.status;
+
+      if (targetTaskId && targetStatus) {
+        setTasks((currentTasks) => {
+          const exists = currentTasks.some((t) => t.id === targetTaskId);
+          if (exists) {
+            return currentTasks.map((t) =>
+              t.id === targetTaskId
+                ? {
+                    ...t,
+                    status: targetStatus,
+                    ...(event.data
+                      ? {
+                          title: event.data.title || t.title,
+                          description: event.data.description ?? t.description,
+                          priority: event.data.priority || t.priority
+                        }
+                      : {})
+                  }
+                : t
+            );
+          }
+          void loadKanbanData(true);
+          return currentTasks;
+        });
+        return;
+      }
+    }
+
+    if (event.type === "task.archived") {
+      const targetTaskId = event.taskId || event.data?.id;
+      if (targetTaskId) {
+        setTasks((currentTasks) => currentTasks.filter((t) => t.id !== targetTaskId));
+        return;
+      }
+    }
+
+    if (event.type.startsWith("task.") || event.type.startsWith("subtask.")) {
       void loadKanbanData(true);
     }
   });

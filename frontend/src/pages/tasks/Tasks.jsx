@@ -516,6 +516,14 @@ function Tasks() {
         projectTitle: null,
       });
     }
+    return () => {
+      setPageContext({
+        taskId: null,
+        taskTitle: null,
+        projectId: null,
+        projectTitle: null,
+      });
+    };
   }, [selectedTaskId, selectedTask?.title, setPageContext]);
 
   /* ==========================================================
@@ -902,7 +910,50 @@ function Tasks() {
   ========================================================== */
 
   useSocketEvent("*", (event) => {
-    if (event?.type?.startsWith("task.") || event?.type?.startsWith("subtask.")) {
+    if (!event?.type) return;
+
+    if (event.type === "task.status_updated" || event.type === "task.status_changed") {
+      const targetTaskId = event.taskId || event.data?.id;
+      const targetStatus = event.newStatus || event.changes?.status || event.data?.status;
+
+      if (targetTaskId && targetStatus) {
+        setTasks((current) => {
+          const exists = current.some((t) => t.id === targetTaskId);
+          if (exists) {
+            return current.map((t) =>
+              t.id === targetTaskId
+                ? {
+                    ...t,
+                    status: targetStatus,
+                    ...(event.data
+                      ? {
+                          updatedAt: event.data.updated_at || t.updatedAt,
+                          completedAt:
+                            targetStatus === "Completed"
+                              ? event.data.completed_at || new Date().toISOString()
+                              : null
+                        }
+                      : {})
+                  }
+                : t
+            );
+          }
+          loadTasks(true);
+          return current;
+        });
+        return;
+      }
+    }
+
+    if (event.type === "task.archived") {
+      const targetTaskId = event.taskId || event.data?.id;
+      if (targetTaskId) {
+        setTasks((current) => current.filter((t) => t.id !== targetTaskId));
+        return;
+      }
+    }
+
+    if (event.type.startsWith("task.") || event.type.startsWith("subtask.")) {
       loadTasks(true);
     }
   });

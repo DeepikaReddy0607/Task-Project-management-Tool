@@ -36,6 +36,12 @@ router.put(
     update
 );
 
+router.patch(
+    "/comments/:id",
+    authMiddleware,
+    update
+);
+
 
 // Delete own comment
 router.delete(

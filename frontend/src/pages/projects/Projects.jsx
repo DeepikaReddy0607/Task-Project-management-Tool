@@ -97,6 +97,12 @@ function Projects() {
         projectTitle: null,
       });
     }
+    return () => {
+      setPageContext({
+        projectId: null,
+        projectTitle: null,
+      });
+    };
   }, [selectedProjectId, selectedProject?.title, setPageContext]);
   const canManage = workspace?.workspaceRole === "Owner" || workspace?.workspaceRole === "Admin";
   const visibleProjects = projects.filter((project) => project.workspaceId === workspaceId && (includeArchived || !project.isArchived));

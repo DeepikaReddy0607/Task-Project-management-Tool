@@ -22,12 +22,13 @@ const getMyProfile = async (userId) => {
         lastName: user.last_name,
         email: user.email,
         phone: user.phone,
+        profilePicture: user.profile_picture || null,
         role: user.roles?.role_name || null
     };
 };
 
 const updateMyProfile = async (userId, data) => {
-    const { firstName, lastName, phone } = data;
+    const { firstName, lastName, phone, profilePicture } = data;
 
     if (firstName !== undefined && !firstName.trim()) {
         throw new Error("First name cannot be empty");
@@ -56,6 +57,9 @@ const updateMyProfile = async (userId, data) => {
             }),
             ...(phone !== undefined && {
                 phone: phone?.trim() || null
+            }),
+            ...(profilePicture !== undefined && {
+                profile_picture: profilePicture || null
             })
         },
         include: {
@@ -73,6 +77,7 @@ const updateMyProfile = async (userId, data) => {
         lastName: updatedUser.last_name,
         email: updatedUser.email,
         phone: updatedUser.phone,
+        profilePicture: updatedUser.profile_picture || null,
         role: updatedUser.roles?.role_name || null
     };
 };

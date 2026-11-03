@@ -37,6 +37,7 @@ function AppRoutes() {
             <Route path="/workspaces" element={<Workspaces />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/settings" element={<Profile />} />
             <Route path="/profile/change-password" element={<ChangePassword />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/calendar" element={<Calendar />} />

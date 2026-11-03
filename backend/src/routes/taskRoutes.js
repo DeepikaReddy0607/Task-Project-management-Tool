@@ -74,9 +74,15 @@ router.patch(
     assign
 );
 
-// Archive a task
+// Archive / Delete a task
 router.patch(
     "/tasks/:id/archive",
+    authMiddleware,
+    archive
+);
+
+router.delete(
+    "/tasks/:id",
     authMiddleware,
     archive
 );

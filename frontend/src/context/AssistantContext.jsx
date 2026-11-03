@@ -36,6 +36,10 @@ export const AssistantProvider = ({ children }) => {
         if (pathname.startsWith("/projects")) return "project";
         if (pathname.startsWith("/calendar")) return "calendar";
         if (pathname.startsWith("/kanban")) return "kanban";
+        if (pathname.startsWith("/command-center") || pathname.startsWith("/project-command-center")) return "command-center";
+        if (pathname.startsWith("/what-if")) return "what-if";
+        if (pathname.startsWith("/coordination") || pathname.startsWith("/standup") || pathname.startsWith("/briefing")) return "coordination";
+        if (pathname.startsWith("/portfolio")) return "portfolio";
         return "general";
     }, []);
 
@@ -146,38 +150,50 @@ export const AssistantProvider = ({ children }) => {
     });
 
 
-// Handle route changes
+// Handle route and query parameter changes
 useEffect(() => {
     const newPage = getPageFromPath(location.pathname);
+    const searchParams = new URLSearchParams(location.search);
+    const queryProjectId = searchParams.get("projectId");
+    const queryTaskId = searchParams.get("taskId");
 
-    if (location.pathname === prevPathRef.current) {
-        return;
-    }
-
+    const isSamePath = location.pathname === prevPathRef.current;
     prevPathRef.current = location.pathname;
 
-    setPageContextState((prev) => ({
-        ...prev,
-        page: newPage,
-        projectId:
-            newPage === "project"
-                ? prev.projectId
-                : null,
-        projectTitle:
-            newPage === "project"
-                ? prev.projectTitle
-                : null,
-        taskId:
-            newPage === "tasks"
-                ? prev.taskId
-                : null,
-        taskTitle:
-            newPage === "tasks"
-                ? prev.taskTitle
-                : null,
-    }));
+    setPageContextState((prev) => {
+        if (!isSamePath) {
+            return {
+                page: newPage,
+                projectId: queryProjectId || (newPage === "project" ? prev.projectId : null),
+                projectTitle: queryProjectId && queryProjectId === prev.projectId ? prev.projectTitle : (newPage === "project" ? prev.projectTitle : null),
+                taskId: queryTaskId || (newPage === "tasks" ? prev.taskId : null),
+                taskTitle: queryTaskId && queryTaskId === prev.taskId ? prev.taskTitle : (newPage === "tasks" ? prev.taskTitle : null),
+            };
+        }
+
+        if (queryProjectId && queryProjectId !== prev.projectId) {
+            return {
+                ...prev,
+                page: newPage,
+                projectId: queryProjectId,
+                projectTitle: null,
+            };
+        }
+
+        if (queryTaskId && queryTaskId !== prev.taskId) {
+            return {
+                ...prev,
+                page: newPage,
+                taskId: queryTaskId,
+                taskTitle: null,
+            };
+        }
+
+        return prev;
+    });
 }, [
     location.pathname,
+    location.search,
     getPageFromPath,
 ]);
 

@@ -42,18 +42,27 @@ const create = async (req, res, next) => {
             content.trim()
         );
 
-        await createActivity({
-            workspaceId: result.workspaceId,
-            userId: req.user.userId,
-            actionType: "COMMENT_ADDED",
-            entityType: "COMMENT",
-            entityId: result.comment.id,
-            description: `Added a comment to task ${taskId}`
-        });
+        const commentData = result.comment || result;
+        const workspaceId = result.workspaceId;
+
+        if (workspaceId && commentData?.id) {
+            try {
+                await createActivity({
+                    workspaceId,
+                    userId: req.user.userId,
+                    actionType: "COMMENT_ADDED",
+                    entityType: "COMMENT",
+                    entityId: commentData.id,
+                    description: `Added a comment to task ${taskId}`
+                });
+            } catch (actErr) {
+                console.error("Activity logging failed for comment:", actErr.message);
+            }
+        }
 
         return res.status(201).json({
             message: "Comment added successfully",
-            comment: result.comment
+            comment: commentData
         });
 
     } catch (error) {

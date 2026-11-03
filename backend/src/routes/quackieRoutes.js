@@ -20,6 +20,7 @@ router.use(authMiddleware);
 
 router.post("/chat", chat);
 router.get("/context", getContext);
+router.get("/proactive", getContext);
 router.get("/overdue", getOverdue);
 router.get("/recommendation", getRecommendation);
 router.get("/focus", getFocusMission);
