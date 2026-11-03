@@ -30,6 +30,7 @@ body {
   font-family: var(--font-sans);
   line-height: var(--line-height-normal);
   overflow-x: hidden;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 body::before,
@@ -52,6 +53,145 @@ body::after {
   inset: -10rem;
   background: radial-gradient(ellipse 42% 36% at 16% 84%, rgb(223 233 213 / 0.3), transparent 78%);
   filter: blur(32px);
+}
+
+/* ==========================================================
+   DARK MODE
+========================================================== */
+
+[data-theme="dark"] body,
+.dark body {
+  background:
+    radial-gradient(ellipse 72% 52% at 108% -8%, rgb(23 37 49 / 0.35), transparent 74%),
+    radial-gradient(ellipse 66% 48% at 58% 108%, rgb(51 32 26 / 0.25), transparent 76%),
+    radial-gradient(ellipse 62% 54% at -10% 92%, rgb(32 50 36 / 0.35), transparent 76%),
+    var(--color-canvas);
+}
+
+[data-theme="dark"] body::before,
+.dark body::before {
+  background:
+    radial-gradient(ellipse 48% 34% at 86% 24%, rgb(23 37 49 / 0.2), transparent 76%),
+    radial-gradient(ellipse 42% 32% at 48% 73%, rgb(51 32 26 / 0.18), transparent 78%);
+}
+
+[data-theme="dark"] body::after,
+.dark body::after {
+  background: radial-gradient(ellipse 42% 36% at 16% 84%, rgb(39 62 44 / 0.25), transparent 78%);
+}
+
+/* Tailwind utility mappings for dark theme */
+[data-theme="dark"] .bg-white,
+.dark .bg-white {
+  background-color: var(--color-surface) !important;
+}
+
+[data-theme="dark"] .bg-white\/70,
+.dark .bg-white\/70 {
+  background-color: color-mix(in srgb, var(--color-surface) 75%, transparent) !important;
+}
+
+[data-theme="dark"] .bg-white\/80,
+.dark .bg-white\/80 {
+  background-color: color-mix(in srgb, var(--color-surface) 82%, transparent) !important;
+}
+
+[data-theme="dark"] .bg-white\/90,
+.dark .bg-white\/90 {
+  background-color: color-mix(in srgb, var(--color-surface) 92%, transparent) !important;
+}
+
+[data-theme="dark"] .bg-slate-50,
+[data-theme="dark"] .bg-slate-100,
+[data-theme="dark"] .bg-gray-50,
+[data-theme="dark"] .bg-gray-100,
+.dark .bg-slate-50,
+.dark .bg-slate-100,
+.dark .bg-gray-50,
+.dark .bg-gray-100 {
+  background-color: var(--color-surface-muted) !important;
+}
+
+[data-theme="dark"] .bg-slate-200,
+[data-theme="dark"] .bg-gray-200,
+.dark .bg-slate-200,
+.dark .bg-gray-200 {
+  background-color: var(--color-border) !important;
+}
+
+[data-theme="dark"] .border-slate-100,
+[data-theme="dark"] .border-slate-200,
+[data-theme="dark"] .border-slate-300,
+[data-theme="dark"] .border-gray-100,
+[data-theme="dark"] .border-gray-200,
+[data-theme="dark"] .border-gray-300,
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-300,
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: var(--color-border) !important;
+}
+
+[data-theme="dark"] .text-slate-900,
+[data-theme="dark"] .text-slate-800,
+[data-theme="dark"] .text-gray-900,
+[data-theme="dark"] .text-gray-800,
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-gray-900,
+.dark .text-gray-800 {
+  color: var(--color-text) !important;
+}
+
+[data-theme="dark"] .text-slate-700,
+[data-theme="dark"] .text-slate-600,
+[data-theme="dark"] .text-gray-700,
+[data-theme="dark"] .text-gray-600,
+.dark .text-slate-700,
+.dark .text-slate-600,
+.dark .text-gray-700,
+.dark .text-gray-600 {
+  color: var(--color-text-muted) !important;
+}
+
+[data-theme="dark"] .text-slate-500,
+[data-theme="dark"] .text-slate-400,
+[data-theme="dark"] .text-gray-500,
+[data-theme="dark"] .text-gray-400,
+.dark .text-slate-500,
+.dark .text-slate-400,
+.dark .text-gray-500,
+.dark .text-gray-400 {
+  color: var(--color-text-subtle) !important;
+}
+
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea,
+.dark input,
+.dark select,
+.dark textarea {
+  color-scheme: dark;
+}
+
+/* ==========================================================
+   COMPACT DENSITY
+========================================================== */
+
+[data-density="compact"] .taskflow-page-enter {
+  padding-top: 1rem !important;
+  padding-bottom: 1rem !important;
+}
+
+[data-density="compact"] section.rounded-\[var\(--radius-xl\)\] {
+  padding: 1rem !important;
+}
+
+[data-density="compact"] .space-y-6 > :not([hidden]) ~ :not([hidden]),
+[data-density="compact"] .space-y-8 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 1rem !important;
 }
 
 #root {

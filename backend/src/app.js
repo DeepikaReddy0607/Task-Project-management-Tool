@@ -20,6 +20,7 @@ import searchRoutes from "./routes/searchRoutes.js";
 import attachmentRoutes from "./routes/attachmentRoutes.js";
 import activityRoutes from "./routes/activityRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
+import preferenceRoutes from "./routes/preferenceRoutes.js";
 
 const app = express();
 
@@ -54,5 +55,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api", activityRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/preferences", preferenceRoutes);
+app.use("/api/users/preferences", preferenceRoutes);
 
 export default app;

@@ -65,19 +65,35 @@ const checkApproachingDueDates = async () => {
             relatedEntityId: task.id
         });
 
-        if (task.users_tasks_assigned_toTousers?.email) {
-            await sendEmail({
-                to: task.users_tasks_assigned_toTousers.email,
-                subject: `Task Due Soon: ${task.title}`,
-                text: `Your task "${task.title}" is due within 24 hours.`,
-                html: `
-                    <h2>Task Due Soon</h2>
-                    <p>Your task:</p>
-                    <p><strong>${task.title}</strong></p>
-                    <p>is due within the next 24 hours.</p>
-                    <p>Please log in to TaskFlow to check the task.</p>
-                `
+        let sendEmailAllowed = true;
+        try {
+            const pref = await prisma.user_preferences.findUnique({
+                where: { user_id: task.assigned_to }
             });
+            if (pref && (!pref.email_notifications || !pref.deadline_reminders)) {
+                sendEmailAllowed = false;
+            }
+        } catch {
+            sendEmailAllowed = true;
+        }
+
+        if (sendEmailAllowed && task.users_tasks_assigned_toTousers?.email) {
+            try {
+                await sendEmail({
+                    to: task.users_tasks_assigned_toTousers.email,
+                    subject: `Task Due Soon: ${task.title}`,
+                    text: `Your task "${task.title}" is due within 24 hours.`,
+                    html: `
+                        <h2>Task Due Soon</h2>
+                        <p>Your task:</p>
+                        <p><strong>${task.title}</strong></p>
+                        <p>is due within the next 24 hours.</p>
+                        <p>Please log in to TaskFlow to check the task.</p>
+                    `
+                });
+            } catch (mailErr) {
+                console.warn("[MAIL] Due date alert email sending skipped or failed:", mailErr.message);
+            }
         }
     }
 

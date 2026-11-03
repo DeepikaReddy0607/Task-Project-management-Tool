@@ -153,6 +153,7 @@ model projects {
   risks           risks[]
   tasks           tasks[]
   project_health_snapshots project_health_snapshots[]
+  user_preferences_last user_preferences[] @relation("last_project")
 }
 
 model risks {
@@ -278,6 +279,7 @@ model users {
   roles                          roles               @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_users_role")
   workspace_members              workspace_members[]
   workspaces                     workspaces[]
+  user_preferences              user_preferences?
 
   @@index([role_id], map: "idx_users_role_id")
 }
@@ -306,6 +308,8 @@ model workspaces {
   labels            labels[]
   projects          projects[]
   workspace_members workspace_members[]
+  user_preferences_default user_preferences[] @relation("default_workspace")
+  user_preferences_last user_preferences[] @relation("last_workspace")
   users             users               @relation(fields: [owner_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_workspaces_owner")
 }
 
@@ -334,5 +338,62 @@ model project_health_snapshots {
 
   @@index([project_id, captured_at], map: "idx_health_snapshots_project_captured")
   @@index([captured_at], map: "idx_health_snapshots_captured_at")
+}
+
+model user_preferences {
+  id                            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                       String      @unique @db.Uuid
+  theme                         String      @default("system") @db.VarChar(20)
+  interface_density             String      @default("comfortable") @db.VarChar(20)
+  sidebar_collapsed             Boolean     @default(false)
+  dashboard_layout              String      @default("default") @db.VarChar(30)
+  in_app_notifications          Boolean     @default(true)
+  email_notifications           Boolean     @default(true)
+  task_assignments              Boolean     @default(true)
+  deadline_reminders            Boolean     @default(true)
+  task_status_updates           Boolean     @default(true)
+  mentions_and_comments         Boolean     @default(true)
+  project_updates               Boolean     @default(true)
+  workspace_activity            Boolean     @default(true)
+  risk_alerts                   Boolean     @default(true)
+  ai_recommendations_notif      Boolean     @default(true)
+  quiet_hours_enabled           Boolean     @default(false)
+  quiet_hours_start             String      @default("22:00") @db.VarChar(10)
+  quiet_hours_end               String      @default("08:00") @db.VarChar(10)
+  dnd_enabled                   Boolean     @default(false)
+  notification_frequency        String      @default("immediate") @db.VarChar(20)
+  default_task_view             String      @default("kanban") @db.VarChar(20)
+  default_task_priority         String      @default("Medium") @db.VarChar(20)
+  default_task_sort             String      @default("due_date") @db.VarChar(20)
+  show_completed_tasks          Boolean     @default(true)
+  default_task_filter           String      @default("all") @db.VarChar(30)
+  week_starts_on                String      @default("Monday") @db.VarChar(10)
+  default_workspace_id          String?     @db.Uuid
+  default_landing_page          String      @default("dashboard") @db.VarChar(30)
+  remember_last_workspace       Boolean     @default(true)
+  remember_last_project         Boolean     @default(true)
+  last_workspace_id             String?     @db.Uuid
+  last_project_id               String?     @db.Uuid
+  timezone                      String      @default("UTC") @db.VarChar(50)
+  date_format                   String      @default("YYYY-MM-DD") @db.VarChar(20)
+  time_format                   String      @default("12h") @db.VarChar(10)
+  ai_recommendations            Boolean     @default(true)
+  proactive_insights            Boolean     @default(true)
+  ai_task_suggestions           Boolean     @default(true)
+  ai_generated_summaries        Boolean     @default(true)
+  quackie_suggestions           Boolean     @default(true)
+  ai_insight_frequency          String      @default("medium") @db.VarChar(20)
+  profile_visibility            String      @default("team") @db.VarChar(20)
+  activity_visibility           String      @default("team") @db.VarChar(20)
+  personalized_dashboard        Boolean     @default(true)
+  personalized_recommendations  Boolean     @default(true)
+  created_at                    DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at                    DateTime    @default(now()) @db.Timestamptz(6)
+  users                         users       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user_preferences_user")
+  default_workspaces            workspaces? @relation("default_workspace", fields: [default_workspace_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_user_preferences_default_workspace")
+  last_workspaces               workspaces? @relation("last_workspace", fields: [last_workspace_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_user_preferences_last_workspace")
+  last_projects                 projects?   @relation("last_project", fields: [last_project_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_user_preferences_last_project")
+
+  @@index([user_id], map: "idx_user_preferences_user_id")
 }
 

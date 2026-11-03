@@ -75,8 +75,7 @@ function Avatar({
 
 function Profile() {
     const location = useLocation();
-    const isSettings = location.pathname === "/settings";
-    const pageTitle = isSettings ? "Settings" : "Profile";
+    const pageTitle = "Profile";
     const [profile, setProfile] = useState(emptyProfile);
     const [draft, setDraft] = useState(emptyProfile);
 
