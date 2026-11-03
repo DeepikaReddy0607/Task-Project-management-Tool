@@ -6191,10 +6191,54 @@ export const processMessage = async ({ message, content, context, conversationHi
     }
 
     // 18. Optional LLM fallback if configured in environment
+    let hydratedContext = { projectId: effectiveProjectId, taskId: effectiveTaskId };
+    try {
+        if (effectiveProjectId) {
+            const proj = await prisma.projects.findUnique({
+                where: { id: effectiveProjectId },
+                select: {
+                    title: true,
+                    status: true,
+                    priority: true,
+                    tasks: {
+                        where: { is_archived: false },
+                        take: 15,
+                        select: { title: true, status: true, priority: true, due_date: true }
+                    }
+                }
+            });
+            if (proj) {
+                hydratedContext.project = {
+                    title: proj.title,
+                    status: proj.status,
+                    priority: proj.priority,
+                    tasks: proj.tasks.map((t) => ({
+                        title: t.title,
+                        status: t.status,
+                        priority: t.priority,
+                        dueDate: t.due_date
+                    }))
+                };
+            }
+        }
+        if (userId) {
+            const overdue = await getUserOverdueTasks(userId);
+            if (Array.isArray(overdue) && overdue.length > 0) {
+                hydratedContext.userOverdueTasks = overdue.slice(0, 5).map((t) => ({
+                    title: t.title,
+                    dueDate: t.due_date,
+                    status: t.status
+                }));
+            }
+        }
+    } catch {
+        // Fallback to minimal context on DB read failure
+    }
+
     const llmReply = await callLlmProvider({
         systemPrompt: "You are Quackie, the friendly, concise, context-aware project copilot for TaskFlow. Ground your responses solely in the real TaskFlow data provided. If data is insufficient, state honestly: 'I don't have enough TaskFlow data to answer that yet.'",
         prompt: rawText,
-        context: { projectId: effectiveProjectId, taskId: effectiveTaskId },
+        context: hydratedContext,
         conversationHistory
     });
 

@@ -306,7 +306,7 @@ export default function SearchPage() {
               return (
                 <div
                   key={`${item.entityType}-${item.id}`}
-                  className="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-[var(--color-border)] bg-white p-4 shadow-xs transition hover:border-[var(--color-brand)] hover:shadow-md"
+                  className="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-xs transition hover:border-[var(--color-brand)] hover:shadow-md"
                 >
                   <div className="flex items-start gap-3.5 min-w-0 flex-1">
                     <div
@@ -397,7 +397,7 @@ export default function SearchPage() {
             })}
           </div>
         ) : (
-          <div className="rounded-2xl border border-[var(--color-border)] bg-white p-12 text-center shadow-xs">
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-12 text-center shadow-xs">
             <FiInbox size={36} className="mx-auto text-[var(--color-text-subtle)] mb-3" />
             <h3 className="text-base font-semibold text-[var(--color-text)]">
               No matching items found

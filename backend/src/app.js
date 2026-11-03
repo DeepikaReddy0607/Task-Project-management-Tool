@@ -21,12 +21,20 @@ import attachmentRoutes from "./routes/attachmentRoutes.js";
 import activityRoutes from "./routes/activityRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import preferenceRoutes from "./routes/preferenceRoutes.js";
+import authMiddleware from "./middleware/authMiddleware.js";
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use("/uploads", express.static("uploads"));
+// Direct static access to /uploads is disabled to enforce strict tenant isolation.
+// All attachment downloads must use the authorized endpoint: GET /api/attachments/:id/download
+app.use("/uploads", (req, res) => {
+    res.status(403).json({
+        success: false,
+        message: "Direct file access is disabled. Use the authorized download endpoint: /api/attachments/:id/download"
+    });
+});
 
 app.get("/api/health", (req, res) => {
     res.json({
@@ -57,5 +65,25 @@ app.use("/api", activityRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/preferences", preferenceRoutes);
 app.use("/api/users/preferences", preferenceRoutes);
+
+// Centralized 404 handler for unmatched API routes
+app.use("/api", (req, res) => {
+    res.status(404).json({
+        success: false,
+        message: `Endpoint ${req.method} ${req.originalUrl} not found`
+    });
+});
+
+// Centralized error handling middleware
+app.use((err, req, res, next) => {
+    const statusCode = err.status || err.statusCode || 500;
+    if (statusCode >= 500) {
+        console.error("Unhandled Application Error:", err);
+    }
+    res.status(statusCode).json({
+        success: false,
+        message: err.message || "Internal server error"
+    });
+});
 
 export default app;

@@ -79,69 +79,70 @@ function Kanban() {
         setProjects(allProjects);
 
         /*
-         * Load tasks for every accessible project.
+         * Load tasks with bounded concurrency to eliminate N+1 connection spikes.
          */
-        const taskResults = await Promise.all(
-          allProjects.map(async (project) => {
-            try {
-              const taskResponse = await getProjectTasks(project.id);
+        const targetProjects = projectId === "all"
+          ? allProjects
+          : allProjects.filter((p) => p.id === projectId);
 
-              const projectTasks =
-                taskResponse?.tasks ||
-                taskResponse?.data ||
-                [];
+        const loadedTasks = [];
+        const BATCH_SIZE = 4;
 
-              return projectTasks.map((task) => ({
-                ...task,
+        for (let i = 0; i < targetProjects.length; i += BATCH_SIZE) {
+          const batch = targetProjects.slice(i, i + BATCH_SIZE);
+          const batchResults = await Promise.all(
+            batch.map(async (project) => {
+              try {
+                const taskResponse = await getProjectTasks(project.id);
+                const projectTasks =
+                  taskResponse?.tasks ||
+                  taskResponse?.data ||
+                  [];
 
-                projectId: project.id,
-                projectName:
-                  project.title ||
-                  project.name ||
-                  "Untitled project",
+                return projectTasks.map((task) => ({
+                  ...task,
+                  projectId: project.id,
+                  projectName:
+                    project.title ||
+                    project.name ||
+                    "Untitled project",
+                  assignee:
+                    task.assignee?.first_name ||
+                    task.assignee?.firstName ||
+                    task.assignee?.name ||
+                    task.assignee?.full_name ||
+                    "Unassigned",
+                  dueDate: task.due_date
+                    ? new Date(task.due_date).toLocaleDateString(
+                        "en-US",
+                        {
+                          month: "short",
+                          day: "numeric",
+                        }
+                      )
+                    : "No due date",
+                  subtasksCompleted:
+                    task.subtasksCompleted ??
+                    task.completedSubtasks ??
+                    0,
+                  subtasksTotal:
+                    task.subtasksTotal ??
+                    task.totalSubtasks ??
+                    0,
+                }));
+              } catch (taskError) {
+                console.error(
+                  `Failed to load tasks for project ${project.id}:`,
+                  taskError
+                );
+                return [];
+              }
+            })
+          );
+          loadedTasks.push(...batchResults.flat());
+        }
 
-                /*
-                 * Normalize values used by the existing Kanban UI.
-                 */
-                assignee:
-                  task.assignee?.first_name ||
-                  task.assignee?.firstName ||
-                  task.assignee?.name ||
-                  task.assignee?.full_name ||
-                  "Unassigned",
-
-                dueDate: task.due_date
-                  ? new Date(task.due_date).toLocaleDateString(
-                      "en-US",
-                      {
-                        month: "short",
-                        day: "numeric",
-                      }
-                    )
-                  : "No due date",
-
-                subtasksCompleted:
-                  task.subtasksCompleted ??
-                  task.completedSubtasks ??
-                  0,
-
-                subtasksTotal:
-                  task.subtasksTotal ??
-                  task.totalSubtasks ??
-                  0,
-              }));
-            } catch (taskError) {
-              console.error(
-                `Failed to load tasks for project ${project.id}:`,
-                taskError
-              );
-
-              return [];
-            }
-          })
-        );
-
-        setTasks(taskResults.flat());
+        setTasks(loadedTasks);
       } catch (loadError) {
         console.error("Failed to load Kanban:", loadError);
 
@@ -155,7 +156,7 @@ function Kanban() {
         }
       }
     },
-    []
+    [projectId]
   );
 
   useEffect(() => {

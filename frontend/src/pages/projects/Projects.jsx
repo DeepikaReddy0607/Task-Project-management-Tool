@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useSocketEvent } from "../../context/SocketContext";
-import { FiActivity, FiAlertTriangle, FiArchive, FiArrowDown, FiArrowUp, FiCheck, FiChevronRight, FiEdit2, FiFolder, FiPlus, FiShield, FiUserMinus, FiUserPlus, FiX, FiZap, FiPaperclip, FiCpu } from "react-icons/fi";
+import { FiActivity, FiAlertTriangle, FiArchive, FiArrowDown, FiArrowUp, FiCheck, FiChevronRight, FiEdit2, FiFolder, FiLayers, FiPlus, FiShield, FiUserMinus, FiUserPlus, FiX, FiZap, FiPaperclip, FiCpu } from "react-icons/fi";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
@@ -327,17 +327,47 @@ useEffect(() => {
     if (workspaceId) void loadProjects();
     if (selectedProjectId) void loadDetails();
   });
-if (!workspaceId || !workspace) {
-  return (
-    <MainLayout>
-      <div className="flex min-h-[400px] items-center justify-center">
-        <p className="text-sm text-[var(--color-text-muted)]">
-          Loading workspace...
-        </p>
-      </div>
-    </MainLayout>
-  );
-}
+  if (!workspaceId || !workspace) {
+    if (workspaces.length === 0) {
+      return (
+        <MainLayout>
+          <div className="space-y-6 sm:space-y-8">
+            <PageHeader
+              title="Projects"
+              description="Plan focused work, keep collaborators aligned, and surface risks before they slow the team down."
+            />
+            <Card className="py-16 text-center">
+              <FiLayers className="mx-auto text-[var(--color-brand)]" size={36} />
+              <h2 className="mt-4 font-[var(--font-display)] text-xl font-semibold text-[var(--color-text)]">
+                No Workspaces Available
+              </h2>
+              <p className="mx-auto mt-2 max-w-md text-sm text-[var(--color-text-muted)]">
+                You need to create or join a workspace before you can manage projects.
+              </p>
+              <div className="mt-6 flex justify-center">
+                <Button onClick={() => navigate("/workspaces")}>
+                  <FiPlus size={16} /> Go to Workspaces
+                </Button>
+              </div>
+            </Card>
+          </div>
+        </MainLayout>
+      );
+    }
+
+    return (
+      <MainLayout>
+        <div className="flex min-h-[400px] items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-7 w-7 animate-spin rounded-full border-2 border-[var(--color-brand)] border-t-transparent" />
+            <p className="text-sm text-[var(--color-text-muted)]">
+              Loading workspace...
+            </p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
   return <MainLayout><div className="space-y-6 sm:space-y-8"><PageHeader title="Projects" description="Plan focused work, keep collaborators aligned, and surface risks before they slow the team down." actions={canManage && <Button onClick={() => openProjectForm("create")}><FiPlus size={17} /> Create project</Button>} />
     <section className="flex flex-col gap-4 rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[color-mix(in_srgb,var(--color-surface)_78%,transparent)] p-4 shadow-[var(--shadow-xs)] sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--color-text-subtle)]">Workspace</p><h2 className="mt-1 font-[var(--font-display)] text-lg font-semibold text-[var(--color-text)]">{workspace.name || "Loading workspace"}</h2></div><div className="flex flex-wrap items-center gap-3"><label className="sr-only" htmlFor="project-workspace">Select workspace</label><select id="project-workspace" value={workspaceId} onChange={(event) => { setWorkspaceId(event.target.value); setSelectedProjectId(null); }} className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-medium text-[var(--color-text)] outline-none focus:border-[var(--color-brand)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--color-focus)_15%,transparent)]">{workspaces.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-[var(--color-text-muted)]"><input type="checkbox" checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} className="h-4 w-4 accent-[var(--color-brand)]" /> Show archived</label><span className="rounded-full bg-[var(--color-info-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--color-info)]">{workspace.workspaceRole} preview</span></div></section>
     {visibleProjects.length ? <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{visibleProjects.map((project) => { const manager = getUser(project.managerId); return <Card key={project.id} hoverable className="flex min-h-[16rem] cursor-pointer flex-col p-5" onClick={() => setSelectedProjectId(project.id)}><div className="flex items-start justify-between gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-surface-sage)] text-[var(--color-brand)]"><FiFolder size={19} /></span><div className="flex flex-wrap justify-end gap-1.5"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${priorityClasses[project.priority]}`}>{project.priority}</span>{project.isArchived && <span className="rounded-full bg-[var(--color-surface-muted)] px-2 py-1 text-xs font-semibold text-[var(--color-text-muted)]">Archived</span>}</div></div><h2 className="mt-5 font-[var(--font-display)] text-xl font-semibold tracking-[-0.02em] text-[var(--color-text)]">{project.title}</h2><p className="mt-2 line-clamp-2 text-sm leading-relaxed text-[var(--color-text-muted)]">{project.description || "No project description yet."}</p><div className="mt-auto pt-5"><div className="flex items-center justify-between gap-3 text-xs text-[var(--color-text-subtle)]"><span>{project.category}</span><span>{project.startDate ? `${formatDate(project.startDate)} – ${formatDate(project.endDate)}` : "Dates to be planned"}</span></div><div className="mt-3 flex items-center justify-between"><div className="flex items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClasses[project.status]}`}>{project.status}</span><button type="button" onClick={(e) => { e.stopPropagation(); setSelectedProjectId(project.id); setProjectModalTab("intelligence"); }} className="inline-flex items-center gap-1 rounded-full bg-[var(--color-brand-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--color-brand-hover)] transition hover:bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)]" title="Open Project Intelligence (Critical Path & Bottlenecks)"><FiZap size={12} /><span>Intelligence</span></button><button type="button" onClick={(e) => { e.stopPropagation(); setSelectedProjectId(project.id); setProjectModalTab("xray"); }} className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-sage)] px-2 py-0.5 text-xs font-semibold text-[var(--color-brand-hover)] transition hover:bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)]" title="Open Project X-Ray Diagnostic"><FiActivity size={12} /><span>X-Ray</span></button></div><span className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">{manager?.name}<FiChevronRight size={15} /></span></div></div></Card>; })}</section> : <Card className="py-14 text-center"><FiFolder className="mx-auto text-[var(--color-brand)]" size={32} /><h2 className="mt-4 font-[var(--font-display)] text-xl font-semibold text-[var(--color-text)]">No active projects yet</h2><p className="mx-auto mt-2 max-w-md text-sm text-[var(--color-text-muted)]">Create a project to bring plans, people, and risks into one clear place.</p>{canManage && <Button className="mt-6" onClick={() => openProjectForm("create")}><FiPlus size={16} /> Create project</Button>}</Card>}

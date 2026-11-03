@@ -47,38 +47,41 @@ const chartColors = ["#789565", "#7599bd", "#edb197", "#eec96d", "#a78bba", "#89
 
 const asNumber = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
 
-const chartOptions = (label) => ({
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: {
-      position: "bottom",
-      labels: {
-        boxWidth: 10,
-        usePointStyle: true,
-        pointStyle: "circle",
-        color: "#687565",
-        font: { size: 12 },
+const chartOptions = (label) => {
+  const isDark = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: "bottom",
+        labels: {
+          boxWidth: 10,
+          usePointStyle: true,
+          pointStyle: "circle",
+          color: isDark ? "#9eaba2" : "#687565",
+          font: { size: 12 },
+        },
+      },
+      tooltip: {
+        callbacks: {
+          label: (context) => `${context.label}: ${context.raw} ${label}`,
+        },
       },
     },
-    tooltip: {
-      callbacks: {
-        label: (context) => `${context.label}: ${context.raw} ${label}`,
+    scales: {
+      x: {
+        ticks: { color: isDark ? "#9eaba2" : "#687565" },
+        grid: { display: false },
+      },
+      y: {
+        beginAtZero: true,
+        ticks: { color: isDark ? "#9eaba2" : "#687565", precision: 0 },
+        grid: { color: isDark ? "#2a382e" : "#e7dece" },
       },
     },
-  },
-  scales: {
-    x: {
-      ticks: { color: "#687565" },
-      grid: { display: false },
-    },
-    y: {
-      beginAtZero: true,
-      ticks: { color: "#687565", precision: 0 },
-      grid: { color: "#e7dece" },
-    },
-  },
-});
+  };
+};
 
 function ChartEmptyState({ description, title }) {
   return (

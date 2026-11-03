@@ -20,4 +20,25 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+let isRedirecting = false;
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("taskflow_token");
+      localStorage.removeItem("taskflow_user");
+
+      const publicPaths = ["/login", "/register", "/forgot-password", "/reset-password"];
+      const currentPath = window.location.pathname;
+
+      if (!publicPaths.some((p) => currentPath.startsWith(p)) && !isRedirecting) {
+        isRedirecting = true;
+        window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;

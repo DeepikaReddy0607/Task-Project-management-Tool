@@ -780,7 +780,7 @@ function Workspaces() {
                         : "text-[var(--color-text-muted)] hover:bg-[var(--color-canvas-soft)]"
                     }`}
                   >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[var(--color-brand)] shadow-[var(--shadow-xs)]">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-surface)] text-[var(--color-brand)] shadow-[var(--shadow-xs)]">
                       <FiLayers size={17} />
                     </span>
 
@@ -1365,7 +1365,7 @@ function Workspaces() {
                   <select
                     value={newMemberRole}
                     onChange={(e) => setNewMemberRole(e.target.value)}
-                    className="rounded-lg border border-[var(--color-border)] bg-white px-2.5 py-1 text-xs font-semibold text-[var(--color-text)] outline-none focus:border-[var(--color-brand)]"
+                    className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-xs font-semibold text-[var(--color-text)] outline-none focus:border-[var(--color-brand)]"
                   >
                     <option value="Member">Member</option>
                     <option value="Admin">Admin</option>

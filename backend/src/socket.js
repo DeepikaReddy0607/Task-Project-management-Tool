@@ -73,17 +73,58 @@ export const initSocket = (httpServer) => {
             });
         }
 
-        // Dynamic room join/leave
-        socket.on("join:project", (projectId) => {
-            if (projectId) socket.join(`project:${projectId}`);
+        // Dynamic room join/leave with membership authorization
+        socket.on("join:project", async (projectId) => {
+            if (!projectId) return;
+            if (Array.isArray(socket.projectIds) && socket.projectIds.includes(projectId)) {
+                socket.join(`project:${projectId}`);
+                return;
+            }
+            try {
+                const membership = await prisma.project_members.findFirst({
+                    where: { project_id: projectId, user_id: socket.user.userId }
+                });
+                if (membership) {
+                    socket.projectIds = socket.projectIds || [];
+                    socket.projectIds.push(projectId);
+                    socket.join(`project:${projectId}`);
+                    return;
+                }
+                const project = await prisma.projects.findFirst({
+                    where: { id: projectId, workspace_id: { in: socket.workspaceIds || [] } }
+                });
+                if (project) {
+                    socket.projectIds = socket.projectIds || [];
+                    socket.projectIds.push(projectId);
+                    socket.join(`project:${projectId}`);
+                }
+            } catch (err) {
+                // Ignore authorization error and deny join
+            }
         });
 
         socket.on("leave:project", (projectId) => {
             if (projectId) socket.leave(`project:${projectId}`);
         });
 
-        socket.on("join:workspace", (workspaceId) => {
-            if (workspaceId) socket.join(`workspace:${workspaceId}`);
+        socket.on("join:workspace", async (workspaceId) => {
+            if (!workspaceId) return;
+            if (Array.isArray(socket.workspaceIds) && socket.workspaceIds.includes(workspaceId)) {
+                socket.join(`workspace:${workspaceId}`);
+                return;
+            }
+            try {
+                const membership = await prisma.workspace_members.findFirst({
+                    where: { workspace_id: workspaceId, user_id: socket.user.userId }
+                });
+                if (membership) {
+                    socket.workspaceIds = socket.workspaceIds || [];
+                    socket.workspaceIds.push(workspaceId);
+                    socket.join(`workspace:${workspaceId}`);
+                }
+            } catch (err) {
+                // Ignore authorization error and deny join
+            }
         });
 
         socket.on("leave:workspace", (workspaceId) => {
@@ -124,19 +165,15 @@ export const emitRealtimeEvent = ({
     if (!io) return;
 
     // Dynamically manage room membership if a user is added or removed from a workspace/project
-    if (userId && io.sockets?.sockets) {
-        for (const [_, socket] of io.sockets.sockets) {
-            if (socket.user?.userId === userId) {
-                if (type === "workspace.member_added" && workspaceId) {
-                    socket.join(`workspace:${workspaceId}`);
-                } else if (type === "workspace.member_removed" && workspaceId) {
-                    socket.leave(`workspace:${workspaceId}`);
-                } else if (type === "project.member_added" && projectId) {
-                    socket.join(`project:${projectId}`);
-                } else if (type === "project.member_removed" && projectId) {
-                    socket.leave(`project:${projectId}`);
-                }
-            }
+    if (userId) {
+        if (type === "workspace.member_added" && workspaceId) {
+            io.in(`user:${userId}`).socketsJoin(`workspace:${workspaceId}`);
+        } else if (type === "workspace.member_removed" && workspaceId) {
+            io.in(`user:${userId}`).socketsLeave(`workspace:${workspaceId}`);
+        } else if (type === "project.member_added" && projectId) {
+            io.in(`user:${userId}`).socketsJoin(`project:${projectId}`);
+        } else if (type === "project.member_removed" && projectId) {
+            io.in(`user:${userId}`).socketsLeave(`project:${projectId}`);
         }
     }
 

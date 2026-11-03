@@ -204,7 +204,7 @@ function Settings() {
                         onClick={() => updatePreference("theme", "light")}
                         className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                           preferences.theme === "light"
-                            ? "bg-white text-[var(--color-brand-hover)] shadow-xs"
+                            ? "bg-[var(--color-surface)] text-[var(--color-brand-hover)] shadow-xs"
                             : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                         }`}
                       >
@@ -216,7 +216,7 @@ function Settings() {
                         onClick={() => updatePreference("theme", "dark")}
                         className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                           preferences.theme === "dark"
-                            ? "bg-white text-[var(--color-brand-hover)] shadow-xs"
+                            ? "bg-[var(--color-surface)] text-[var(--color-brand-hover)] shadow-xs"
                             : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                         }`}
                       >
@@ -228,7 +228,7 @@ function Settings() {
                         onClick={() => updatePreference("theme", "system")}
                         className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                           preferences.theme === "system"
-                            ? "bg-white text-[var(--color-brand-hover)] shadow-xs"
+                            ? "bg-[var(--color-surface)] text-[var(--color-brand-hover)] shadow-xs"
                             : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                         }`}
                       >
@@ -248,7 +248,7 @@ function Settings() {
                         onClick={() => updatePreference("interfaceDensity", "comfortable")}
                         className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                           preferences.interfaceDensity === "comfortable"
-                            ? "bg-white text-[var(--color-brand-hover)] shadow-xs"
+                            ? "bg-[var(--color-surface)] text-[var(--color-brand-hover)] shadow-xs"
                             : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                         }`}
                       >
@@ -259,7 +259,7 @@ function Settings() {
                         onClick={() => updatePreference("interfaceDensity", "compact")}
                         className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                           preferences.interfaceDensity === "compact"
-                            ? "bg-white text-[var(--color-brand-hover)] shadow-xs"
+                            ? "bg-[var(--color-surface)] text-[var(--color-brand-hover)] shadow-xs"
                             : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                         }`}
                       >
@@ -700,7 +700,7 @@ function Settings() {
                       onClick={() => updatePreference("timeFormat", "12h")}
                       className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                         preferences.timeFormat === "12h"
-                          ? "bg-white text-[var(--color-brand-hover)] shadow-xs"
+                          ? "bg-[var(--color-surface)] text-[var(--color-brand-hover)] shadow-xs"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                       }`}
                     >
@@ -711,7 +711,7 @@ function Settings() {
                       onClick={() => updatePreference("timeFormat", "24h")}
                       className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                         preferences.timeFormat === "24h"
-                          ? "bg-white text-[var(--color-brand-hover)] shadow-xs"
+                          ? "bg-[var(--color-surface)] text-[var(--color-brand-hover)] shadow-xs"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                       }`}
                     >
