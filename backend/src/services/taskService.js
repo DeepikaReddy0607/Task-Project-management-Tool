@@ -514,6 +514,24 @@ const assignTask = async (
         }
     });
 
+    if (assignedTo && assignedTo !== task.assigned_to) {
+        try {
+            await createNotification({
+                userId: assignedTo,
+                type: "TASK_ASSIGNED",
+                message: `You have been assigned the task "${updatedTask.title}".`,
+                relatedEntityType: "TASK",
+                relatedEntityId: updatedTask.id
+            });
+        } catch (notifErr) {
+            console.error("[NOTIFICATION_DISPATCH_WARNING] Task assign notification failed:", {
+                taskId: updatedTask.id,
+                userId: assignedTo,
+                error: notifErr.message
+            });
+        }
+    }
+
     return updatedTask;
 };
 

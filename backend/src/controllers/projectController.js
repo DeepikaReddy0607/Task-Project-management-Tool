@@ -338,8 +338,11 @@ const addMember = async (req, res, next) => {
 
         const {
             userId,
-            role
+            role,
+            roleName
         } = req.body;
+
+        const roleInput = role !== undefined ? role : roleName;
 
         if (!projectId) {
             return res.status(400).json({
@@ -353,7 +356,7 @@ const addMember = async (req, res, next) => {
             });
         }
 
-        if (!role || !role.trim()) {
+        if (!roleInput || typeof roleInput !== "string" || !roleInput.trim()) {
             return res.status(400).json({
                 message: "Project role is required"
             });
@@ -363,7 +366,7 @@ const addMember = async (req, res, next) => {
             projectId,
             req.user.userId,
             userId,
-            role.trim()
+            roleInput.trim()
         );
 
         emitRealtimeEvent({
@@ -473,8 +476,11 @@ const updateMemberRole = async (req, res, next) => {
         } = req.params;
 
         const {
-            role
+            role,
+            roleName
         } = req.body;
+
+        const roleInput = role !== undefined ? role : roleName;
 
         if (!projectId) {
             return res.status(400).json({
@@ -488,7 +494,7 @@ const updateMemberRole = async (req, res, next) => {
             });
         }
 
-        if (!role || !role.trim()) {
+        if (!roleInput || typeof roleInput !== "string" || !roleInput.trim()) {
             return res.status(400).json({
                 message: "Project role is required"
             });
@@ -499,14 +505,14 @@ const updateMemberRole = async (req, res, next) => {
                 projectId,
                 req.user.userId,
                 userId,
-                role.trim()
+                roleInput.trim()
             );
 
         emitRealtimeEvent({
             type: "project.member_role_changed",
             projectId,
             userId,
-            changes: { role: role.trim() },
+            changes: { role: roleInput.trim() },
             data: updatedMember
         });
 

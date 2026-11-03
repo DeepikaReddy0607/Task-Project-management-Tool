@@ -65,13 +65,21 @@ const createComment = async (
 
     // Notify the assigned user about the new comment
     if (task.assigned_to && task.assigned_to !== userId) {
-        await createNotification({
-            userId: task.assigned_to,
-            type: "NEW_COMMENT",
-            message: `New comment on your task "${task.title}".`,
-            relatedEntityType: "TASK",
-            relatedEntityId: task.id
-        });
+        try {
+            await createNotification({
+                userId: task.assigned_to,
+                type: "NEW_COMMENT",
+                message: `New comment on your task "${task.title}".`,
+                relatedEntityType: "TASK",
+                relatedEntityId: task.id
+            });
+        } catch (notifErr) {
+            console.error("[NOTIFICATION_DISPATCH_WARNING] Comment notification failed:", {
+                taskId: task.id,
+                assignedTo: task.assigned_to,
+                error: notifErr.message
+            });
+        }
 
         const assignedUser = await prisma.users.findUnique({
             where: {
@@ -83,17 +91,21 @@ const createComment = async (
         });
 
         if (assignedUser?.email) {
-            await sendEmail({
-                to: assignedUser.email,
-                subject: `New Comment on Task: ${task.title}`,
-                text: `A new comment was added to your task "${task.title}".`,
-                html: `
-                    <h2>New Comment</h2>
-                    <p>A new comment was added to your task:</p>
-                    <p><strong>${task.title}</strong></p>
-                    <p>Please log in to TaskFlow to view the comment.</p>
-                `
-            });
+            try {
+                await sendEmail({
+                    to: assignedUser.email,
+                    subject: `New Comment on Task: ${task.title}`,
+                    text: `A new comment was added to your task "${task.title}".`,
+                    html: `
+                        <h2>New Comment</h2>
+                        <p>A new comment was added to your task:</p>
+                        <p><strong>${task.title}</strong></p>
+                        <p>Please log in to TaskFlow to view the comment.</p>
+                    `
+                });
+            } catch (mailErr) {
+                console.warn("[MAIL] Comment notification email skipped or failed:", mailErr.message);
+            }
         }
     }
 

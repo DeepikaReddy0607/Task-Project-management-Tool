@@ -1,8 +1,8 @@
 import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT),
+    host: process.env.SMTP_HOST || "localhost",
+    port: Number(process.env.SMTP_PORT) || 587,
     secure: process.env.SMTP_SECURE === "true",
     auth: {
         user: process.env.SMTP_USER,
@@ -16,6 +16,12 @@ const sendEmail = async ({
     text,
     html
 }) => {
+    // If SMTP credentials or host are not configured, do not attempt blocking network calls
+    if (!process.env.SMTP_HOST && !process.env.SMTP_USER) {
+        console.log(`[EMAIL DEV MOCK] Skipped sending email to ${to} (no SMTP configured): ${subject}`);
+        return { messageId: "dev-mock-id" };
+    }
+
     const mailOptions = {
         from: process.env.SMTP_FROM || process.env.SMTP_USER,
         to,

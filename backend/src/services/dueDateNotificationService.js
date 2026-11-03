@@ -42,7 +42,7 @@ const checkApproachingDueDates = async () => {
             await prisma.notifications.findFirst({
                 where: {
                     user_id: task.assigned_to,
-                    type: "DUE_DATE_APPROACHING",
+                    type: { in: ["due_date", "DUE_DATE_APPROACHING"] },
                     related_entity_type: "TASK",
                     related_entity_id: task.id,
                     created_at: {
@@ -57,13 +57,21 @@ const checkApproachingDueDates = async () => {
             continue;
         }
 
-        await createNotification({
-            userId: task.assigned_to,
-            type: "DUE_DATE_APPROACHING",
-            message: `Task "${task.title}" is due within 24 hours.`,
-            relatedEntityType: "TASK",
-            relatedEntityId: task.id
-        });
+        try {
+            await createNotification({
+                userId: task.assigned_to,
+                type: "DUE_DATE_APPROACHING",
+                message: `Task "${task.title}" is due within 24 hours.`,
+                relatedEntityType: "TASK",
+                relatedEntityId: task.id
+            });
+        } catch (notifErr) {
+            console.error("[NOTIFICATION_DISPATCH_WARNING] Due date notification failed:", {
+                taskId: task.id,
+                userId: task.assigned_to,
+                error: notifErr.message
+            });
+        }
 
         let sendEmailAllowed = true;
         try {

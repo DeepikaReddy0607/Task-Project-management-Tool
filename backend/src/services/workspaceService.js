@@ -467,6 +467,7 @@ const updateWorkspaceMemberRole = async (
         email: updatedMembership.users.email,
         globalRole: updatedMembership.users.roles.role_name,
         workspaceRole: updatedMembership.workspace_role,
+        role: updatedMembership.workspace_role,
         joinedAt: updatedMembership.joined_at
     };
 };

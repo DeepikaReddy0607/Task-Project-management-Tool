@@ -325,9 +325,7 @@ const updateMemberRole = async (req, res, next) => {
             userId
         } = req.params;
 
-        const {
-            workspaceRole
-        } = req.body;
+        const roleInput = req.body.workspaceRole !== undefined ? req.body.workspaceRole : req.body.role;
 
         // Validate workspace ID
         if (!id) {
@@ -343,18 +341,26 @@ const updateMemberRole = async (req, res, next) => {
             });
         }
 
-        // Validate workspace role
-        if (!workspaceRole) {
+        // Validate workspace role is provided
+        if (!roleInput || typeof roleInput !== "string" || !roleInput.trim()) {
             return res.status(400).json({
                 message: "Workspace role is required"
             });
+        }
+
+        const trimmedRole = roleInput.trim();
+        let normalizedRole = trimmedRole;
+        if (trimmedRole.toLowerCase() === "admin") {
+            normalizedRole = "Admin";
+        } else if (trimmedRole.toLowerCase() === "member") {
+            normalizedRole = "Member";
         }
 
         const updatedMember = await updateWorkspaceMemberRole(
             id,
             req.user.userId,
             userId,
-            workspaceRole
+            normalizedRole
         );
 
         await createActivity({
@@ -363,14 +369,14 @@ const updateMemberRole = async (req, res, next) => {
             actionType: "MEMBER_ROLE_CHANGED",
             entityType: "USER",
             entityId: userId,
-            description: `Changed user ${userId} role to ${workspaceRole}`
+            description: `Changed user ${userId} role to ${normalizedRole}`
         });
 
         emitRealtimeEvent({
             type: "workspace.member_role_changed",
             workspaceId: id,
             userId,
-            changes: { workspaceRole },
+            changes: { workspaceRole: normalizedRole, role: normalizedRole },
             data: updatedMember
         });
 

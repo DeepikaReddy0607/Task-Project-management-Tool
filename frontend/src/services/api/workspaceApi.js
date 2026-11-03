@@ -50,7 +50,7 @@ export const updateWorkspaceMemberRole = async (
 ) => {
   const response = await api.patch(
     `/workspaces/${workspaceId}/members/${userId}`,
-    { role }
+    { role, workspaceRole: role }
   );
   return response.data;
 };

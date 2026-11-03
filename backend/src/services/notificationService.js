@@ -1,5 +1,83 @@
 import prisma from "../config/prisma.js";
 
+/**
+ * Valid notification types explicitly permitted by PostgreSQL check constraint `chk_notification_type`
+ */
+export const VALID_NOTIFICATION_TYPES = Object.freeze([
+    "assignment",
+    "due_date",
+    "comment",
+    "update",
+    "TASK_OVERDUE",
+    "TASK_BLOCKED",
+    "HIGH_RISK_PROJECT",
+    "DEADLINE_WARNING",
+    "PRIORITY_SHIFT",
+    "NEW_CRITICAL_TASK"
+]);
+
+/**
+ * Normalization map bridging internal uppercase/event names to valid database constraint types
+ */
+export const NOTIFICATION_TYPE_MAP = Object.freeze({
+    // Direct audit mappings
+    "NEW_COMMENT": "comment",
+    "TASK_ASSIGNED": "assignment",
+    "PROJECT_UPDATED": "update",
+    "DUE_DATE_APPROACHING": "due_date",
+
+    // Common event aliases
+    "COMMENT_ADDED": "comment",
+    "TASK_DUE_SOON": "due_date",
+    "PROJECT_MEMBER_ADDED": "update",
+    "TASK_STATUS_UPDATED": "update",
+    "TASK_STATUS_CHANGED": "update",
+    "ASSIGNMENT": "assignment",
+    "COMMENT": "comment",
+    "DUE_DATE": "due_date",
+    "UPDATE": "update"
+});
+
+/**
+ * Normalizes a raw notification type to a valid database notification type.
+ * Returns null if the type cannot be mapped or validated.
+ */
+export const normalizeNotificationType = (rawType) => {
+    if (!rawType || typeof rawType !== "string") {
+        return null;
+    }
+    const trimmed = rawType.trim();
+
+    // 1. Direct match in allowed database types
+    if (VALID_NOTIFICATION_TYPES.includes(trimmed)) {
+        return trimmed;
+    }
+
+    // 2. Direct map lookup
+    if (NOTIFICATION_TYPE_MAP[trimmed]) {
+        return NOTIFICATION_TYPE_MAP[trimmed];
+    }
+
+    // 3. Case-insensitive lookup against map
+    const upper = trimmed.toUpperCase();
+    if (NOTIFICATION_TYPE_MAP[upper]) {
+        return NOTIFICATION_TYPE_MAP[upper];
+    }
+
+    // 4. Lowercase check against allowed lowercase DB types
+    const lower = trimmed.toLowerCase();
+    if (VALID_NOTIFICATION_TYPES.includes(lower)) {
+        return lower;
+    }
+
+    // 5. Uppercase check against allowed uppercase DB types (e.g. TASK_OVERDUE)
+    if (VALID_NOTIFICATION_TYPES.includes(upper)) {
+        return upper;
+    }
+
+    return null;
+};
+
 const shouldDeliverNotification = async (userId, type) => {
     try {
         const pref = await prisma.user_preferences.findUnique({
@@ -24,27 +102,40 @@ const shouldDeliverNotification = async (userId, type) => {
             }
         }
 
-        switch (type) {
+        const normalized = normalizeNotificationType(type) || type;
+
+        switch (normalized) {
+            case "assignment":
             case "TASK_ASSIGNED":
-                return pref.task_assignments;
+                return Boolean(pref.task_assignments);
             case "TASK_STATUS_UPDATED":
             case "TASK_STATUS_CHANGED":
-                return pref.task_status_updates;
+                return Boolean(pref.task_status_updates);
+            case "comment":
+            case "NEW_COMMENT":
             case "COMMENT_ADDED":
             case "MENTION":
-                return pref.mentions_and_comments;
+                return Boolean(pref.mentions_and_comments);
+            case "due_date":
             case "DUE_DATE_APPROACHING":
             case "TASK_DUE_SOON":
-                return pref.deadline_reminders;
+            case "TASK_OVERDUE":
+            case "DEADLINE_WARNING":
+                return Boolean(pref.deadline_reminders);
+            case "update":
             case "PROJECT_UPDATED":
             case "PROJECT_MEMBER_ADDED":
-                return pref.project_updates;
+            case "PRIORITY_SHIFT":
+                return Boolean(pref.project_updates);
+            case "TASK_BLOCKED":
+            case "HIGH_RISK_PROJECT":
+            case "NEW_CRITICAL_TASK":
             case "RISK_ALERT":
             case "RISK_CREATED":
-                return pref.risk_alerts;
+                return Boolean(pref.risk_alerts);
             case "AI_RECOMMENDATION":
             case "AI_INSIGHT":
-                return pref.ai_recommendations_notif;
+                return Boolean(pref.ai_recommendations_notif);
             default:
                 return true;
         }
@@ -60,22 +151,45 @@ const createNotification = async ({
     relatedEntityType = null,
     relatedEntityId = null
 }) => {
+    const normalizedType = normalizeNotificationType(type);
+    if (!normalizedType) {
+        console.error("[NOTIFICATION_VALIDATION_ERROR] Invalid notification type rejected:", {
+            userId,
+            rawType: type,
+            message,
+            relatedEntityType,
+            relatedEntityId
+        });
+        throw new Error(`Invalid notification type: ${type}`);
+    }
+
     const allowed = await shouldDeliverNotification(userId, type);
     if (!allowed) {
         return null;
     }
 
-    const notification = await prisma.notifications.create({
-        data: {
-            user_id: userId,
-            type,
-            message,
-            related_entity_type: relatedEntityType,
-            related_entity_id: relatedEntityId
-        }
-    });
+    try {
+        const notification = await prisma.notifications.create({
+            data: {
+                user_id: userId,
+                type: normalizedType,
+                message,
+                related_entity_type: relatedEntityType,
+                related_entity_id: relatedEntityId
+            }
+        });
 
-    return notification;
+        return notification;
+    } catch (error) {
+        console.error("[NOTIFICATION_INSERT_ERROR] Failed to persist notification:", {
+            userId,
+            type: normalizedType,
+            message,
+            error: error.message,
+            code: error.code
+        });
+        throw error;
+    }
 };
 
 const getUserNotifications = async (userId) => {

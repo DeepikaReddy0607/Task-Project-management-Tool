@@ -3,6 +3,28 @@ import { canManageProject } from "../utils/projectAuthorization.js";
 import { createNotification } from "./notificationService.js";
 import sendEmail from "./emailService.js";
 
+export const PROJECT_ROLE_MAPPINGS = Object.freeze({
+    "member": "Team Member",
+    "team member": "Team Member",
+    "teammember": "Team Member",
+    "admin": "Admin",
+    "project manager": "Project Manager",
+    "projectmanager": "Project Manager",
+    "pm": "Project Manager"
+});
+
+export const normalizeProjectRoleName = (inputRole) => {
+    if (!inputRole || typeof inputRole !== "string") {
+        return null;
+    }
+    const trimmed = inputRole.trim();
+    const lower = trimmed.toLowerCase();
+    if (PROJECT_ROLE_MAPPINGS[lower]) {
+        return PROJECT_ROLE_MAPPINGS[lower];
+    }
+    return trimmed;
+};
+
 // ============================================================
 // CREATE PROJECT
 // ============================================================
@@ -295,13 +317,21 @@ const updateProject = async (
             continue;
         }
 
-        await createNotification({
-            userId: member.user_id,
-            type: "PROJECT_UPDATED",
-            message: `Project "${updatedProject.title}" has been updated.`,
-            relatedEntityType: "PROJECT",
-            relatedEntityId: updatedProject.id
-        });
+        try {
+            await createNotification({
+                userId: member.user_id,
+                type: "PROJECT_UPDATED",
+                message: `Project "${updatedProject.title}" has been updated.`,
+                relatedEntityType: "PROJECT",
+                relatedEntityId: updatedProject.id
+            });
+        } catch (notifErr) {
+            console.error("[NOTIFICATION_DISPATCH_WARNING] Project update notification failed:", {
+                projectId: updatedProject.id,
+                userId: member.user_id,
+                error: notifErr.message
+            });
+        }
 
         const memberUser = await prisma.users.findUnique({
             where: {
@@ -313,17 +343,21 @@ const updateProject = async (
         });
 
         if (memberUser?.email) {
-            await sendEmail({
-                to: memberUser.email,
-                subject: `Project Updated: ${updatedProject.title}`,
-                text: `The project "${updatedProject.title}" has been updated.`,
-                html: `
-                    <h2>Project Updated</h2>
-                    <p>The following project has been updated:</p>
-                    <p><strong>${updatedProject.title}</strong></p>
-                    <p>Please log in to TaskFlow to view the latest changes.</p>
-                `
-            });
+            try {
+                await sendEmail({
+                    to: memberUser.email,
+                    subject: `Project Updated: ${updatedProject.title}`,
+                    text: `The project "${updatedProject.title}" has been updated.`,
+                    html: `
+                        <h2>Project Updated</h2>
+                        <p>The following project has been updated:</p>
+                        <p><strong>${updatedProject.title}</strong></p>
+                        <p>Please log in to TaskFlow to view the latest changes.</p>
+                    `
+                });
+            } catch (mailErr) {
+                console.warn("[MAIL] Project update notification email skipped or failed:", mailErr.message);
+            }
         }
     }
 
@@ -443,9 +477,13 @@ const addProjectMember = async (
     }
 
     // Find the requested project role
-    const role = await prisma.roles.findUnique({
+    const normalizedRoleName = normalizeProjectRoleName(roleName);
+    const role = await prisma.roles.findFirst({
         where: {
-            role_name: roleName
+            role_name: {
+                equals: normalizedRoleName,
+                mode: "insensitive"
+            }
         }
     });
 
@@ -607,9 +645,13 @@ const updateProjectMemberRole = async (
     }
 
     // Find the requested role
-    const role = await prisma.roles.findUnique({
+    const normalizedRoleName = normalizeProjectRoleName(roleName);
+    const role = await prisma.roles.findFirst({
         where: {
-            role_name: roleName
+            role_name: {
+                equals: normalizedRoleName,
+                mode: "insensitive"
+            }
         }
     });
 
