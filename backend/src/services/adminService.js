@@ -17,6 +17,7 @@
  */
 
 import prisma from "../config/prisma.js";
+import { invalidateUserTokens, revokeUser, unrevokeUser } from "../middleware/authMiddleware.js";
 
 export const VALID_ROLES = ["Admin", "Project Manager", "Team Member"];
 
@@ -525,6 +526,7 @@ export const updateUserRole = async (userId, newRoleName, actorUserId = null) =>
             created_at: new Date().toISOString()
         });
 
+        invalidateUserTokens(userId);
         return sanitizeUser(targetUser);
     }
 
@@ -600,6 +602,7 @@ export const updateUserRole = async (userId, newRoleName, actorUserId = null) =>
         console.warn("Failed to write activity log for role change:", auditErr.message);
     }
 
+    invalidateUserTokens(userId);
     return sanitizeUser(updatedUser);
 };
 
@@ -655,6 +658,12 @@ export const updateUserStatus = async (userId, isActive, actorUserId = null) => 
             created_at: new Date().toISOString()
         });
 
+        if (isActive) {
+            unrevokeUser(userId);
+        } else {
+            revokeUser(userId);
+        }
+        invalidateUserTokens(userId);
         return sanitizeUser(targetUser);
     }
 
@@ -719,6 +728,11 @@ export const updateUserStatus = async (userId, isActive, actorUserId = null) => 
         console.warn("Failed to write activity log for status change:", auditErr.message);
     }
 
+    if (isActive) {
+        unrevokeUser(userId);
+    } else {
+        revokeUser(userId);
+    }
     return sanitizeUser(updatedUser);
 };
 

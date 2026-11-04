@@ -110,6 +110,7 @@ model notifications {
 
   @@unique([user_id, dedupe_key], map: "idx_notifications_dedupe_unique")
   @@index([created_at], map: "idx_notifications_created_at")
+  @@index([user_id, created_at(sort: Desc)], map: "idx_notifications_user_created")
   @@index([user_id, is_read], map: "idx_notifications_unread")
   @@index([user_id], map: "idx_notifications_user_id")
   @@index([project_id], map: "idx_notifications_project_id")
@@ -152,8 +153,11 @@ model projects {
   workspaces      workspaces        @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_projects_workspace")
   risks           risks[]
   tasks           tasks[]
+  channels        channels[]
   project_health_snapshots project_health_snapshots[]
   user_preferences_last user_preferences[] @relation("last_project")
+
+  @@index([workspace_id, is_archived, created_at(sort: Desc)], map: "idx_projects_workspace_active")
 }
 
 model risks {
@@ -247,9 +251,11 @@ model tasks {
   projects                                                      projects            @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tasks_project")
 
   @@index([assigned_to], map: "idx_tasks_assigned_to")
+  @@index([assigned_to, is_archived, due_date(sort: Asc)], map: "idx_tasks_assigned_active_due")
   @@index([created_by], map: "idx_tasks_created_by")
   @@index([due_date], map: "idx_tasks_due_date")
   @@index([project_id], map: "idx_tasks_project_id")
+  @@index([project_id, is_archived, created_at(sort: Desc)], map: "idx_tasks_project_active_created")
   @@index([project_id, status], map: "idx_tasks_project_status")
   @@index([status], map: "idx_tasks_status")
 }
@@ -280,6 +286,14 @@ model users {
   workspace_members              workspace_members[]
   workspaces                     workspaces[]
   user_preferences              user_preferences?
+  conversations_created          conversations[]     @relation("conversations_created")
+  conversation_members           conversation_members[]
+  channels_created               channels[]          @relation("channels_created")
+  channel_members                channel_members[]
+  messages_sent                  messages[]          @relation("messages_sent")
+  message_reactions              message_reactions[]
+  message_read_receipts          message_read_receipts[]
+  message_pins                   message_pins[]
 
   @@index([role_id], map: "idx_users_role_id")
 }
@@ -308,6 +322,8 @@ model workspaces {
   labels            labels[]
   projects          projects[]
   workspace_members workspace_members[]
+  conversations     conversations[]
+  channels          channels[]
   user_preferences_default user_preferences[] @relation("default_workspace")
   user_preferences_last user_preferences[] @relation("last_workspace")
   users             users               @relation(fields: [owner_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_workspaces_owner")
@@ -395,5 +411,159 @@ model user_preferences {
   last_projects                 projects?   @relation("last_project", fields: [last_project_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_user_preferences_last_project")
 
   @@index([user_id], map: "idx_user_preferences_user_id")
+}
+
+model conversations {
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspace_id          String                 @db.Uuid
+  type                  String                 @default("DIRECT") @db.VarChar(20)
+  title                 String?                @db.VarChar(150)
+  dm_signature          String?                @db.VarChar(150)
+  created_by            String                 @db.Uuid
+  created_at            DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime               @default(now()) @db.Timestamptz(6)
+  last_message_at       DateTime?              @db.Timestamptz(6)
+  workspaces            workspaces             @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                 users                  @relation("conversations_created", fields: [created_by], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  conversation_members  conversation_members[]
+  messages              messages[]
+  message_pins          message_pins[]
+
+  @@unique([workspace_id, dm_signature], map: "uq_conversation_workspace_dm_signature")
+  @@index([workspace_id, updated_at(sort: Desc)], map: "idx_conversations_workspace_updated")
+  @@index([created_by], map: "idx_conversations_created_by")
+}
+
+model conversation_members {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id String        @db.Uuid
+  user_id         String        @db.Uuid
+  role            String        @default("MEMBER") @db.VarChar(20)
+  joined_at       DateTime      @default(now()) @db.Timestamptz(6)
+  last_read_at    DateTime      @default(now()) @db.Timestamptz(6)
+  is_muted        Boolean       @default(false)
+  is_pinned       Boolean       @default(false)
+  conversations   conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users           users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([conversation_id, user_id], map: "uq_conversation_member")
+  @@index([user_id], map: "idx_conversation_members_user_id")
+  @@index([conversation_id], map: "idx_conversation_members_conversation_id")
+}
+
+model channels {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspace_id    String            @db.Uuid
+  project_id      String?           @db.Uuid
+  name            String            @db.VarChar(80)
+  topic           String?           @db.VarChar(255)
+  description     String?
+  type            String            @default("PUBLIC") @db.VarChar(20)
+  is_archived     Boolean           @default(false)
+  created_by      String            @db.Uuid
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime          @default(now()) @db.Timestamptz(6)
+  last_message_at DateTime?         @db.Timestamptz(6)
+  workspaces      workspaces        @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  projects        projects?         @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users           users             @relation("channels_created", fields: [created_by], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  channel_members channel_members[]
+  messages        messages[]
+  message_pins    message_pins[]
+
+  @@index([workspace_id, is_archived], map: "idx_channels_workspace_active")
+  @@index([project_id, is_archived], map: "idx_channels_project_active")
+  @@index([created_by], map: "idx_channels_created_by")
+}
+
+model channel_members {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  channel_id   String   @db.Uuid
+  user_id      String   @db.Uuid
+  role         String   @default("MEMBER") @db.VarChar(20)
+  joined_at    DateTime @default(now()) @db.Timestamptz(6)
+  last_read_at DateTime @default(now()) @db.Timestamptz(6)
+  is_muted     Boolean  @default(false)
+  is_pinned    Boolean  @default(false)
+  channels     channels @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users        users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([channel_id, user_id], map: "uq_channel_member")
+  @@index([user_id], map: "idx_channel_members_user_id")
+  @@index([channel_id], map: "idx_channel_members_channel_id")
+}
+
+model messages {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  channel_id            String?                 @db.Uuid
+  conversation_id       String?                 @db.Uuid
+  sender_id             String                  @db.Uuid
+  content               String
+  message_type          String                  @default("TEXT") @db.VarChar(20)
+  parent_message_id     String?                 @db.Uuid
+  is_edited             Boolean                 @default(false)
+  edited_at             DateTime?               @db.Timestamptz(6)
+  is_deleted            Boolean                 @default(false)
+  deleted_at            DateTime?               @db.Timestamptz(6)
+  attachments           Json?
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime                @default(now()) @db.Timestamptz(6)
+  channels              channels?               @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  conversations         conversations?          @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                 users                   @relation("messages_sent", fields: [sender_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  parent_message        messages?               @relation("message_thread", fields: [parent_message_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  thread_replies        messages[]              @relation("message_thread")
+  message_reactions     message_reactions[]
+  message_read_receipts message_read_receipts[]
+  message_pins          message_pins?
+
+  @@index([channel_id, created_at(sort: Desc)], map: "idx_messages_channel_created")
+  @@index([conversation_id, created_at(sort: Desc)], map: "idx_messages_conversation_created")
+  @@index([sender_id], map: "idx_messages_sender_id")
+  @@index([parent_message_id], map: "idx_messages_parent_id")
+}
+
+model message_reactions {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  message_id String   @db.Uuid
+  user_id    String   @db.Uuid
+  emoji      String   @db.VarChar(50)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  messages   messages @relation(fields: [message_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([message_id, user_id, emoji], map: "uq_message_reaction_user_emoji")
+  @@index([message_id], map: "idx_message_reactions_message_id")
+  @@index([user_id], map: "idx_message_reactions_user_id")
+}
+
+model message_read_receipts {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  message_id String   @db.Uuid
+  user_id    String   @db.Uuid
+  read_at    DateTime @default(now()) @db.Timestamptz(6)
+  messages   messages @relation(fields: [message_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([message_id, user_id], map: "uq_message_read_receipt")
+  @@index([message_id], map: "idx_message_read_receipts_message")
+  @@index([user_id], map: "idx_message_read_receipts_user")
+}
+
+model message_pins {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  message_id      String         @unique(map: "uq_message_pin_message") @db.Uuid
+  channel_id      String?        @db.Uuid
+  conversation_id String?        @db.Uuid
+  pinned_by       String         @db.Uuid
+  pinned_at       DateTime       @default(now()) @db.Timestamptz(6)
+  messages        messages       @relation(fields: [message_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  channels        channels?      @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  conversations   conversations? @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users           users          @relation(fields: [pinned_by], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([channel_id], map: "idx_message_pins_channel")
+  @@index([conversation_id], map: "idx_message_pins_conversation")
+  @@index([pinned_by], map: "idx_message_pins_pinned_by")
 }
 

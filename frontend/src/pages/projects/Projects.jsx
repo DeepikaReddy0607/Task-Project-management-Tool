@@ -1,14 +1,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useSocketEvent } from "../../context/SocketContext";
-import { FiActivity, FiAlertTriangle, FiArchive, FiArrowDown, FiArrowUp, FiCheck, FiChevronRight, FiEdit2, FiFolder, FiLayers, FiPlus, FiShield, FiUserMinus, FiUserPlus, FiX, FiZap, FiPaperclip, FiCpu } from "react-icons/fi";
+import { FiActivity, FiAlertTriangle, FiArchive, FiRotateCcw, FiArrowDown, FiArrowUp, FiCheck, FiChevronRight, FiEdit2, FiFolder, FiLayers, FiPlus, FiShield, FiUserMinus, FiUserPlus, FiX, FiZap, FiPaperclip, FiCpu } from "react-icons/fi";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
 import PageHeader from "../../components/ui/PageHeader";
 import ProjectXRay from "../../components/projects/ProjectXRay";
 import ProjectIntelligence from "../../components/intelligence/ProjectIntelligence";
-import ProjectAttachmentSection from "../../components/projects/ProjectAttachmentSection";
 import FileSection from "../../components/files/FileSection";
 import { projectOptions, projectUsers } from "../../data/projectMockData";
 import MainLayout from "../../layouts/MainLayout";
@@ -18,6 +17,7 @@ import {
   createProject as createProjectApi,
   updateProject as updateProjectApi,
   archiveProject as archiveProjectApi,
+  restoreProject as restoreProjectApi,
   addProjectMember as addProjectMemberApi,
   getProjectMembers,
   updateProjectMemberRole,
@@ -41,7 +41,32 @@ const emptyProjectForm = { title: "", description: "", category: "Product", prio
 const emptyRiskForm = { title: "", description: "", severity: "Medium", probability: "Medium", ownerId: "user-geethika", mitigationPlan: "" };
 
 function Dialog({ children, onClose, title, wide = false, topmost = false }) {
-  return <div className={`fixed inset-0 ${topmost ? "z-[80]" : "z-[70]"} flex items-end justify-center bg-[rgb(52_67_51/0.22)] p-3 backdrop-blur-sm sm:items-center sm:p-5`}><section role="dialog" aria-modal="true" aria-labelledby="project-dialog-title" className={`max-h-[calc(100vh-1.5rem)] w-full overflow-y-auto rounded-[var(--radius-2xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-lg)] sm:max-h-[calc(100vh-2.5rem)] sm:p-7 ${wide ? "max-w-6xl" : "max-w-xl"}`}><div className="mb-5 flex items-start justify-between gap-4"><h2 id="project-dialog-title" className="font-[var(--font-display)] text-xl font-semibold text-[var(--color-text)]">{title}</h2><button type="button" aria-label="Close dialog" onClick={onClose} className="rounded-lg p-2 text-[var(--color-text-subtle)] transition hover:bg-[var(--color-canvas-soft)] hover:text-[var(--color-text)]"><FiX size={19} /></button></div>{children}</section></div>;
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose?.();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose?.();
+      }}
+      className={`fixed inset-0 ${topmost ? "z-[80]" : "z-[70]"} flex items-end justify-center bg-[rgb(52_67_51/0.22)] p-3 backdrop-blur-sm sm:items-center sm:p-5`}
+    >
+      <section role="dialog" aria-modal="true" aria-labelledby="project-dialog-title" className={`max-h-[calc(100vh-1.5rem)] w-full overflow-y-auto rounded-[var(--radius-2xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-lg)] sm:max-h-[calc(100vh-2.5rem)] sm:p-7 ${wide ? "max-w-6xl" : "max-w-xl"}`}>
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <h2 id="project-dialog-title" className="font-[var(--font-display)] text-xl font-semibold text-[var(--color-text)]">{title}</h2>
+          <button type="button" aria-label="Close dialog" onClick={onClose} className="rounded-lg p-2 text-[var(--color-text-subtle)] transition hover:bg-[var(--color-canvas-soft)] hover:text-[var(--color-text)]"><FiX size={19} /></button>
+        </div>
+        {children}
+      </section>
+    </div>
+  );
 }
 
 function FieldSelect({ children, id, label, value, onChange }) {
@@ -205,6 +230,22 @@ function Projects() {
     );
   }
 };
+
+  const restoreProject = async () => {
+    try {
+      await restoreProjectApi(selectedProject.id);
+      setProjects((current) =>
+        current.map((project) =>
+          project.id === selectedProject.id ? { ...project, isArchived: false } : project
+        )
+      );
+      setSelectedProjectId(null);
+      closeDialog();
+    } catch (error) {
+      setFormError(error.response?.data?.message || "Failed to restore project.");
+    }
+  };
+
   const archiveProject = async () => {
     try {
       await archiveProjectApi(selectedProject.id);
@@ -397,6 +438,16 @@ useEffect(() => {
           <FiCpu size={16} /> Command Center
         </Button>
 
+
+        {canManage && selectedProject.isArchived && (
+          <Button
+            variant="secondary"
+            onClick={restoreProject}
+            className="text-[var(--color-brand)] hover:text-[var(--color-brand)]"
+          >
+            <FiRotateCcw size={16} /> Restore Project
+          </Button>
+        )}
         {canManage && !selectedProject.isArchived && (
           <>
             <Button variant="secondary" onClick={() => openProjectForm("edit")}>
@@ -428,7 +479,7 @@ useEffect(() => {
         <ProjectXRay projectId={selectedProject.id} />
       </div>
     ) : projectModalTab === "files" ? (
-      <ProjectAttachmentSection projectId={selectedProject.id} />
+      <FileSection projectId={selectedProject.id} />
     ) : (
       <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]"><Card className="p-5"><div className="flex items-center justify-between gap-3"><div><h3 className="font-[var(--font-display)] text-lg font-semibold text-[var(--color-text)]">Project members</h3><p className="mt-1 text-sm text-[var(--color-text-muted)]">People contributing to this project.</p></div>{canManage && !selectedProject.isArchived && <Button variant="soft" onClick={() => setDialog("addMember")} disabled={!addableUsers.length}><FiUserPlus size={16} /> Add</Button>}</div><ul className="mt-5 divide-y divide-[var(--color-border)]">{selectedProject.members.map((member) => { const user = getUser(member.userId); return <li key={member.userId} className="flex items-center gap-3 py-3"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-surface-sage)] text-xs font-bold text-[var(--color-brand-hover)]">{user?.name.split(" ").map((part) => part[0]).join("")}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-[var(--color-text)]">{user?.name}</p><p className="truncate text-xs text-[var(--color-text-subtle)]">{user?.email}</p></div>{canManage && !selectedProject.isArchived ? <select aria-label={`${user?.name} project role`} value={member.role} onChange={(event) => setMemberRole(member.userId, event.target.value)} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 text-xs font-semibold text-[var(--color-text)]"><option>Manager</option><option>Contributor</option></select> : <span className="text-xs font-semibold text-[var(--color-text-muted)]">{member.role}</span>}{canManage && !selectedProject.isArchived && member.role !== "Manager" && <button type="button" onClick={() => setDialog({ type: "removeMember", member, user })} className="rounded-lg p-2 text-[var(--color-text-subtle)] transition hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)]" aria-label={`Remove ${user?.name}`}><FiUserMinus size={16} /></button>}</li>; })}</ul></Card>
         <Card className="p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><div className="flex items-center gap-2"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--color-peach-soft)] text-[var(--color-peach)]"><FiShield size={18} /></span><div><h3 className="font-[var(--font-display)] text-lg font-semibold text-[var(--color-text)]">Risks</h3><p className="text-sm text-[var(--color-text-muted)]">Potential blockers with clear ownership.</p></div></div></div>{canManage && !selectedProject.isArchived && <Button variant="soft" onClick={() => { setRiskForm(emptyRiskForm); setFormError(""); setDialog("createRisk"); }}><FiPlus size={16} /> Add risk</Button>}</div><div className="mt-5 flex flex-wrap items-center gap-2 text-xs"><span className="font-semibold uppercase tracking-[0.08em] text-[var(--color-text-subtle)]">Sort</span>{["severity", "probability", "status", "createdAt"].map((key) => <button key={key} type="button" onClick={() => changeRiskSort(key)} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 font-semibold transition ${riskSort.key === key ? "bg-[var(--color-brand-soft)] text-[var(--color-brand-hover)]" : "bg-[var(--color-canvas-soft)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)]"}`}>{key === "createdAt" ? "Created" : key[0].toUpperCase() + key.slice(1)}{riskSort.key === key && (riskSort.direction === "asc" ? <FiArrowUp size={13} /> : <FiArrowDown size={13} />)}</button>)}</div>{sortedRisks.length ? <ul className="mt-4 divide-y divide-[var(--color-border)]">{sortedRisks.map((risk) => <li key={risk.id} className="py-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-[var(--color-text)]">{risk.title}</p><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${priorityClasses[risk.severity]}`}>{risk.severity}</span><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusClasses[risk.status]}`}>{risk.status}</span></div><p className="mt-1 text-sm text-[var(--color-text-muted)]">{risk.description || "No description provided."}</p><p className="mt-2 text-xs text-[var(--color-text-subtle)]">Probability: {risk.probability} · Owner: {getUser(risk.ownerId)?.name} · Created {formatDate(risk.createdAt)}</p>{risk.mitigationPlan && <p className="mt-2 rounded-lg bg-[var(--color-canvas-soft)] px-3 py-2 text-xs text-[var(--color-text-muted)]"><strong className="text-[var(--color-text)]">Mitigation:</strong> {risk.mitigationPlan}</p>}</div>{canManage && !selectedProject.isArchived && <div className="flex shrink-0 gap-1"><button type="button" onClick={() => { setRiskForm({ title: risk.title, description: risk.description, severity: risk.severity, probability: risk.probability, ownerId: risk.ownerId, mitigationPlan: risk.mitigationPlan }); setFormError(""); setDialog({ type: "editRisk", risk }); }} className="rounded-lg p-2 text-[var(--color-text-subtle)] hover:bg-[var(--color-canvas-soft)] hover:text-[var(--color-text)]" aria-label={`Edit ${risk.title}`}><FiEdit2 size={16} /></button>{risk.status === "Open" && <button type="button" onClick={() => setDialog({ type: "closeRisk", risk })} className="rounded-lg p-2 text-[var(--color-brand-hover)] hover:bg-[var(--color-surface-sage)]" aria-label={`Close ${risk.title}`}><FiCheck size={16} /></button>}</div>}</div></li>)}</ul> : <div className="mt-5 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] px-4 py-8 text-center"><FiShield className="mx-auto text-[var(--color-brand)]" size={24} /><p className="mt-2 text-sm font-semibold text-[var(--color-text)]">No risks recorded</p><p className="mt-1 text-xs text-[var(--color-text-muted)]">Add a risk when the team identifies a potential blocker.</p></div>}</Card>

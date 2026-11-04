@@ -401,12 +401,23 @@ export const checkProjectDeadlineAlert = async ({ projectId, userId = null }) =>
     return primaryAlert;
 };
 
+const userPriorityShiftThrottle = new Map();
+const PRIORITY_SHIFT_THROTTLE_MS = 2000;
+
 /**
  * E. PRIORITY_SHIFT
  * Trigger when a task enters rank #1 from a lower position or newly becomes #1 actionable task.
  */
-export const checkPriorityShiftAlert = async ({ userId, previousTopTaskId = null }) => {
+export const checkPriorityShiftAlert = async ({ userId, previousTopTaskId = null, force = false }) => {
     if (!userId) return null;
+
+    if (!force) {
+        const lastRun = userPriorityShiftThrottle.get(userId) || 0;
+        if (Date.now() - lastRun < PRIORITY_SHIFT_THROTTLE_MS) {
+            return null;
+        }
+    }
+    userPriorityShiftThrottle.set(userId, Date.now());
 
     const prioritized = await prioritizeTasks({
         userId,
@@ -680,8 +691,12 @@ export const processEventForAlerts = async (eventPayload) => {
     if (type === "notification.created") return;
 
     try {
+        let task = null;
+        if (type.startsWith("task.")) {
+            task = data?.task || (data?.title ? data : null) || (taskId ? await prisma.tasks.findUnique({ where: { id: taskId } }) : null);
+        }
+
         if (type === "task.created") {
-            const task = data?.task || (taskId ? await prisma.tasks.findUnique({ where: { id: taskId } }) : null);
             if (task) {
                 await checkTaskAssignmentAlert({ task });
                 await checkTaskOverdueAlert({ task });
@@ -691,7 +706,6 @@ export const processEventForAlerts = async (eventPayload) => {
                 }
             }
         } else if (type === "task.assigned") {
-            const task = data?.task || (taskId ? await prisma.tasks.findUnique({ where: { id: taskId } }) : null);
             if (task) {
                 await checkTaskAssignmentAlert({ task });
                 if (task.assigned_to) {
@@ -699,7 +713,6 @@ export const processEventForAlerts = async (eventPayload) => {
                 }
             }
         } else if (type === "task.status_updated" || type === "task.status_changed" || type === "task.updated") {
-            const task = data?.task || (taskId ? await prisma.tasks.findUnique({ where: { id: taskId } }) : null);
             if (task) {
                 await checkTaskOverdueAlert({ task });
                 await checkTaskBlockedAlert({ taskId: task.id });
@@ -726,7 +739,8 @@ export const processEventForAlerts = async (eventPayload) => {
             data?.projectId ||
             data?.project_id ||
             data?.project?.id ||
-            data?.task?.project_id;
+            data?.task?.project_id ||
+            task?.project_id;
         if (!intelProjectId && (taskId || data?.taskId || data?.task_id)) {
             const tid = taskId || data?.taskId || data?.task_id;
             const t = await prisma.tasks.findUnique({

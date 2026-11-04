@@ -79,6 +79,13 @@ export const seedInMemorySearchData = (data = {}) => {
 
 export const getInMemorySearchStore = () => inMemoryStore;
 
+// In-memory cache for user accessible search scope (30s TTL)
+const scopeCache = new Map();
+const SCOPE_CACHE_TTL_MS = 30000;
+const SCOPE_CACHE_MAX_ENTRIES = 1000;
+
+export const clearScopeCache = () => scopeCache.clear();
+
 // ============================================================
 // PERMISSION RESOLUTION HELPERS
 // ============================================================
@@ -91,13 +98,14 @@ export const getUserAccessibleScope = async (userId, userRole = null) => {
         return { isAdmin: false, workspaceIds: [], projectIds: [] };
     }
 
-    const isAdmin = (userRole || "").trim().toLowerCase() === "admin";
+    const normRole = (userRole || "").trim().toLowerCase();
+    const isAdmin = normRole === "admin" || normRole === "administrator";
 
     // In-memory branch
     if (inMemoryStore.users.length > 0 || inMemoryStore.workspaces.length > 0) {
         const user = inMemoryStore.users.find(u => u.id === userId);
         const resolvedRole = (userRole || user?.roles?.role_name || user?.role || "").trim().toLowerCase();
-        const userIsAdmin = resolvedRole === "admin";
+        const userIsAdmin = resolvedRole === "admin" || resolvedRole === "administrator";
 
         if (userIsAdmin) {
             return {
@@ -138,58 +146,71 @@ export const getUserAccessibleScope = async (userId, userRole = null) => {
         };
     }
 
+    // Check scope cache
+    const cacheKey = `${userId}:${userRole || ""}`;
+    const cached = scopeCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < SCOPE_CACHE_TTL_MS)) {
+        return cached.scope;
+    }
+
     // Prisma DB branch
     try {
         let userIsAdmin = isAdmin;
-        if (!userIsAdmin) {
+        if (!userIsAdmin && !userRole) {
             const u = await prisma.users.findUnique({
                 where: { id: userId },
-                include: { roles: true }
+                select: { roles: { select: { role_name: true } } }
             });
-            userIsAdmin = (u?.roles?.role_name || "").toLowerCase() === "admin";
+            const roleName = (u?.roles?.role_name || "").toLowerCase();
+            userIsAdmin = roleName === "admin" || roleName === "administrator";
         }
+
+        const cacheScopeResult = (result) => {
+            if (scopeCache.size >= SCOPE_CACHE_MAX_ENTRIES) {
+                const oldestKey = scopeCache.keys().next().value;
+                scopeCache.delete(oldestKey);
+            }
+            scopeCache.set(cacheKey, { scope: result, timestamp: Date.now() });
+            return result;
+        };
 
         if (userIsAdmin) {
-            const [allWs, allProj] = await Promise.all([
-                prisma.workspaces.findMany({ select: { id: true } }),
-                prisma.projects.findMany({ select: { id: true } })
-            ]);
-            return {
+            return cacheScopeResult({
                 isAdmin: true,
-                workspaceIds: allWs.map(w => w.id),
-                projectIds: allProj.map(p => p.id)
-            };
+                workspaceIds: [],
+                projectIds: []
+            });
         }
 
-        // 1. Workspaces
-        const [ownedWs, memberWs] = await Promise.all([
-            prisma.workspaces.findMany({ where: { owner_id: userId }, select: { id: true } }),
-            prisma.workspace_members.findMany({ where: { user_id: userId }, select: { workspace_id: true } })
-        ]);
+        // Consolidated queries: 2 queries instead of 5
+        const userWorkspaces = await prisma.workspaces.findMany({
+            where: {
+                OR: [
+                    { owner_id: userId },
+                    { workspace_members: { some: { user_id: userId } } }
+                ]
+            },
+            select: { id: true }
+        });
+        const workspaceIds = userWorkspaces.map(w => w.id);
 
-        const workspaceIds = [...new Set([
-            ...ownedWs.map(w => w.id),
-            ...memberWs.map(m => m.workspace_id)
-        ])];
+        const userProjects = await prisma.projects.findMany({
+            where: {
+                OR: [
+                    { workspace_id: { in: workspaceIds } },
+                    { manager_id: userId },
+                    { project_members: { some: { user_id: userId } } }
+                ]
+            },
+            select: { id: true }
+        });
+        const projectIds = userProjects.map(p => p.id);
 
-        // 2. Projects
-        const [wsProjects, managedProjects, memberProjects] = await Promise.all([
-            prisma.projects.findMany({ where: { workspace_id: { in: workspaceIds } }, select: { id: true } }),
-            prisma.projects.findMany({ where: { manager_id: userId }, select: { id: true } }),
-            prisma.project_members.findMany({ where: { user_id: userId }, select: { project_id: true } })
-        ]);
-
-        const projectIds = [...new Set([
-            ...wsProjects.map(p => p.id),
-            ...managedProjects.map(p => p.id),
-            ...memberProjects.map(pm => pm.project_id)
-        ])];
-
-        return {
+        return cacheScopeResult({
             isAdmin: false,
             workspaceIds,
             projectIds
-        };
+        });
     } catch (err) {
         console.warn("Failed to resolve user accessible scope in DB:", err.message);
         return { isAdmin: false, workspaceIds: [], projectIds: [] };
@@ -607,12 +628,14 @@ export const executeUnifiedSearch = async ({
         };
 
         const promises = [];
+        const perCategoryTake = targetType === "all" ? Math.min(25, limitNum) : limitNum;
 
         // Tasks query
         if (targetType === "all" || targetType === "tasks") {
-            const taskWhere = {
-                project_id: { in: effectiveProjectIds }
-            };
+            const taskWhere = {};
+            if (!scope.isAdmin || projectId) {
+                taskWhere.project_id = { in: effectiveProjectIds };
+            }
             if (q) {
                 taskWhere.OR = [
                     { title: { contains: q, mode: "insensitive" } },
@@ -654,7 +677,7 @@ export const executeUnifiedSearch = async ({
             promises.push(
                 prisma.tasks.findMany({
                     where: taskWhere,
-                    take: 50,
+                    take: perCategoryTake,
                     orderBy: { created_at: "desc" },
                     include: {
                         projects: { select: { id: true, title: true, workspace_id: true } }
@@ -682,10 +705,11 @@ export const executeUnifiedSearch = async ({
 
         // Projects query
         if (targetType === "all" || targetType === "projects") {
-            const projWhere = {
-                id: { in: effectiveProjectIds }
-            };
-            if (effectiveWorkspaceIds.length > 0) {
+            const projWhere = {};
+            if (!scope.isAdmin || projectId) {
+                projWhere.id = { in: effectiveProjectIds };
+            }
+            if (workspaceId || (effectiveWorkspaceIds.length > 0 && !scope.isAdmin)) {
                 projWhere.workspace_id = { in: effectiveWorkspaceIds };
             }
             if (q) {
@@ -727,7 +751,7 @@ export const executeUnifiedSearch = async ({
             promises.push(
                 prisma.projects.findMany({
                     where: projWhere,
-                    take: 50,
+                    take: perCategoryTake,
                     orderBy: { created_at: "desc" },
                     include: {
                         workspaces: { select: { id: true, name: true } }
@@ -754,9 +778,10 @@ export const executeUnifiedSearch = async ({
 
         // Workspaces query
         if (targetType === "all" || targetType === "workspaces") {
-            const wsWhere = {
-                id: { in: effectiveWorkspaceIds }
-            };
+            const wsWhere = {};
+            if (!scope.isAdmin || workspaceId) {
+                wsWhere.id = { in: effectiveWorkspaceIds };
+            }
             if (q) {
                 wsWhere.OR = [
                     { name: { contains: q, mode: "insensitive" } },
@@ -767,7 +792,7 @@ export const executeUnifiedSearch = async ({
             promises.push(
                 prisma.workspaces.findMany({
                     where: wsWhere,
-                    take: 50,
+                    take: perCategoryTake,
                     orderBy: { created_at: "desc" }
                 }).then(rawWs => {
                     grouped.workspaces = rawWs.map(w => ({
@@ -787,9 +812,10 @@ export const executeUnifiedSearch = async ({
 
         // Decisions query
         if (targetType === "all" || targetType === "decisions") {
-            const decWhere = {
-                project_id: { in: effectiveProjectIds }
-            };
+            const decWhere = {};
+            if (!scope.isAdmin || projectId) {
+                decWhere.project_id = { in: effectiveProjectIds };
+            }
             if (q) {
                 decWhere.OR = [
                     { decision: { contains: q, mode: "insensitive" } },
@@ -803,7 +829,7 @@ export const executeUnifiedSearch = async ({
             promises.push(
                 prisma.decisions.findMany({
                     where: decWhere,
-                    take: 50,
+                    take: perCategoryTake,
                     orderBy: { created_at: "desc" },
                     include: {
                         projects: { select: { id: true, title: true } }
@@ -828,9 +854,10 @@ export const executeUnifiedSearch = async ({
 
         // Risks query
         if (targetType === "all" || targetType === "risks") {
-            const riskWhere = {
-                project_id: { in: effectiveProjectIds }
-            };
+            const riskWhere = {};
+            if (!scope.isAdmin || projectId) {
+                riskWhere.project_id = { in: effectiveProjectIds };
+            }
             if (q) {
                 riskWhere.OR = [
                     { title: { contains: q, mode: "insensitive" } },
@@ -844,7 +871,7 @@ export const executeUnifiedSearch = async ({
             promises.push(
                 prisma.risks.findMany({
                     where: riskWhere,
-                    take: 50,
+                    take: perCategoryTake,
                     orderBy: { created_at: "desc" },
                     include: {
                         projects: { select: { id: true, title: true } }
@@ -917,7 +944,7 @@ export const executeUnifiedSearch = async ({
             promises.push(
                 prisma.users.findMany({
                     where: userWhere,
-                    take: 50,
+                    take: perCategoryTake,
                     orderBy: { created_at: "desc" },
                     include: {
                         roles: { select: { role_name: true } }

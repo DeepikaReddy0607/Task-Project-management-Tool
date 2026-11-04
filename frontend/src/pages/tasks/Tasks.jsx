@@ -11,6 +11,8 @@ import {
   FiPlus,
   FiSearch,
   FiX,
+  FiCopy,
+  FiRotateCcw,
 } from "react-icons/fi";
 
 import Quackie from "../../components/brand/Quackie";
@@ -18,7 +20,6 @@ import CommentSection from "../../components/tasks/CommentSection";
 import FileSection from "../../components/files/FileSection";
 import SubtaskSection from "../../components/tasks/SubtaskSection";
 import TaskDependencySection from "../../components/tasks/TaskDependencySection";
-import TaskAttachmentSection from "../../components/tasks/TaskAttachmentSection";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
@@ -30,6 +31,8 @@ import {
   createTask,
   updateTask,
   archiveTask,
+  restoreTask,
+  duplicateTask,
   updateTaskStatus,
 } from "../../services/api/taskApi";
 
@@ -52,7 +55,7 @@ import { useSocketEvent } from "../../context/SocketContext";
    CONSTANTS
 ============================================================ */
 
-const taskPriorities = ["Low", "Medium", "High", "Critical"];
+const taskPriorities = ["Low", "Medium", "High"];
 
 const taskStatuses = [
   "Backlog",
@@ -80,6 +83,8 @@ const statusClasses = {
     "bg-[var(--color-peach-soft)] text-[var(--color-peach)]",
   Completed:
     "bg-[var(--color-surface-sage)] text-[var(--color-brand-hover)]",
+  Done:
+    "bg-[var(--color-surface-sage)] text-[var(--color-brand-hover)]",
 };
 
 /* ============================================================
@@ -93,10 +98,10 @@ const formatDate = (value) => {
 
   const stringValue = String(value);
 
-  const date =
-    stringValue.length === 10
-      ? new Date(`${stringValue}T00:00:00`)
-      : new Date(stringValue);
+  const match = stringValue.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const date = match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0)
+    : new Date(stringValue);
 
   if (Number.isNaN(date.getTime())) {
     return "Not scheduled";
@@ -125,8 +130,23 @@ const emptyForm = {
 ============================================================ */
 
 function Dialog({ children, onClose, title, wide = false }) {
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose?.();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-[rgb(52_67_51/0.22)] p-3 backdrop-blur-sm sm:items-center sm:p-5">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose?.();
+      }}
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-[rgb(52_67_51/0.22)] p-3 backdrop-blur-sm sm:items-center sm:p-5"
+    >
       <section
         role="dialog"
         aria-modal="true"
@@ -317,7 +337,6 @@ function Tasks() {
   const [notice, setNotice] = useState("");
 
   const [commentsByTask, setCommentsByTask] = useState({});
-  const [filesByTask, setFilesByTask] = useState({});
   const [loadingCommentsByTask, setLoadingCommentsByTask] = useState({});
   const [commentsErrorByTask, setCommentsErrorByTask] = useState({});
 
@@ -439,20 +458,6 @@ function Tasks() {
       [taskId]: [...(prev[taskId] || []), persisted],
     }));
     return persisted;
-  };
-
-  const addTaskFile = (taskId, file) => {
-    setFilesByTask((current) => ({
-      ...current,
-      [taskId]: [...(current[taskId] || []), { ...file, taskId }],
-    }));
-  };
-
-  const deleteTaskFile = (taskId, fileId) => {
-    setFilesByTask((current) => ({
-      ...current,
-      [taskId]: (current[taskId] || []).filter((file) => file.id !== fileId),
-    }));
   };
 
   const handleUpdateComment = async (taskId, commentId, content) => {
@@ -604,14 +609,32 @@ function Tasks() {
     ).length,
   };
 
+
+  useEffect(() => {
+    if (activeTab === "Archived") {
+      getMyTasks({ archived: true })
+        .then((response) => {
+          const archivedTasks = (response.tasks || []).map(normalizeTask);
+          setTasks((current) => {
+            const existingIds = new Set(current.map((t) => t.id));
+            const newArchived = archivedTasks.filter((t) => !existingIds.has(t.id));
+            return [...current, ...newArchived];
+          });
+        })
+        .catch(() => {});
+    }
+  }, [activeTab]);
+
   /* ==========================================================
      FILTERING
   ========================================================== */
 
-  const visibleTasks = activeTasks.filter(
+  const taskPool = activeTab === "Archived" ? tasks.filter((t) => t.isArchived) : activeTasks;
+  const visibleTasks = taskPool.filter(
     (task) => {
       const matchesTab =
         activeTab === "All" ||
+        activeTab === "Archived" ||
         task.status === activeTab;
 
       const matchesSearch =
@@ -1173,6 +1196,45 @@ function Tasks() {
       }
     };
 
+
+  /* ==========================================================
+     RESTORE & DUPLICATE
+  ========================================================== */
+
+  const handleRestoreTask = async (taskId) => {
+    try {
+      const response = await restoreTask(taskId);
+      const restored = response.task || response;
+      setTasks((current) =>
+        current.map((item) =>
+          item.id === taskId
+            ? { ...item, isArchived: false }
+            : item
+        )
+      );
+      setNotice("Task restored successfully.");
+    } catch (error) {
+      setNotice(
+        error.response?.data?.message || "Failed to restore task."
+      );
+    }
+  };
+
+  const handleDuplicateTask = async (taskId) => {
+    try {
+      const response = await duplicateTask(taskId);
+      const duplicated = response.task || response;
+      const normalized = normalizeTask(duplicated);
+      setTasks((current) => [normalized, ...current]);
+      setSelectedTaskId(duplicated.id);
+      setNotice("Task duplicated successfully.");
+    } catch (error) {
+      setNotice(
+        error.response?.data?.message || "Failed to duplicate task."
+      );
+    }
+  };
+
   /* ==========================================================
      ARCHIVE
   ========================================================== */
@@ -1237,6 +1299,7 @@ function Tasks() {
   const tabs = [
     "All",
     ...taskStatuses,
+    "Archived",
   ];
 
   /* ==========================================================
@@ -2261,35 +2324,57 @@ function Tasks() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    openForm(
-                      "edit",
-                      selectedTask
-                    )
-                  }
-                >
-                  <FiEdit2
-                    size={16}
-                  />
-                  Edit
-                </Button>
+                {selectedTask.isArchived ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleRestoreTask(selectedTask.id)}
+                    className="text-[var(--color-brand)] hover:text-[var(--color-brand)]"
+                  >
+                    <FiRotateCcw size={16} />
+                    Restore
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleDuplicateTask(selectedTask.id)}
+                      title="Duplicate task"
+                    >
+                      <FiCopy size={16} />
+                      Duplicate
+                    </Button>
 
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    setDialog(
-                      "archive"
-                    )
-                  }
-                  className="text-[var(--color-danger)] hover:text-[var(--color-danger)]"
-                >
-                  <FiArchive
-                    size={16}
-                  />
-                  Archive
-                </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        openForm(
+                          "edit",
+                          selectedTask
+                        )
+                      }
+                    >
+                      <FiEdit2
+                        size={16}
+                      />
+                      Edit
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        setDialog(
+                          "archive"
+                        )
+                      }
+                      className="text-[var(--color-danger)] hover:text-[var(--color-danger)]"
+                    >
+                      <FiArchive
+                        size={16}
+                      />
+                      Archive
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -2445,7 +2530,7 @@ function Tasks() {
                 statusClasses
               }
               statuses={
-                taskStatuses
+                ["To Do", "In Progress", "Done"]
               }
             />
 
@@ -2457,7 +2542,7 @@ function Tasks() {
               formatDate={formatDate}
             />
 
-            <TaskAttachmentSection
+            <FileSection
               key={`att-${selectedTask.id}`}
               taskId={selectedTask.id}
             />

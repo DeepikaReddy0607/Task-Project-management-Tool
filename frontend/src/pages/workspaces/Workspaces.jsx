@@ -64,8 +64,21 @@ const formatDate = (value) => {
 };
 
 function Dialog({ children, onClose, title }) {
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose?.();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
     <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose?.();
+      }}
       className="fixed inset-0 z-[70] flex items-end justify-center bg-[rgb(52_67_51/0.22)] p-4 backdrop-blur-sm sm:items-center"
       role="presentation"
     >

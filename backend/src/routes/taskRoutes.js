@@ -9,6 +9,8 @@ import {
     update,
     assign,
     archive,
+    restore,
+    duplicate,
     getMine,
     updateStatus,
     getPrioritized
@@ -87,36 +89,29 @@ router.delete(
     archive
 );
 
+router.patch(
+    "/tasks/:id/restore",
+    authMiddleware,
+    restore
+);
+
+router.post(
+    "/tasks/:id/restore",
+    authMiddleware,
+    restore
+);
+
+router.post(
+    "/tasks/:id/duplicate",
+    authMiddleware,
+    duplicate
+);
+
 // Update task status
 router.patch(
     "/tasks/:id/status",
     authMiddleware,
     updateStatus
-);
-
-// Task Dependencies (Phase 13)
-router.post(
-    "/tasks/:taskId/dependencies",
-    authMiddleware,
-    createDependencyHandler
-);
-
-router.get(
-    "/tasks/:taskId/dependencies",
-    authMiddleware,
-    getTaskDependenciesHandler
-);
-
-router.delete(
-    "/tasks/:taskId/dependencies/:dependsOnTaskId",
-    authMiddleware,
-    deleteDependencyHandler
-);
-
-router.delete(
-    "/tasks/:taskId/dependencies",
-    authMiddleware,
-    deleteDependencyHandler
 );
 
 // Task Dependencies (Phase 13)

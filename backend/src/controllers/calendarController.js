@@ -1,21 +1,26 @@
 import { getCalendarEvents } from "../services/calendarService.js";
 
-export const getCalendar = async (req, res) => {
+export const getCalendar = async (req, res, next) => {
     try {
         const userId = req.user.userId;
+        const startDate = req.query.startDate || req.query.start;
+        const endDate = req.query.endDate || req.query.end;
 
-        const events = await getCalendarEvents(userId);
+        const events = await getCalendarEvents(userId, { startDate, endDate });
 
         return res.status(200).json({
             success: true,
             events,
         });
     } catch (error) {
-        console.error("Calendar error:", error);
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                success: false,
+                message: error.message,
+            });
+        }
 
-        return res.status(500).json({
-            success: false,
-            message: "Failed to load calendar events.",
-        });
+        console.error("Calendar error:", error);
+        next(error);
     }
 };

@@ -192,17 +192,57 @@ const createNotification = async ({
     }
 };
 
-const getUserNotifications = async (userId) => {
-    const notifications = await prisma.notifications.findMany({
-        where: {
-            user_id: userId
-        },
-        orderBy: {
-            created_at: "desc"
-        }
-    });
+const getUserNotifications = async (userId, { page = 1, limit = 20 } = {}) => {
+    let pageNum = 1;
+    let limitNum = 20;
 
-    return notifications;
+    if (page !== undefined && page !== null && page !== "") {
+        pageNum = parseInt(page, 10);
+        if (isNaN(pageNum) || pageNum < 1) {
+            const error = new Error("Invalid page parameter. Must be a positive integer.");
+            error.statusCode = 400;
+            throw error;
+        }
+    }
+
+    if (limit !== undefined && limit !== null && limit !== "") {
+        limitNum = parseInt(limit, 10);
+        if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+            const error = new Error("Invalid limit parameter. Must be between 1 and 100.");
+            error.statusCode = 400;
+            throw error;
+        }
+    }
+
+    const skip = (pageNum - 1) * limitNum;
+
+    const [notifications, total] = await Promise.all([
+        prisma.notifications.findMany({
+            where: {
+                user_id: userId
+            },
+            orderBy: {
+                created_at: "desc"
+            },
+            skip,
+            take: limitNum
+        }),
+        prisma.notifications.count({
+            where: {
+                user_id: userId
+            }
+        })
+    ]);
+
+    return {
+        notifications,
+        pagination: {
+            page: pageNum,
+            limit: limitNum,
+            total,
+            totalPages: Math.ceil(total / limitNum) || 1
+        }
+    };
 };
 
 const getUnreadCount = async (userId) => {

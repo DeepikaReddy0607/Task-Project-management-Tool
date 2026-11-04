@@ -29,6 +29,7 @@ function Login() {
   const shouldStartOnboarding = Boolean(location.state?.startOnboarding);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [apiError, setApiError] = useState("");
   const [activeField, setActiveField] = useState(null);
   const [isTyping, setIsTyping] = useState(false);
   const [hasMockSuccess, setHasMockSuccess] = useState(false);
@@ -138,6 +139,7 @@ function Login() {
 
   const onSubmit = async (data) => {
     setIsSubmitting(true);
+    setApiError("");
     setHasMockSuccess(false);
 
     try {
@@ -160,12 +162,12 @@ function Login() {
       });
     } catch (error) {
       const message =
+        error.userMessage ||
         error.response?.data?.message ||
         "Login failed. Please check your credentials.";
 
       console.error("Login failed:", message);
-
-      alert(message);
+      setApiError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -222,6 +224,14 @@ function Login() {
             </header>
 
             <form className="mt-7 space-y-5" onSubmit={handleSubmit(onSubmit)} noValidate>
+              {apiError && (
+                <div
+                  role="alert"
+                  className="rounded-[var(--radius-md)] border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-4 py-3 text-sm text-[var(--color-danger)]"
+                >
+                  {apiError}
+                </div>
+              )}
               <div>
                 <label htmlFor="email" className="mb-2 block text-sm font-medium text-[var(--color-text)]">Email address</label>
                 <div className="relative">

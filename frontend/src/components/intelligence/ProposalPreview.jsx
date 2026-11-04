@@ -12,9 +12,10 @@ const ProposalPreview = ({
   isExecuting = false,
   error = null
 }) => {
+  const [acknowledged, setAcknowledged] = useState(false);
+
   if (!proposal) return null;
 
-  const [acknowledged, setAcknowledged] = useState(false);
   const isStale = proposal.status === "STALE";
 
   const handleApply = () => {

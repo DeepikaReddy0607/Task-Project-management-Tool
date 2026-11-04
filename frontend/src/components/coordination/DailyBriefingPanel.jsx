@@ -90,7 +90,7 @@ export default function DailyBriefingPanel({ projectId, workspaceId, className =
             <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
               Autonomous Daily Briefing
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                Phase 6 Intelligence
+                Coordination Intelligence
               </span>
             </h2>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">

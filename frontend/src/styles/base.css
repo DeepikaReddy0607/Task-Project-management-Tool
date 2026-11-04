@@ -176,6 +176,98 @@ body::after {
   color-scheme: dark;
 }
 
+/* Enhanced Dark Mode Contrast & Intelligence Panel Overrides */
+[data-theme="dark"] .bg-gradient-to-r.from-blue-50.to-indigo-50,
+.dark .bg-gradient-to-r.from-blue-50.to-indigo-50 {
+  background-image: linear-gradient(to right, rgb(29 49 66 / 0.5), rgb(30 43 58 / 0.5)) !important;
+  border-color: var(--color-border) !important;
+}
+
+[data-theme="dark"] .text-blue-900,
+[data-theme="dark"] .text-blue-800,
+[data-theme="dark"] .text-blue-700,
+.dark .text-blue-900,
+.dark .text-blue-800,
+.dark .text-blue-700 {
+  color: var(--color-info) !important;
+}
+
+[data-theme="dark"] .bg-blue-50,
+[data-theme="dark"] .bg-blue-100,
+.dark .bg-blue-50,
+.dark .bg-blue-100 {
+  background-color: var(--color-info-soft) !important;
+  color: var(--color-info) !important;
+}
+
+[data-theme="dark"] .border-blue-200,
+[data-theme="dark"] .border-blue-300,
+.dark .border-blue-200,
+.dark .border-blue-300 {
+  border-color: var(--color-border) !important;
+}
+
+[data-theme="dark"] .bg-amber-50,
+.dark .bg-amber-50 {
+  background-color: var(--color-peach-soft) !important;
+  color: var(--color-peach) !important;
+}
+
+[data-theme="dark"] .text-amber-800,
+[data-theme="dark"] .text-amber-700,
+.dark .text-amber-800,
+.dark .text-amber-700 {
+  color: var(--color-sun) !important;
+}
+
+[data-theme="dark"] .bg-emerald-50,
+[data-theme="dark"] .bg-emerald-100,
+.dark .bg-emerald-50,
+.dark .bg-emerald-100 {
+  background-color: var(--color-brand-soft) !important;
+}
+
+[data-theme="dark"] .text-emerald-800,
+[data-theme="dark"] .text-emerald-700,
+.dark .text-emerald-800,
+.dark .text-emerald-700 {
+  color: var(--color-brand) !important;
+}
+
+[data-theme="dark"] .bg-red-50,
+[data-theme="dark"] .bg-red-100,
+[data-theme="dark"] .bg-rose-50,
+[data-theme="dark"] .bg-rose-100,
+.dark .bg-red-50,
+.dark .bg-red-100,
+.dark .bg-rose-50,
+.dark .bg-rose-100 {
+  background-color: var(--color-danger-soft) !important;
+}
+
+[data-theme="dark"] .text-red-800,
+[data-theme="dark"] .text-red-700,
+[data-theme="dark"] .text-rose-800,
+[data-theme="dark"] .text-rose-700,
+.dark .text-red-800,
+.dark .text-red-700,
+.dark .text-rose-800,
+.dark .text-rose-700 {
+  color: var(--color-danger) !important;
+}
+
+/* Form Controls in Dark Mode */
+[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="dark"] select,
+[data-theme="dark"] textarea,
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark select,
+.dark textarea {
+  background-color: var(--color-surface) !important;
+  color: var(--color-text) !important;
+  border-color: var(--color-border) !important;
+}
+
 /* ==========================================================
    COMPACT DENSITY
 ========================================================== */

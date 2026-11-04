@@ -27,12 +27,6 @@ export default function CounterfactualTimeMachine({ projectId, onClose, initialS
   // View Mode: "single" | "branches"
   const [viewMode, setViewMode] = useState("single");
 
-  useEffect(() => {
-    if (projectId) {
-      handleRunCounterfactual();
-    }
-  }, [projectId]);
-
   const handleRunCounterfactual = async (customScenario = null) => {
     setLoading(true);
     setError(null);
@@ -65,6 +59,12 @@ export default function CounterfactualTimeMachine({ projectId, onClose, initialS
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (projectId) {
+      handleRunCounterfactual();
+    }
+  }, [projectId]);
 
   const handleCompareMultiBranches = async () => {
     setComparingBranches(true);
@@ -109,7 +109,7 @@ export default function CounterfactualTimeMachine({ projectId, onClose, initialS
             <span className="text-xl">⏳</span>
             <h2 className="text-lg font-bold">Counterfactual Time Machine</h2>
             <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-semibold border border-indigo-300 dark:border-indigo-700">
-              Phase 12
+              Simulation Engine
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">

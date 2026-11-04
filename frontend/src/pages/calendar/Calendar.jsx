@@ -50,6 +50,10 @@ const eventLabels = {
  */
 const toDateKey = (date) => {
   if (!date) return "";
+  if (typeof date === "string") {
+    const match = date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+  }
   const d = date instanceof Date ? date : new Date(date);
   if (Number.isNaN(d.getTime())) return "";
   const year = d.getFullYear();
@@ -74,26 +78,56 @@ const normalizeEventDate = (date) => {
   if (!date) return null;
 
   if (typeof date === "string") {
-    return date.slice(0, 10);
+    const match = date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return `${match[1]}-${match[2]}-${match[3]}`;
   }
 
-  return toDateKey(new Date(date));
+  if (date instanceof Date && !Number.isNaN(date.getTime())) {
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(date.getUTCDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  return null;
 };
 
-const formatLongDate = (dateKey) =>
-  new Intl.DateTimeFormat("en", {
+const formatLongDate = (dateKey) => {
+  if (!dateKey) return "";
+  const match = String(dateKey).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return String(dateKey);
+  const [, y, m, d] = match;
+  return new Intl.DateTimeFormat("en", {
     weekday: "long",
     month: "long",
     day: "numeric",
     year: "numeric",
-  }).format(new Date(`${dateKey}T00:00:00`));
+  }).format(new Date(Number(y), Number(m) - 1, Number(d), 12, 0, 0));
+};
 
 
 function CalendarDialog({ event, onClose }) {
+  useEffect(() => {
+    if (!event) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose?.();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [event, onClose]);
+
   if (!event) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-[rgb(52_67_51/0.22)] p-3 backdrop-blur-sm sm:items-center sm:p-5">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose?.();
+      }}
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-[rgb(52_67_51/0.22)] p-3 backdrop-blur-sm sm:items-center sm:p-5"
+    >
       <section
         role="dialog"
         aria-modal="true"
@@ -189,7 +223,7 @@ function Calendar() {
   const today = useMemo(() => new Date(), []);
 
   const [viewDate, setViewDate] = useState(
-    new Date(today.getFullYear(), today.getMonth(), 1)
+    () => new Date(today.getFullYear(), today.getMonth(), 1, 12, 0, 0)
   );
 
   const [filter, setFilter] = useState("All");
@@ -201,7 +235,7 @@ function Calendar() {
 
 
   /*
-   * Load calendar events from the backend.
+   * Load calendar events from the backend for the visible 42-day calendar range.
    */
   const loadCalendar = useCallback(async (silent = false) => {
     try {
@@ -210,7 +244,17 @@ function Calendar() {
         setError("");
       }
 
-      const response = await getCalendarEvents();
+      const year = viewDate.getFullYear();
+      const month = viewDate.getMonth();
+      const firstDay = new Date(year, month, 1, 12, 0, 0);
+      const leadingDays = (firstDay.getDay() + 6) % 7;
+      const startCell = new Date(year, month, 1 - leadingDays, 12, 0, 0);
+      const endCell = new Date(year, month, 1 - leadingDays + 41, 12, 0, 0);
+
+      const startDate = toDateKey(startCell);
+      const endDate = toDateKey(endCell);
+
+      const response = await getCalendarEvents({ startDate, endDate });
 
       const backendEvents = response?.events || [];
 
@@ -242,7 +286,7 @@ function Calendar() {
         setLoading(false);
       }
     }
-  }, []);
+  }, [viewDate]);
 
   useEffect(() => {
     void loadCalendar();
@@ -310,7 +354,7 @@ function Calendar() {
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
 
-    const firstDay = new Date(year, month, 1);
+    const firstDay = new Date(year, month, 1, 12, 0, 0);
 
     /*
      * Convert Sunday-based JS day index into
@@ -322,7 +366,10 @@ function Calendar() {
     const start = new Date(
       year,
       month,
-      1 - leadingDays
+      1 - leadingDays,
+      12,
+      0,
+      0
     );
 
     return Array.from({ length: 42 }, (_, index) => {
@@ -350,17 +397,12 @@ function Calendar() {
    * Events belonging to the currently visible month.
    */
   const eventsInVisibleMonth = useMemo(() => {
-    return filteredEvents.filter((event) => {
-      const eventDate = new Date(
-        `${event.date}T00:00:00`
-      );
+    const year = viewDate.getFullYear();
+    const month = String(viewDate.getMonth() + 1).padStart(2, "0");
+    const monthKey = `${year}-${month}`;
 
-      return (
-        eventDate.getFullYear() ===
-          viewDate.getFullYear() &&
-        eventDate.getMonth() ===
-          viewDate.getMonth()
-      );
+    return filteredEvents.filter((event) => {
+      return typeof event.date === "string" && event.date.startsWith(monthKey);
     });
   }, [filteredEvents, viewDate]);
 
@@ -374,7 +416,10 @@ function Calendar() {
         new Date(
           current.getFullYear(),
           current.getMonth() + amount,
-          1
+          1,
+          12,
+          0,
+          0
         )
     );
   };
@@ -414,7 +459,10 @@ function Calendar() {
                     new Date(
                       today.getFullYear(),
                       today.getMonth(),
-                      1
+                      1,
+                      12,
+                      0,
+                      0
                     )
                   )
                 }

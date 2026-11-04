@@ -141,7 +141,7 @@ export default function ApprovalCenter({ workspaceId, projectId, onPreviewPropos
       <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-3">
         <FiLock className="shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" size={16} />
         <div>
-          <span className="font-bold">Governance & Safety Invariant:</span> TaskFlow Phase 6 coordinates and recommends next actions, but will never silently modify task dates, reassign team members, or change deadlines. Approval and execution strictly preserve Phase 3 transactional safety and audit records.
+          <span className="font-bold">Governance & Safety Invariant:</span> TaskFlow coordinates and recommends next actions, but will never silently modify task dates, reassign team members, or change deadlines. Approval and execution strictly preserve transactional safety and audit records.
         </div>
       </div>
 

@@ -5,6 +5,8 @@ import {
     updateTask,
     assignTask,
     archiveTask,
+    restoreTask,
+    duplicateTask,
     getMyTasks,
     updateTaskStatus
 } from "../services/taskService.js";
@@ -93,6 +95,18 @@ const create = async (req, res, next) => {
 
     } catch (error) {
 
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Invalid task priority") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
         if (error.message === "Project not found") {
             return res.status(404).json({
                 message: error.message
@@ -139,15 +153,29 @@ const getAll = async (req, res, next) => {
 
         const tasks = await getProjectTasks(
             projectId,
-            req.user.userId
+            req.user.userId,
+            { page: req.query.page, limit: req.query.limit, archived: req.query.archived === "true" || req.query.isArchived === "true" }
         );
 
         return res.status(200).json({
             message: "Tasks retrieved successfully",
-            tasks
+            tasks,
+            pagination: tasks.pagination
         });
 
     } catch (error) {
+
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Invalid task priority") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
 
         if (error.message === "Project not found") {
             return res.status(404).json({
@@ -189,6 +217,18 @@ const getOne = async (req, res, next) => {
         });
 
     } catch (error) {
+
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Invalid task status") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
 
         if (error.message === "Task not found") {
             return res.status(404).json({
@@ -268,6 +308,24 @@ const update = async (req, res, next) => {
 
     } catch (error) {
 
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Invalid task priority") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Invalid task status") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
         if (error.message === "Task not found") {
             return res.status(404).json({
                 message: error.message
@@ -345,6 +403,18 @@ const assign = async (req, res, next) => {
         });
 
     } catch (error) {
+
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Invalid task status") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
 
         if (error.message === "Task not found") {
             return res.status(404).json({
@@ -427,6 +497,18 @@ const archive = async (req, res, next) => {
 
     } catch (error) {
 
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Invalid task status") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
         if (error.message === "Task not found") {
             return res.status(404).json({
                 message: error.message
@@ -449,11 +531,122 @@ const archive = async (req, res, next) => {
     }
 };
 
+const restore = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ message: "Task ID is required" });
+        }
+
+        const task = await restoreTask(id, req.user.userId);
+        const workspaceId = task.projects?.workspace_id || task.workspace_id;
+
+        if (workspaceId) {
+            try {
+                await createActivity({
+                    workspaceId,
+                    userId: req.user.userId,
+                    actionType: "TASK_RESTORED",
+                    entityType: "TASK",
+                    entityId: task.id,
+                    description: `Restored task "${task.title}"`
+                });
+            } catch (actErr) {
+                console.error("Activity logging failed for task restore:", actErr);
+            }
+        }
+
+        emitRealtimeEvent({
+            type: "task.restored",
+            workspaceId,
+            projectId: task.project_id,
+            taskId: task.id,
+            userId: req.user.userId,
+            data: task
+        });
+
+        return res.status(200).json({
+            message: "Task restored successfully",
+            task
+        });
+    } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ message: error.message });
+        }
+        if (error.message === "Task not found") {
+            return res.status(404).json({ message: error.message });
+        }
+        if (error.message === "Workspace access denied") {
+            return res.status(403).json({ message: error.message });
+        }
+        if (error.message === "Task is not archived") {
+            return res.status(400).json({ message: error.message });
+        }
+        if (error.message.includes("Cannot restore task while its parent project is archived")) {
+            return res.status(400).json({ message: error.message });
+        }
+        next(error);
+    }
+};
+
+const duplicate = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ message: "Task ID is required" });
+        }
+
+        const task = await duplicateTask(id, req.user.userId);
+        const workspaceId = task.projects?.workspace_id || task.workspace_id;
+
+        if (workspaceId) {
+            try {
+                await createActivity({
+                    workspaceId,
+                    userId: req.user.userId,
+                    actionType: "TASK_CREATED",
+                    entityType: "TASK",
+                    entityId: task.id,
+                    description: `Duplicated task "${task.title}"`
+                });
+            } catch (actErr) {
+                console.error("Activity logging failed for task duplicate:", actErr);
+            }
+        }
+
+        emitRealtimeEvent({
+            type: "task.created",
+            workspaceId,
+            projectId: task.project_id,
+            taskId: task.id,
+            userId: req.user.userId,
+            data: task
+        });
+
+        return res.status(201).json({
+            message: "Task duplicated successfully",
+            task
+        });
+    } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ message: error.message });
+        }
+        if (error.message === "Task not found") {
+            return res.status(404).json({ message: error.message });
+        }
+        if (error.message === "Workspace access denied") {
+            return res.status(403).json({ message: error.message });
+        }
+        next(error);
+    }
+};
+
 const getMine = async (req, res, next) => {
     try {
 
         const tasks = await getMyTasks(
-            req.user.userId
+            req.user.userId,
+            { archived: req.query.archived }
         );
 
         return res.status(200).json({
@@ -530,6 +723,18 @@ const updateStatus = async (req, res, next) => {
 
     } catch (error) {
 
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Invalid task status") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
         if (error.message === "Task not found") {
             return res.status(404).json({
                 message: error.message
@@ -584,6 +789,8 @@ export {
     update,
     assign,
     archive,
+    restore,
+    duplicate,
     getMine,
     updateStatus,
     getPrioritized

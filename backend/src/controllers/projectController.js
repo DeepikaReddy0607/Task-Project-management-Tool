@@ -4,6 +4,7 @@ import {
     getProject,
     updateProject,
     archiveProject,
+    restoreProject,
     addProjectMember,
     getProjectMembers,
     updateProjectMemberRole,
@@ -154,9 +155,11 @@ const getAll = async (req, res, next) => {
             });
         }
 
+        const archived = req.query.archived === "true" || req.query.isArchived === "true";
         const projects = await getWorkspaceProjects(
             workspaceId,
-            req.user.userId
+            req.user.userId,
+            { archived }
         );
 
         return res.status(200).json({
@@ -326,6 +329,70 @@ const archive = async (req, res, next) => {
             });
         }
 
+        next(error);
+    }
+};
+
+const restore = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({
+                message: "Project ID is required"
+            });
+        }
+
+        const project = await restoreProject(
+            id,
+            req.user.userId
+        );
+
+        try {
+            await createActivity({
+                workspaceId: project.workspace_id,
+                userId: req.user.userId,
+                actionType: "PROJECT_RESTORED",
+                entityType: "PROJECT",
+                entityId: project.id,
+                description: `Restored project "${project.title}"`
+            });
+        } catch (actErr) {
+            console.error("Activity logging failed for project restore:", actErr);
+        }
+
+        emitRealtimeEvent({
+            type: "project.restored",
+            workspaceId: project.workspace_id,
+            projectId: project.id,
+            userId: req.user.userId,
+            data: project
+        });
+
+        return res.status(200).json({
+            message: "Project restored successfully",
+            project
+        });
+    } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+        if (error.message === "Project not found") {
+            return res.status(404).json({
+                message: error.message
+            });
+        }
+        if (error.message === "Project access denied" || error.message === "Workspace access denied") {
+            return res.status(403).json({
+                message: error.message
+            });
+        }
+        if (error.message === "Project is not archived") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
         next(error);
     }
 };
@@ -1839,6 +1906,7 @@ export {
     getOne,
     update,
     archive,
+    restore,
     addMember,
     getMembers,
     updateMemberRole,

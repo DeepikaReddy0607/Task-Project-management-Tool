@@ -189,9 +189,11 @@ const addWorkspaceMember = async (
         });
 
     if (existingMembership) {
-        throw new Error(
+        const error = new Error(
             "User is already a member of this workspace"
         );
+        error.statusCode = 409;
+        throw error;
     }
 
     // 7. Add the user to the workspace

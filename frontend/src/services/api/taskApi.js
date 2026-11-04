@@ -20,8 +20,8 @@ export const getProjectTasks = async (projectId) => {
 };
 
 // Get tasks assigned to logged-in user
-export const getMyTasks = async () => {
-  const response = await api.get("/tasks/my-tasks");
+export const getMyTasks = async (params = {}) => {
+  const response = await api.get("/tasks/my-tasks", { params });
 
   return response.data;
 };
@@ -59,6 +59,18 @@ export const archiveTask = async (taskId) => {
     `/tasks/${taskId}/archive`
   );
 
+  return response.data;
+};
+
+// Restore task
+export const restoreTask = async (taskId) => {
+  const response = await api.patch(`/tasks/${taskId}/restore`);
+  return response.data;
+};
+
+// Duplicate task
+export const duplicateTask = async (taskId) => {
+  const response = await api.post(`/tasks/${taskId}/duplicate`);
   return response.data;
 };
 

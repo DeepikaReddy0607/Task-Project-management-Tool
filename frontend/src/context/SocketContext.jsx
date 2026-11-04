@@ -75,6 +75,15 @@ export const SocketProvider = ({ children }) => {
         socketInstance.on("connect_error", (error) => {
             setIsConnected(false);
             wasDisconnectedRef.current = true;
+            if (
+                error?.message === "Invalid authentication token" ||
+                error?.message === "Authentication required" ||
+                error?.message === "User account is inactive or not found"
+            ) {
+                localStorage.removeItem("taskflow_token");
+                localStorage.removeItem("taskflow_user");
+                window.dispatchEvent(new Event("taskflow_auth_change"));
+            }
         });
 
         // Global event dispatcher for subscribed listeners
@@ -160,7 +169,10 @@ export const useSocket = () => {
 export const useSocketEvent = (eventType, handler, deps = []) => {
     const { subscribe } = useSocket();
     const handlerRef = useRef(handler);
-    handlerRef.current = handler;
+
+    useEffect(() => {
+        handlerRef.current = handler;
+    }, [handler]);
 
     useEffect(() => {
         const unsubscribe = subscribe(eventType, (data) => {

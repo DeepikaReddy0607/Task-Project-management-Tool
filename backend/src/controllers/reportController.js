@@ -8,13 +8,10 @@ import {
 
 const getTaskCompletionReport = async (req, res) => {
     try {
-        const { projectId } = req.query;
-        const userId = req.user.id;
+        const { projectId, workspaceId } = req.query;
+        const userId = req.user.userId || req.user.id;
 
-        const data = await getTaskCompletion(
-            projectId || null,
-            userId
-        );
+        const data = await getTaskCompletion(projectId || null, userId, false, workspaceId || null);
 
         res.status(200).json({
             success: true,
@@ -46,13 +43,10 @@ const getTaskCompletionReport = async (req, res) => {
 
 const getPendingOverdueReport = async (req, res) => {
     try {
-        const { projectId } = req.query;
-        const userId = req.user.id;
+        const { projectId, workspaceId } = req.query;
+        const userId = req.user.userId || req.user.id;
 
-        const data = await getPendingOverdue(
-            projectId || null,
-            userId
-        );
+        const data = await getPendingOverdue(projectId || null, userId, false, workspaceId || null);
 
         res.status(200).json({
             success: true,
@@ -84,13 +78,10 @@ const getPendingOverdueReport = async (req, res) => {
 
 const getPriorityReport = async (req, res) => {
     try {
-        const { projectId } = req.query;
-        const userId = req.user.id;
+        const { projectId, workspaceId } = req.query;
+        const userId = req.user.userId || req.user.id;
 
-        const data = await getTasksByPriority(
-            projectId || null,
-            userId
-        );
+        const data = await getTasksByPriority(projectId || null, userId, false, workspaceId || null);
 
         res.status(200).json({
             success: true,
@@ -122,13 +113,10 @@ const getPriorityReport = async (req, res) => {
 
 const getStatusReport = async (req, res) => {
     try {
-        const { projectId } = req.query;
-        const userId = req.user.id;
+        const { projectId, workspaceId } = req.query;
+        const userId = req.user.userId || req.user.id;
 
-        const data = await getTasksByStatus(
-            projectId || null,
-            userId
-        );
+        const data = await getTasksByStatus(projectId || null, userId, false, workspaceId || null);
 
         res.status(200).json({
             success: true,
@@ -160,13 +148,10 @@ const getStatusReport = async (req, res) => {
 
 const getDashboardReport = async (req, res) => {
     try {
-        const { projectId } = req.query;
-        const userId = req.user.id;
+        const { projectId, workspaceId } = req.query;
+        const userId = req.user.userId || req.user.id;
 
-        const data = await getDashboardAnalytics(
-            projectId || null,
-            userId
-        );
+        const data = await getDashboardAnalytics(projectId || null, userId, workspaceId || null);
 
         res.status(200).json({
             success: true,

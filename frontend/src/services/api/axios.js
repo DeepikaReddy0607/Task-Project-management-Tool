@@ -2,6 +2,7 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
+  timeout: 15000,
   headers: {
     "Content-Type": "application/json",
   },
@@ -37,6 +38,24 @@ api.interceptors.response.use(
         window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
       }
     }
+
+    // Attach user-friendly normalized error message
+    if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+      error.userMessage = "Request timed out. Please check your connection and try again.";
+    } else if (!error.response) {
+      error.userMessage = "Network error. Please check your internet connection.";
+    } else if (error.response.status === 429) {
+      error.userMessage = error.response.data?.message || "Too many requests. Please slow down and try again later.";
+    } else if (error.response.status >= 500) {
+      error.userMessage = error.response.data?.message || "Server error encountered. Please try again shortly.";
+    } else {
+      error.userMessage =
+        error.response.data?.message ||
+        (typeof error.response.data?.error === "string" ? error.response.data.error : null) ||
+        error.message ||
+        "An unexpected error occurred.";
+    }
+
     return Promise.reject(error);
   }
 );

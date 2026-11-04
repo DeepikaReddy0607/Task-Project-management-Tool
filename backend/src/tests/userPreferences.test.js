@@ -257,6 +257,7 @@ describe("PHASE 17: User Preferences & Settings Backend Test Suite", () => {
             },
             body: JSON.stringify({
                 dndEnabled: false,
+                quietHoursEnabled: false,
                 taskAssignments: false,
                 projectUpdates: true,
             }),

@@ -37,12 +37,6 @@ export default function ProjectChaosLab({ projectId, onClose }) {
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [severityFilter, setSeverityFilter] = useState("ALL");
 
-  useEffect(() => {
-    if (projectId) {
-      handleRunChaosLab();
-    }
-  }, [projectId]);
-
   const toggleSeverity = (sev) => {
     if (selectedSeverities.includes(sev)) {
       if (selectedSeverities.length > 1) {
@@ -229,6 +223,12 @@ export default function ProjectChaosLab({ projectId, onClose }) {
     }
   };
 
+  useEffect(() => {
+    if (projectId) {
+      handleRunChaosLab();
+    }
+  }, [projectId]);
+
   const handleDetectThreshold = async () => {
     setThresholdLoading(true);
     try {
@@ -321,7 +321,7 @@ export default function ProjectChaosLab({ projectId, onClose }) {
               <span className="text-2xl">⚡</span>
               <h2 className="text-xl font-black tracking-tight">PROJECT CHAOS / FAILURE LABORATORY</h2>
               <span className="text-xs bg-purple-500/30 text-purple-200 border border-purple-400/40 px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold">
-                Phase 10 Engine
+                Chaos Engine
               </span>
             </div>
             <p className="text-sm text-purple-200 mt-1 max-w-2xl">
@@ -530,7 +530,7 @@ export default function ProjectChaosLab({ projectId, onClose }) {
           { key: "sensitivity", label: "Sensitivity Analysis" },
           { key: "matrix", label: "Category × Severity Matrix" },
           { key: "threshold", label: "Failure Threshold (Collapse Curve)" },
-          { key: "recovery", label: "Recovery Interventions (Phase 9 Handoff)" }
+          { key: "recovery", label: "Recovery Interventions" }
         ].map((tab) => (
           <button
             key={tab.key}
@@ -721,7 +721,7 @@ export default function ProjectChaosLab({ projectId, onClose }) {
                   onClick={() => handleTestRecovery(selectedScenario)}
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold shadow transition"
                 >
-                  🛡️ Test Recovery Intervention (Phase 9)
+                  🛡️ Test Recovery Intervention
                 </button>
               </div>
             </div>
@@ -938,13 +938,13 @@ export default function ProjectChaosLab({ projectId, onClose }) {
         </div>
       )}
 
-      {/* TAB 5: Recovery Interventions (Phase 9 Handoff) */}
+      {/* TAB 5: Recovery Interventions */}
       {activeTab === "recovery" && (
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
           <div>
             <h3 className="text-base font-bold text-gray-900">Chaos Recovery & Intervention Handoff</h3>
             <p className="text-xs text-gray-500 mt-1">
-              Connects high-impact chaos scenarios directly to Phase 9 Intervention Impact evaluation.
+              Connects high-impact chaos scenarios directly to Intervention Impact evaluation.
             </p>
           </div>
 
@@ -955,7 +955,7 @@ export default function ProjectChaosLab({ projectId, onClose }) {
                   Recommended Recovery Action
                 </span>
                 <span className="px-2.5 py-0.5 rounded text-xs font-bold bg-purple-100 text-purple-800">
-                  PHASE 9 EVALUATED
+                  INTERVENTION EVALUATED
                 </span>
               </div>
 
@@ -990,7 +990,7 @@ export default function ProjectChaosLab({ projectId, onClose }) {
             </div>
           ) : (
             <div className="p-6 text-center text-xs text-gray-500 bg-gray-50 rounded-xl border border-gray-200">
-              Select any scenario from the Ranked Scenarios table and click "Mitigate" to generate automated Phase 9 recovery interventions.
+              Select any scenario from the Ranked Scenarios table and click "Mitigate" to generate automated recovery interventions.
             </div>
           )}
         </div>

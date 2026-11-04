@@ -6,7 +6,7 @@ import {
     markAllAsRead
 } from "../services/notificationService.js";
 
-const createNotificationController = async (req, res) => {
+const createNotificationController = async (req, res, next) => {
     try {
         const {
             userId,
@@ -37,34 +37,57 @@ const createNotificationController = async (req, res) => {
             data: notification
         });
     } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                success: false,
+                message: error.message
+            });
+        }
+        if (error.message?.includes("Invalid notification type")) {
+            return res.status(400).json({
+                success: false,
+                message: error.message
+            });
+        }
         console.error("Create notification error:", error);
-
+        if (typeof next === "function") {
+            return next(error);
+        }
         return res.status(500).json({
             success: false,
-            message: "Failed to create notification",
-            error: error.message
+            message: "Failed to create notification"
         });
     }
 };
 
-const getNotificationsController = async (req, res) => {
+const getNotificationsController = async (req, res, next) => {
     try {
         const userId = req.user.userId || req.user.id;
-        const notifications =
-            await getUserNotifications(userId);
+        const page = req.query.page;
+        const limit = req.query.limit;
+
+        const result = await getUserNotifications(userId, { page, limit });
 
         return res.status(200).json({
             success: true,
-            data: notifications,
-            notifications
+            data: result.notifications,
+            notifications: result.notifications,
+            pagination: result.pagination
         });
     } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                success: false,
+                message: error.message
+            });
+        }
         console.error("Get notifications error:", error);
-
+        if (typeof next === "function") {
+            return next(error);
+        }
         return res.status(500).json({
             success: false,
-            message: "Failed to fetch notifications",
-            error: error.message
+            message: "Failed to fetch notifications"
         });
     }
 };

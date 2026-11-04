@@ -170,7 +170,7 @@ export default function DecisionLog({ projectId, onOpenCounterfactual, className
       resetForm();
       fetchDecisions(pagination.page);
     } catch (err) {
-      alert(err.response?.data?.error?.message || err.message || "Failed to save decision");
+      setError(err.response?.data?.error?.message || err.message || "Failed to save decision");
     }
   };
 
@@ -192,7 +192,7 @@ export default function DecisionLog({ projectId, onOpenCounterfactual, className
       resetSupersedeForm();
       fetchDecisions(pagination.page);
     } catch (err) {
-      alert(err.response?.data?.error?.message || err.message || "Failed to supersede decision");
+      setError(err.response?.data?.error?.message || err.message || "Failed to supersede decision");
     }
   };
 
@@ -203,7 +203,7 @@ export default function DecisionLog({ projectId, onOpenCounterfactual, className
       if (selectedDecisionDetail?.id === decisionId) setSelectedDecisionDetail(null);
       fetchDecisions(pagination.page);
     } catch (err) {
-      alert(err.response?.data?.error?.message || err.message || "Failed to delete decision");
+      setError(err.response?.data?.error?.message || err.message || "Failed to delete decision");
     }
   };
 

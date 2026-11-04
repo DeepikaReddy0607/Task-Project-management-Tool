@@ -23,13 +23,6 @@ export default function InterventionImpactPanel({ projectId, initialTaskId = nul
   const [preparedProposal, setPreparedProposal] = useState(null);
   const [stagingLoading, setStagingLoading] = useState(false);
 
-  // Auto-run default evaluation on mount
-  useEffect(() => {
-    if (projectId) {
-      handleEvaluate();
-    }
-  }, [projectId]);
-
   const handleEvaluate = async () => {
     setLoading(true);
     setError(null);
@@ -54,7 +47,7 @@ export default function InterventionImpactPanel({ projectId, initialTaskId = nul
       });
 
       setEvaluation(result);
-    } catch (err) {
+    } catch {
       // Graceful fallback for mock/demo environments
       setEvaluation({
         supported: true,
@@ -103,6 +96,13 @@ export default function InterventionImpactPanel({ projectId, initialTaskId = nul
       setLoading(false);
     }
   };
+
+  // Auto-run default evaluation on mount
+  useEffect(() => {
+    if (projectId) {
+      handleEvaluate();
+    }
+  }, [projectId]);
 
   const handleCompare = async () => {
     setLoading(true);
@@ -192,7 +192,7 @@ export default function InterventionImpactPanel({ projectId, initialTaskId = nul
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              PHASE 9 ENGINE
+              INTERVENTION ENGINE
             </span>
             <span className="text-xs font-mono text-slate-400">100% READ-ONLY SIMULATION</span>
           </div>
@@ -421,7 +421,7 @@ export default function InterventionImpactPanel({ projectId, initialTaskId = nul
                     ✓ Proposal Staged: {preparedProposal.proposalId}
                   </div>
                   <div className="text-slate-400 mt-1">
-                    {preparedProposal.message || "Staged for human approval in Phase 3 Approval Center. ZERO state mutations occur until approved."}
+                    {preparedProposal.message || "Staged for human approval in Approval Center. ZERO state mutations occur until approved."}
                   </div>
                 </div>
               )}

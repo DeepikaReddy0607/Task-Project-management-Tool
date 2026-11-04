@@ -1,5 +1,11 @@
 import prisma from "../config/prisma.js";
 
+const VALID_SUBTASK_STATUSES = [
+    "To Do",
+    "In Progress",
+    "Done"
+];
+
 const createSubtask = async (
     taskId,
     userId,
@@ -66,12 +72,19 @@ const createSubtask = async (
         }
     }
 
+    const resolvedStatus = status || "To Do";
+    if (!VALID_SUBTASK_STATUSES.includes(resolvedStatus)) {
+        const error = new Error("Invalid subtask status");
+        error.statusCode = 400;
+        throw error;
+    }
+
     const subtask = await prisma.subtasks.create({
         data: {
             task_id: taskId,
             title,
             description: description || null,
-            status: status || "To Do",
+            status: resolvedStatus,
             due_date: dueDate
                 ? new Date(dueDate)
                 : null,
@@ -265,6 +278,11 @@ const updateSubtask = async (
     }
 
     if (data.status !== undefined) {
+        if (!VALID_SUBTASK_STATUSES.includes(data.status)) {
+            const error = new Error("Invalid subtask status");
+            error.statusCode = 400;
+            throw error;
+        }
         updateData.status = data.status;
     }
 
@@ -280,14 +298,6 @@ const updateSubtask = async (
         },
         data: updateData,
         include: {
-            users: {
-                select: {
-                    id: true,
-                    first_name: true,
-                    last_name: true,
-                    email: true
-                }
-            },
             tasks: {
                 select: {
                     id: true,
@@ -306,6 +316,12 @@ const updateSubtaskStatus = async (
     userId,
     status
 ) => {
+
+    if (!status || !VALID_SUBTASK_STATUSES.includes(status)) {
+        const error = new Error("Invalid subtask status");
+        error.statusCode = 400;
+        throw error;
+    }
 
     // Find subtask and parent task/project/workspace
     const existingSubtask = await prisma.subtasks.findUnique({
@@ -426,6 +442,7 @@ const deleteSubtask = async (
 };
 
 export {
+    VALID_SUBTASK_STATUSES,
     createSubtask,
     getTaskSubtasks,
     getSubtask,

@@ -12,13 +12,14 @@ import {
   FiSettings,
   FiUser,
   FiX,
+  FiTrendingUp,
   FiCompass,
   FiShield,
   FiCpu,
   FiPieChart,
-  FiLock,
   FiChevronLeft,
   FiChevronRight,
+  FiMessageSquare,
 } from "react-icons/fi";
 import { TbCrystalBall } from "react-icons/tb";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -32,6 +33,8 @@ const coreNavigation = [
   { label: "Workspaces", icon: FiLayers, path: "/workspaces" },
   { label: "Projects", icon: FiFolder, path: "/projects" },
   { label: "My Tasks", icon: FiCheckSquare, path: "/tasks" },
+  { label: "Productivity", icon: FiTrendingUp, path: "/productivity" },
+  { label: "Chat", icon: FiMessageSquare, path: "/chat" },
   { label: "Kanban", icon: FiColumns, path: "/kanban" },
   { label: "Calendar", icon: FiCalendar, path: "/calendar" },
 ];
@@ -48,7 +51,6 @@ const intelligenceNavigation = [
 const accountNavigation = [
   { label: "Profile", icon: FiUser, path: "/profile" },
   { label: "Settings", icon: FiSettings, path: "/settings" },
-  { label: "Change Password", icon: FiLock, path: "/profile/change-password" },
 ];
 
 function Sidebar({ isOpen = false, onClose }) {

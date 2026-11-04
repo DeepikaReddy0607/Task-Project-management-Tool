@@ -9,7 +9,7 @@ const createComment = async (
     content
 ) => {
 
-    // Find task and its project
+    // Find task and its project with assigned user's email (single query)
     const task = await prisma.tasks.findUnique({
         where: {
             id: taskId
@@ -18,6 +18,11 @@ const createComment = async (
             projects: {
                 select: {
                     workspace_id: true
+                }
+            },
+            users_tasks_assigned_toTousers: {
+                select: {
+                    email: true
                 }
             }
         }
@@ -81,19 +86,12 @@ const createComment = async (
             });
         }
 
-        const assignedUser = await prisma.users.findUnique({
-            where: {
-                id: task.assigned_to
-            },
-            select: {
-                email: true
-            }
-        });
+        const assignedEmail = task.users_tasks_assigned_toTousers?.email;
 
-        if (assignedUser?.email) {
+        if (assignedEmail) {
             try {
                 await sendEmail({
-                    to: assignedUser.email,
+                    to: assignedEmail,
                     subject: `New Comment on Task: ${task.title}`,
                     text: `A new comment was added to your task "${task.title}".`,
                     html: `

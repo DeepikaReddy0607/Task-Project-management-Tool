@@ -21,6 +21,8 @@ const Calendar = lazy(() => import("../pages/calendar/Calendar"));
 const Kanban = lazy(() => import("../pages/kanban/Kanban"));
 const Activity = lazy(() => import("../pages/activity/Activity"));
 const Reports = lazy(() => import("../pages/reports/Reports"));
+const Productivity = lazy(() => import("../pages/productivity/Productivity"));
+const Chat = lazy(() => import("../pages/chat/Chat"));
 const WhatIf = lazy(() => import("../pages/WhatIf"));
 const PortfolioIntelligence = lazy(() => import("../pages/PortfolioIntelligence"));
 const CoordinationPage = lazy(() => import("../pages/CoordinationPage"));
@@ -67,6 +69,8 @@ function AppRoutes() {
                 <Route path="/kanban" element={<ProtectedRoute><Kanban /></ProtectedRoute>} />
                 <Route path="/activity" element={<ProtectedRoute><Activity /></ProtectedRoute>} />
                 <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+                <Route path="/productivity" element={<ProtectedRoute><Productivity /></ProtectedRoute>} />
+                <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
                 <Route path="/what-if" element={<ProtectedRoute><WhatIf /></ProtectedRoute>} />
 
                 <Route path="/portfolio" element={<ProtectedRoute><PortfolioIntelligence /></ProtectedRoute>} />

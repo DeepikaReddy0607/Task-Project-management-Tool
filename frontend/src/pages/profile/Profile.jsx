@@ -381,14 +381,6 @@ function Profile() {
                 <PageHeader
                     title={pageTitle}
                     description="Manage your personal details and account preferences."
-                    actions={
-                        <Link to="/profile/change-password">
-                            <Button variant="secondary">
-                                <FiKey size={16} />
-                                Change password
-                            </Button>
-                        </Link>
-                    }
                 />
 
 

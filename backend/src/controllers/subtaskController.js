@@ -66,6 +66,18 @@ const create = async (req, res, next) => {
 
     } catch (error) {
 
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Invalid subtask status") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
         if (error.message === "Task not found") {
             return res.status(404).json({
                 message: error.message
@@ -116,6 +128,18 @@ const getAll = async (req, res, next) => {
 
     } catch (error) {
 
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Invalid subtask status") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
         if (error.message === "Task not found") {
             return res.status(404).json({
                 message: error.message
@@ -156,6 +180,18 @@ const getOne = async (req, res, next) => {
         });
 
     } catch (error) {
+
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Invalid subtask status") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
 
         if (error.message === "Subtask not found") {
             return res.status(404).json({
@@ -216,6 +252,18 @@ const update = async (req, res, next) => {
         });
 
     } catch (error) {
+
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Invalid subtask status") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
 
         if (error.message === "Subtask not found") {
             return res.status(404).json({
@@ -287,6 +335,18 @@ const updateStatus = async (req, res, next) => {
 
     } catch (error) {
 
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Invalid subtask status") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
         if (error.message === "Subtask not found") {
             return res.status(404).json({
                 message: error.message
@@ -335,6 +395,18 @@ const remove = async (req, res, next) => {
         });
 
     } catch (error) {
+
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Invalid subtask status") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
 
         if (error.message === "Subtask not found") {
             return res.status(404).json({

@@ -113,13 +113,18 @@ function Kanban() {
                     task.assignee?.full_name ||
                     "Unassigned",
                   dueDate: task.due_date
-                    ? new Date(task.due_date).toLocaleDateString(
-                        "en-US",
-                        {
-                          month: "short",
-                          day: "numeric",
-                        }
-                      )
+                    ? (() => {
+                        const match = String(task.due_date).match(/^(\d{4})-(\d{2})-(\d{2})/);
+                        const d = match
+                          ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0)
+                          : new Date(task.due_date);
+                        return !Number.isNaN(d.getTime())
+                          ? d.toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : "No due date";
+                      })()
                     : "No due date",
                   subtasksCompleted:
                     task.subtasksCompleted ??

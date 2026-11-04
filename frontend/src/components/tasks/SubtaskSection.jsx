@@ -10,6 +10,8 @@ import {
   deleteSubtask,
 } from "../../services/api/subtaskApi";
 
+export const SUBTASK_STATUSES = ["To Do", "In Progress", "Done"];
+
 const emptyForm = {
   title: "",
   description: "",
@@ -32,10 +34,10 @@ function normalizeSubtask(subtask) {
 }
 
 function SubtaskSection({
-  assignees,
+  assignees = [],
   formatDate,
-  statusClasses,
-  statuses,
+  statusClasses = {},
+  statuses = SUBTASK_STATUSES,
   taskId,
 }) {
   const [subtasks, setSubtasks] = useState([]);
@@ -102,7 +104,7 @@ function SubtaskSection({
   }, [taskId]);
 
   const completed = subtasks.filter(
-    (item) => item.status === "Completed"
+    (item) => item.status === "Done" || item.status === "Completed"
   ).length;
 
   const progress = subtasks.length
@@ -469,7 +471,10 @@ function SubtaskSection({
                       className={
                         "rounded-full px-2 py-0.5 text-xs font-semibold " +
                         (statusClasses[subtask.status] ||
-                          statusClasses["To Do"])
+                          (subtask.status === "Done"
+                            ? "bg-[var(--color-surface-sage)] text-[var(--color-brand-hover)]"
+                            : statusClasses["To Do"] ||
+                              "bg-[var(--color-info-soft)] text-[var(--color-info)]"))
                       }
                     >
                       {subtask.status}

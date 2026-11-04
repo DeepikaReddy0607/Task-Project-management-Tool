@@ -19,7 +19,11 @@ transporter.verify()
 const sendPasswordResetEmail = async (email, resetLink) => {
     try {
         if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASSWORD) {
-            console.log(`[AUTH DEV] Password reset link for ${email}: ${resetLink}`);
+            if (process.env.NODE_ENV !== "production" && process.env.LOG_DEV_AUTH_TOKENS === "true") {
+                console.log(`[AUTH DEV] Password reset link for ${email}: ${resetLink}`);
+            } else {
+                console.log(`[AUTH] Password reset instructions dispatched for ${email}`);
+            }
             return;
         }
 
@@ -66,8 +70,9 @@ const sendPasswordResetEmail = async (email, resetLink) => {
     } catch (error) {
         console.error("[AUTH] Failed to send password reset email:", error);
 
-        // Preserve development usability when email configuration is unavailable.
-        console.log(`[AUTH DEV] Password reset link for ${email}: ${resetLink}`);
+        if (process.env.NODE_ENV !== "production" && process.env.LOG_DEV_AUTH_TOKENS === "true") {
+            console.log(`[AUTH DEV] Password reset link for ${email}: ${resetLink}`);
+        }
     }
 };
 

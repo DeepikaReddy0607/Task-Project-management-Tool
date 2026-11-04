@@ -3,6 +3,15 @@ import { canManageProject } from "../utils/projectAuthorization.js";
 import { createNotification } from "./notificationService.js";
 import sendEmail from "./emailService.js";
 
+export const SAFE_USER_SELECT = Object.freeze({
+    id: true,
+    first_name: true,
+    last_name: true,
+    email: true,
+    profile_picture: true,
+    is_active: true
+});
+
 export const PROJECT_ROLE_MAPPINGS = Object.freeze({
     "member": "Team Member",
     "team member": "Team Member",
@@ -68,6 +77,17 @@ const createProject = async (
         throw error;
     }
 
+    // Validate project dates
+    if (startDate && endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && start > end) {
+            const error = new Error("Project start date cannot be after end date");
+            error.statusCode = 400;
+            throw error;
+        }
+    }
+
     // Create the project
     const project = await prisma.projects.create({
         data: {
@@ -97,7 +117,8 @@ const createProject = async (
 
 const getWorkspaceProjects = async (
     workspaceId,
-    userId
+    userId,
+    options = {}
 ) => {
 
     // Check workspace access
@@ -114,11 +135,13 @@ const getWorkspaceProjects = async (
         throw error;
     }
 
-    // Get only active projects
+    const isArchived = options?.archived === "true" || options?.archived === true || options?.isArchived === true;
+
+    // Get projects
     const projects = await prisma.projects.findMany({
         where: {
             workspace_id: workspaceId,
-            is_archived: false
+            is_archived: isArchived
         },
         orderBy: {
             created_at: "desc"
@@ -262,6 +285,14 @@ const updateProject = async (
         userId
     );
 
+    const effectiveStartDate = data.startDate !== undefined ? (data.startDate ? new Date(data.startDate) : null) : project.start_date;
+    const effectiveEndDate = data.endDate !== undefined ? (data.endDate ? new Date(data.endDate) : null) : project.end_date;
+    if (effectiveStartDate && effectiveEndDate && effectiveStartDate > effectiveEndDate) {
+        const error = new Error("Project start date cannot be after end date");
+        error.statusCode = 400;
+        throw error;
+    }
+
     const updatedProject = await prisma.projects.update({
         where: {
             id: projectId
@@ -301,65 +332,62 @@ const updateProject = async (
         }
     });
 
-    // Get all project members
+    // Get all project members with email joined (eliminating N+1 user queries)
     const projectMembers = await prisma.project_members.findMany({
         where: {
             project_id: projectId
         },
         select: {
-            user_id: true
+            user_id: true,
+            users: {
+                select: {
+                    email: true
+                }
+            }
         }
     });
 
-    // Notify all project members except the user who made the update
-    for (const member of projectMembers) {
-        if (member.user_id === userId) {
-            continue;
-        }
+    // Notify all project members concurrently without blocking serial I/O
+    const notifyTasks = projectMembers
+        .filter((member) => member.user_id !== userId)
+        .map(async (member) => {
+            try {
+                await createNotification({
+                    userId: member.user_id,
+                    type: "PROJECT_UPDATED",
+                    message: `Project "${updatedProject.title}" has been updated.`,
+                    relatedEntityType: "PROJECT",
+                    relatedEntityId: updatedProject.id
+                });
+            } catch (notifErr) {
+                console.error("[NOTIFICATION_DISPATCH_WARNING] Project update notification failed:", {
+                    projectId: updatedProject.id,
+                    userId: member.user_id,
+                    error: notifErr.message
+                });
+            }
 
-        try {
-            await createNotification({
-                userId: member.user_id,
-                type: "PROJECT_UPDATED",
-                message: `Project "${updatedProject.title}" has been updated.`,
-                relatedEntityType: "PROJECT",
-                relatedEntityId: updatedProject.id
-            });
-        } catch (notifErr) {
-            console.error("[NOTIFICATION_DISPATCH_WARNING] Project update notification failed:", {
-                projectId: updatedProject.id,
-                userId: member.user_id,
-                error: notifErr.message
-            });
-        }
-
-        const memberUser = await prisma.users.findUnique({
-            where: {
-                id: member.user_id
-            },
-            select: {
-                email: true
+            const email = member.users?.email;
+            if (email) {
+                try {
+                    await sendEmail({
+                        to: email,
+                        subject: `Project Updated: ${updatedProject.title}`,
+                        text: `The project "${updatedProject.title}" has been updated.`,
+                        html: `
+                            <h2>Project Updated</h2>
+                            <p>The following project has been updated:</p>
+                            <p><strong>${updatedProject.title}</strong></p>
+                            <p>Please log in to TaskFlow to view the latest changes.</p>
+                        `
+                    });
+                } catch (mailErr) {
+                    console.warn("[MAIL] Project update notification email skipped or failed:", mailErr.message);
+                }
             }
         });
 
-        if (memberUser?.email) {
-            try {
-                await sendEmail({
-                    to: memberUser.email,
-                    subject: `Project Updated: ${updatedProject.title}`,
-                    text: `The project "${updatedProject.title}" has been updated.`,
-                    html: `
-                        <h2>Project Updated</h2>
-                        <p>The following project has been updated:</p>
-                        <p><strong>${updatedProject.title}</strong></p>
-                        <p>Please log in to TaskFlow to view the latest changes.</p>
-                    `
-                });
-            } catch (mailErr) {
-                console.warn("[MAIL] Project update notification email skipped or failed:", mailErr.message);
-            }
-        }
-    }
+    await Promise.allSettled(notifyTasks);
 
     return updatedProject;
 };
@@ -411,6 +439,47 @@ const archiveProject = async (
     });
 
     return archivedProject;
+};
+
+const restoreProject = async (
+    projectId,
+    userId
+) => {
+    const project = await prisma.projects.findUnique({
+        where: {
+            id: projectId
+        }
+    });
+
+    if (!project) {
+        const error = new Error("Project not found");
+        error.statusCode = 404;
+        throw error;
+    }
+
+    // Verify project management permission
+    await checkProjectManagementAccess(
+        project,
+        userId
+    );
+
+    if (!project.is_archived) {
+        const error = new Error("Project is not archived");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const restoredProject = await prisma.projects.update({
+        where: {
+            id: projectId
+        },
+        data: {
+            is_archived: false,
+            updated_at: new Date()
+        }
+    });
+
+    return restoredProject;
 };
 
 
@@ -526,7 +595,9 @@ const addProjectMember = async (
             },
             include: {
                 roles: true,
-                users: true
+                users: {
+                    select: SAFE_USER_SELECT
+                }
             }
         });
 
@@ -582,8 +653,10 @@ const getProjectMembers = async (
                 project_id: projectId
             },
             include: {
-                users: true,
-                roles: true
+                roles: true,
+                users: {
+                    select: SAFE_USER_SELECT
+                }
             },
             orderBy: {
                 user_id: "asc"
@@ -677,8 +750,10 @@ const updateProjectMemberRole = async (
                 role_id: role.id
             },
             include: {
-                users: true,
-                roles: true
+                roles: true,
+                users: {
+                    select: SAFE_USER_SELECT
+                }
             }
         });
 
@@ -762,6 +837,7 @@ export {
     getProject,
     updateProject,
     archiveProject,
+    restoreProject,
     addProjectMember,
     getProjectMembers,
     updateProjectMemberRole,

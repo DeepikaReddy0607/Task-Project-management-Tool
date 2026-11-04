@@ -267,7 +267,7 @@ export default function ProjectCommandCenter({ projectId, workspaceId }) {
           }`}
         >
           <span className="w-2 h-2 rounded-full bg-amber-500" />
-          Dependency Shockwave (Phase 8)
+          Dependency Shockwave
         </button>
         <button
           onClick={() => setActiveTab("intervention")}
@@ -278,7 +278,7 @@ export default function ProjectCommandCenter({ projectId, workspaceId }) {
           }`}
         >
           <span className="w-2 h-2 rounded-full bg-emerald-500" />
-          Intervention Impact (Phase 9)
+          Intervention Impact
         </button>
         <button
           onClick={() => setActiveTab("chaos")}
@@ -289,7 +289,7 @@ export default function ProjectCommandCenter({ projectId, workspaceId }) {
           }`}
         >
           <span className="w-2 h-2 rounded-full bg-purple-500" />
-          Project Chaos Lab (Phase 10)
+          Project Chaos Lab
         </button>
         <button
           onClick={() => setActiveTab("redteam")}
@@ -300,7 +300,7 @@ export default function ProjectCommandCenter({ projectId, workspaceId }) {
           }`}
         >
           <span className="w-2 h-2 rounded-full bg-rose-500" />
-          Project Red Team (Phase 11)
+          Project Red Team
         </button>
         <button
           onClick={() => setActiveTab("counterfactual")}
@@ -311,7 +311,7 @@ export default function ProjectCommandCenter({ projectId, workspaceId }) {
           }`}
         >
           <span className="w-2 h-2 rounded-full bg-cyan-500" />
-          Counterfactual Time Machine (Phase 12)
+          Counterfactual Time Machine
         </button>
         <button
           onClick={() => setActiveTab("dependencies")}
@@ -322,7 +322,7 @@ export default function ProjectCommandCenter({ projectId, workspaceId }) {
           }`}
         >
           <span className="w-2 h-2 rounded-full bg-indigo-500" />
-          Dependency Graph (Phase 13)
+          Dependency Graph
         </button>
         <button
           onClick={() => setActiveTab("decisions")}
@@ -333,7 +333,7 @@ export default function ProjectCommandCenter({ projectId, workspaceId }) {
           }`}
         >
           <span className="w-2 h-2 rounded-full bg-teal-500" />
-          Decision Log (Phase 14)
+          Decision Log
         </button>
       </div>
 
@@ -507,7 +507,7 @@ export default function ProjectCommandCenter({ projectId, workspaceId }) {
             )}
           </div>
 
-          {/* Project Decisions Telemetry Card (Phase 14) */}
+          {/* Project Decisions Telemetry Card */}
           <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Project Decisions</h3>

@@ -17,6 +17,7 @@ import {
     getAdminProjectById,
     getAdminActivity
 } from "../services/adminService.js";
+import { emitRealtimeEvent } from "../socket.js";
 
 export const getOverviewController = async (req, res) => {
     try {
@@ -118,6 +119,12 @@ export const updateUserStatusController = async (req, res) => {
 
         const actorUserId = req.user?.userId || req.user?.id;
         const updated = await updateUserStatus(id, isActive, actorUserId);
+
+        emitRealtimeEvent({
+            type: "user.status_changed",
+            userId: id,
+            data: { isActive, userId: id }
+        });
 
         return res.status(200).json({
             success: true,

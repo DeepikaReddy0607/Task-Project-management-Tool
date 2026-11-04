@@ -1,8 +1,24 @@
+import crypto from "node:crypto";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../config/prisma.js";
 import { sendPasswordResetEmail } from "./mailService.js";
-import { createActivity } from "./activityService.js";
+import { createActivity, createBatchActivities } from "./activityService.js";
+
+let isUsedTokensTableReady = false;
+const ensureUsedPasswordResetTokensTable = async () => {
+    if (isUsedTokensTableReady) return;
+    await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS taskflow.used_password_reset_tokens (
+            token_hash VARCHAR(64) PRIMARY KEY,
+            user_id UUID NOT NULL,
+            used_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            expires_at TIMESTAMPTZ NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_used_password_reset_tokens_expires ON taskflow.used_password_reset_tokens (expires_at);
+    `);
+    isUsedTokensTableReady = true;
+};
 
 const registerUser = async (data) => {
     const {
@@ -119,15 +135,21 @@ const loginUser = async (email, password) => {
         }
     );
 
-    for (const membership of memberships) {
-        await createActivity({
-            workspaceId: membership.workspace_id,
-            userId: user.id,
-            actionType: "LOGIN",
-            entityType: "USER",
-            entityId: user.id,
-            description: `${user.first_name} ${user.last_name} logged in`
-        });
+    if (memberships.length > 0) {
+        try {
+            await createBatchActivities(
+                memberships.map((membership) => ({
+                    workspaceId: membership.workspace_id,
+                    userId: user.id,
+                    actionType: "LOGIN",
+                    entityType: "USER",
+                    entityId: user.id,
+                    description: `${user.first_name} ${user.last_name} logged in`
+                }))
+            );
+        } catch (actErr) {
+            console.error("Batch login activity logging error:", actErr.message);
+        }
     }
 
     // 6. Return token and user information
@@ -166,7 +188,8 @@ const requestPasswordReset = async (email) => {
     const resetToken = jwt.sign(
         {
             userId: user.id,
-            purpose: "password-reset"
+            purpose: "password-reset",
+            jti: crypto.randomUUID()
         },
         process.env.RESET_PASSWORD_SECRET,
         {
@@ -217,6 +240,26 @@ const resetPassword = async (token, newPassword) => {
         throw resetError;
     }
 
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+    await ensureUsedPasswordResetTokensTable();
+
+    // Check if token has already been marked as used
+    const existing = await prisma.$queryRawUnsafe(
+        `SELECT token_hash FROM taskflow.used_password_reset_tokens WHERE token_hash = $1`,
+        tokenHash
+    );
+
+    if (existing && existing.length > 0) {
+        const resetError = new Error(
+            "Password reset token has already been used"
+        );
+
+        resetError.statusCode = 400;
+
+        throw resetError;
+    }
+
     const user = await prisma.users.findUnique({
         where: {
             id: decoded.userId
@@ -238,14 +281,46 @@ const resetPassword = async (token, newPassword) => {
         10
     );
 
-    await prisma.users.update({
-        where: {
-            id: user.id
-        },
-        data: {
-            password_hash: passwordHash
+    const expiresAt = decoded.exp
+        ? new Date(decoded.exp * 1000)
+        : new Date(Date.now() + 15 * 60 * 1000);
+
+    // Atomic transaction: mark token as used AND update password.
+    // If concurrent requests attempt to use the same token simultaneously,
+    // PostgreSQL unique constraint on token_hash (PK) guarantees that exactly ONE commits,
+    // and the other fails with a unique constraint violation (code 23505).
+    try {
+        await prisma.$transaction(async (tx) => {
+            await tx.$executeRawUnsafe(
+                `INSERT INTO taskflow.used_password_reset_tokens (token_hash, user_id, used_at, expires_at)
+                 VALUES ($1, $2::uuid, NOW(), $3::timestamptz)`,
+                tokenHash,
+                user.id,
+                expiresAt.toISOString()
+            );
+
+            await tx.users.update({
+                where: {
+                    id: user.id
+                },
+                data: {
+                    password_hash: passwordHash,
+                    updated_at: new Date()
+                }
+            });
+        });
+    } catch (txError) {
+        if (
+            txError.code === "23505" ||
+            txError.message?.includes("unique constraint") ||
+            txError.message?.includes("duplicate key")
+        ) {
+            const err = new Error("Password reset token has already been used");
+            err.statusCode = 400;
+            throw err;
         }
-    });
+        throw txError;
+    }
 
     return {
         message: "Password reset successful"
@@ -290,4 +365,11 @@ const changePassword = async (userId, currentPassword, newPassword) => {
   };
 };
 
-export { registerUser, loginUser, requestPasswordReset, resetPassword, changePassword };
+export {
+    registerUser,
+    loginUser,
+    requestPasswordReset,
+    resetPassword,
+    changePassword,
+    ensureUsedPasswordResetTokensTable
+};

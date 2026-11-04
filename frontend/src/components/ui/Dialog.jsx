@@ -1,10 +1,27 @@
+import { useEffect } from "react";
 import { FiX } from "react-icons/fi";
 
 function Dialog({ children, onClose, title, wide = false, topmost = false, isOpen = true }) {
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose?.();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
     <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose?.();
+      }}
       className={`fixed inset-0 ${
         topmost ? "z-[80]" : "z-[70]"
       } flex items-end justify-center bg-[rgb(52_67_51/0.22)] p-3 backdrop-blur-sm sm:items-center sm:p-5`}

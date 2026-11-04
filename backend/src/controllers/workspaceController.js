@@ -164,6 +164,12 @@ const addMember = async (req, res, next) => {
 
     } catch (error) {
 
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+
         if (
             error.message === "Workspace not found" ||
             error.message === "User not found"
@@ -183,12 +189,14 @@ const addMember = async (req, res, next) => {
             });
         }
 
-        if (
-            error.message === "Invalid workspace role" ||
-            error.message ===
-                "User is already a member of this workspace"
-        ) {
+        if (error.message === "Invalid workspace role") {
             return res.status(400).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "User is already a member of this workspace") {
+            return res.status(409).json({
                 message: error.message
             });
         }

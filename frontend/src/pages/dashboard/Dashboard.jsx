@@ -74,10 +74,10 @@ const parseDate = (value) => {
 
   const stringValue = String(value);
 
-  const date =
-    stringValue.length === 10
-      ? new Date(`${stringValue}T00:00:00`)
-      : new Date(stringValue);
+  const match = stringValue.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const date = match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0)
+    : new Date(stringValue);
 
   return Number.isNaN(date.getTime()) ? null : date;
 };

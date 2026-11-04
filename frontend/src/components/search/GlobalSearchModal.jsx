@@ -250,11 +250,11 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
       aria-modal="true"
     >
       <div
-        className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl border border-[var(--color-border)] overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150"
+        className="w-full max-w-4xl rounded-2xl bg-[var(--color-surface)] shadow-2xl border border-[var(--color-border)] overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header / Search Input */}
-        <div className="relative flex items-center border-b border-[var(--color-border)] px-6 py-4 bg-white">
+        <div className="relative flex items-center border-b border-[var(--color-border)] px-6 py-4 bg-[var(--color-surface)]">
           <FiSearch size={22} className="text-[var(--color-text-subtle)] shrink-0 mr-3.5" />
           <input
             ref={inputRef}
@@ -279,14 +279,15 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-100 text-[var(--color-text-muted)] hover:bg-slate-200 transition"
+            aria-label="Close search"
+            className="p-1.5 rounded-md text-[var(--color-text-subtle)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-muted)] transition"
           >
-            ESC
+            <FiX size={20} />
           </button>
         </div>
 
         {/* Filter Controls & Tabs */}
-        <div className="px-6 py-3 bg-slate-50 border-b border-[var(--color-border)]">
+        <div className="px-6 py-3 bg-[var(--color-canvas-soft)] border-b border-[var(--color-border)]">
           <FilterBar
             filters={filters}
             onChange={handleFilterChange}
@@ -425,22 +426,22 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-[var(--color-border)] px-4 py-2.5 bg-slate-50 text-xs text-[var(--color-text-muted)]">
+        <div className="flex items-center justify-between border-t border-[var(--color-border)] px-4 py-2.5 bg-[var(--color-canvas-soft)] text-xs text-[var(--color-text-muted)]">
           <div className="flex items-center gap-3">
             <span>
-              <kbd className="px-1.5 py-0.5 rounded bg-white border border-[var(--color-border)] font-mono text-[10px]">
+              <kbd className="px-1.5 py-0.5 rounded bg-[var(--color-surface)] border border-[var(--color-border)] font-mono text-[10px]">
                 ↑↓
               </kbd>{" "}
               Navigate
             </span>
             <span>
-              <kbd className="px-1.5 py-0.5 rounded bg-white border border-[var(--color-border)] font-mono text-[10px]">
+              <kbd className="px-1.5 py-0.5 rounded bg-[var(--color-surface)] border border-[var(--color-border)] font-mono text-[10px]">
                 Enter
               </kbd>{" "}
               Open
             </span>
             <span>
-              <kbd className="px-1.5 py-0.5 rounded bg-white border border-[var(--color-border)] font-mono text-[10px]">
+              <kbd className="px-1.5 py-0.5 rounded bg-[var(--color-surface)] border border-[var(--color-border)] font-mono text-[10px]">
                 ESC
               </kbd>{" "}
               Close

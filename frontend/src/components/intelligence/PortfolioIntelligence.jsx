@@ -1,35 +1,73 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import {
   getPortfolioIntelligence,
   getResourceConflicts,
   getCrossProjectIntelligence
 } from "../../services/api/intelligenceApi";
+import { getWorkspaces } from "../../services/api/workspaceApi";
 import PortfolioRiskMap from "./PortfolioRiskMap";
 import ResourceConflictPanel from "./ResourceConflictPanel";
 import CrossProjectIntelligence from "./CrossProjectIntelligence";
 import PortfolioScenarioBuilder from "./PortfolioScenarioBuilder";
 import PortfolioScenarioResults from "./PortfolioScenarioResults";
+import Card from "../ui/Card";
+import Button from "../ui/Button";
+import { FiRefreshCw, FiLayers, FiAlertCircle, FiChevronRight } from "react-icons/fi";
 
 export default function PortfolioIntelligence({ workspaceId: propWorkspaceId }) {
+  const [workspaces, setWorkspaces] = useState([]);
+  const [workspacesLoading, setWorkspacesLoading] = useState(true);
+
   // Determine effective workspaceId from prop or localStorage
-  const activeWorkspaceId =
+  const initialWorkspaceId =
     propWorkspaceId ||
     localStorage.getItem("activeWorkspaceId") ||
     localStorage.getItem("currentWorkspaceId") ||
     "";
 
-  const [workspaceId, setWorkspaceId] = useState(activeWorkspaceId);
+  const [workspaceId, setWorkspaceId] = useState(initialWorkspaceId);
   const [activeTab, setActiveTab] = useState("risk-map"); // 'risk-map' | 'resources' | 'cross-project' | 'what-if'
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [portfolioData, setPortfolioData] = useState(null);
   const [error, setError] = useState(null);
   const [simulationResult, setSimulationResult] = useState(null);
 
+  // Load workspaces on mount
+  useEffect(() => {
+    let isMounted = true;
+    const fetchUserWorkspaces = async () => {
+      try {
+        setWorkspacesLoading(true);
+        const res = await getWorkspaces();
+        const list = res?.workspaces || res || [];
+        if (isMounted) {
+          setWorkspaces(list);
+          if (list.length > 0) {
+            // If current workspaceId is empty or not in the user's workspaces, default to first workspace
+            const exists = list.some((w) => w.id === workspaceId);
+            if (!workspaceId || !exists) {
+              const defaultId = list[0].id;
+              setWorkspaceId(defaultId);
+              localStorage.setItem("activeWorkspaceId", defaultId);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load workspaces for portfolio view:", err);
+      } finally {
+        if (isMounted) setWorkspacesLoading(false);
+      }
+    };
+
+    fetchUserWorkspaces();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const fetchPortfolio = async () => {
-    if (!workspaceId) {
-      setLoading(false);
-      return;
-    }
+    if (!workspaceId) return;
     try {
       setLoading(true);
       setError(null);
@@ -47,32 +85,42 @@ export default function PortfolioIntelligence({ workspaceId: propWorkspaceId }) 
   };
 
   useEffect(() => {
-    fetchPortfolio();
+    if (workspaceId) {
+      fetchPortfolio();
+    }
   }, [workspaceId]);
 
-  if (!workspaceId) {
+  const handleWorkspaceChange = (e) => {
+    const newId = e.target.value;
+    setWorkspaceId(newId);
+    localStorage.setItem("activeWorkspaceId", newId);
+  };
+
+  if (workspacesLoading) {
     return (
-      <div className="p-8 bg-slate-50 border border-slate-200 rounded-xl text-center text-slate-500">
-        Please select a workspace to inspect Portfolio Intelligence.
+      <div className="flex items-center justify-center py-24 text-[var(--color-text-muted)]">
+        <FiRefreshCw className="animate-spin mr-3" size={20} />
+        <span>Loading workspace portfolio...</span>
       </div>
     );
   }
 
-  if (loading) {
+  if (workspaces.length === 0) {
     return (
-      <div className="flex items-center justify-center py-20 text-slate-400">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mr-3" />
-        <span>Aggregating Workspace Portfolio Intelligence...</span>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-6 bg-rose-50 border border-rose-200 rounded-xl text-rose-700">
-        <h4 className="font-semibold text-rose-800 mb-1">Portfolio Intelligence Unavailable</h4>
-        <p className="text-sm">{error}</p>
-      </div>
+      <Card className="p-12 text-center max-w-xl mx-auto my-12">
+        <FiLayers className="mx-auto text-[var(--color-text-muted)] opacity-50" size={40} />
+        <h3 className="mt-4 text-lg font-semibold text-[var(--color-text)]">
+          No Workspaces Found
+        </h3>
+        <p className="mt-2 text-sm text-[var(--color-text-muted)]">
+          Create a workspace and projects to explore multi-project portfolio intelligence and cross-project risk maps.
+        </p>
+        <div className="mt-6">
+          <Link to="/workspaces">
+            <Button>Go to Workspaces</Button>
+          </Link>
+        </div>
+      </Card>
     );
   }
 
@@ -86,166 +134,213 @@ export default function PortfolioIntelligence({ workspaceId: propWorkspaceId }) 
   } = portfolioData || {};
 
   const statusBadgeColors = {
-    HEALTHY: "bg-emerald-100 text-emerald-800 border-emerald-300",
-    WATCH: "bg-amber-100 text-amber-800 border-amber-300",
-    AT_RISK: "bg-orange-100 text-orange-800 border-orange-300",
-    CRITICAL: "bg-rose-100 text-rose-800 border-rose-300"
+    HEALTHY: "bg-[var(--color-surface-sage)] text-[var(--color-brand)] border-[var(--color-brand-soft)]",
+    WATCH: "bg-[var(--color-info-soft)] text-[var(--color-info)] border-[var(--color-info-soft)]",
+    AT_RISK: "bg-[var(--color-peach-soft)] text-[var(--color-peach)] border-[var(--color-peach-soft)]",
+    CRITICAL: "bg-[var(--color-danger-soft)] text-[var(--color-danger)] border-[var(--color-danger-soft)]"
   };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 py-6">
-      {/* Header & Title */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+      {/* Header & Controls */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--color-border)] pb-5">
         <div>
           <div className="flex items-center space-x-2">
             <span className="text-xl">🌐</span>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Portfolio Command Center</h1>
-            <span className="text-xs font-semibold px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full">
-              Phase 5 Executive
+            <h1 className="text-2xl font-bold text-[var(--color-text)] tracking-tight">
+              Portfolio Command Center
+            </h1>
+            <span className="text-xs font-semibold px-2.5 py-0.5 bg-[var(--color-surface-sage)] text-[var(--color-brand)] border border-[var(--color-border)] rounded-full">
+              Executive Intelligence
             </span>
           </div>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-[var(--color-text-muted)] mt-1">
             Workspace-level health, probabilistic forecasting, resource pressure, and cross-project risk concentration
           </p>
         </div>
 
-        <button
-          onClick={fetchPortfolio}
-          className="px-3.5 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold transition-colors flex items-center space-x-1.5 self-start md:self-auto"
-        >
-          <span>↻</span>
-          <span>Refresh Portfolio</span>
-        </button>
-      </div>
-
-      {/* KPI Overview Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {/* Overall Health */}
-        <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-sm col-span-2 sm:col-span-1">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Portfolio Health</div>
-          <div className="flex items-baseline space-x-2 mt-1">
-            <span className="text-2xl font-black text-slate-900">{portfolioHealthScore}</span>
-            <span className="text-xs text-slate-400">/ 100</span>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Workspace Switcher */}
+          <div className="flex items-center gap-2">
+            <label htmlFor="portfolio-workspace-select" className="text-xs font-medium text-[var(--color-text-muted)]">
+              Workspace:
+            </label>
+            <select
+              id="portfolio-workspace-select"
+              value={workspaceId}
+              onChange={handleWorkspaceChange}
+              className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-medium text-[var(--color-text)] shadow-xs focus:border-[var(--color-brand)] focus:outline-none"
+            >
+              {workspaces.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
           </div>
-          <span className={`inline-block mt-1 px-2 py-0.5 rounded-full font-bold text-[10px] border ${statusBadgeColors[portfolioStatus] || "bg-slate-100 text-slate-800"}`}>
-            {portfolioStatus}
-          </span>
-        </div>
 
-        {/* Total Projects */}
-        <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Projects</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">{totalProjects}</div>
-          <div className="text-xs text-slate-500 mt-1">Active initiatives</div>
-        </div>
-
-        {/* Healthy */}
-        <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
-          <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Healthy</div>
-          <div className="text-2xl font-bold text-emerald-700 mt-1">{distribution.HEALTHY}</div>
-          <div className="text-xs text-slate-400 mt-1">Operating on track</div>
-        </div>
-
-        {/* Watch */}
-        <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
-          <div className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Watch</div>
-          <div className="text-2xl font-bold text-amber-700 mt-1">{distribution.WATCH}</div>
-          <div className="text-xs text-slate-400 mt-1">Minor drift signals</div>
-        </div>
-
-        {/* At Risk */}
-        <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
-          <div className="text-xs font-semibold text-orange-600 uppercase tracking-wider">At Risk</div>
-          <div className="text-2xl font-bold text-orange-700 mt-1">{distribution.AT_RISK}</div>
-          <div className="text-xs text-slate-400 mt-1">Elevated risk load</div>
-        </div>
-
-        {/* Critical */}
-        <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
-          <div className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Critical</div>
-          <div className="text-2xl font-bold text-rose-700 mt-1">{distribution.CRITICAL}</div>
-          <div className="text-xs text-slate-400 mt-1">Immediate intervention</div>
+          <Button
+            variant="secondary"
+            onClick={fetchPortfolio}
+            disabled={loading}
+            className="flex items-center gap-1.5 text-xs py-1.5 px-3"
+          >
+            <FiRefreshCw className={loading ? "animate-spin" : ""} size={13} />
+            Refresh
+          </Button>
         </div>
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="flex items-center space-x-1 border-b border-slate-200 overflow-x-auto text-xs font-semibold">
-        <button
-          onClick={() => setActiveTab("risk-map")}
-          className={`px-4 py-2.5 border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "risk-map"
-              ? "border-indigo-600 text-indigo-600 font-bold"
-              : "border-transparent text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          📊 Portfolio Risk Map
-        </button>
+      {error && (
+        <div className="p-4 bg-[var(--color-danger-soft)] border border-[var(--color-danger-soft)] rounded-[var(--radius-md)] text-[var(--color-danger)] text-sm flex items-start gap-2">
+          <FiAlertCircle className="mt-0.5 shrink-0" size={16} />
+          <div>
+            <span className="font-semibold">Portfolio Intelligence Notice: </span>
+            {error}
+          </div>
+        </div>
+      )}
 
-        <button
-          onClick={() => setActiveTab("resources")}
-          className={`px-4 py-2.5 border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "resources"
-              ? "border-indigo-600 text-indigo-600 font-bold"
-              : "border-transparent text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          👥 Resource Conflicts
-        </button>
+      {loading ? (
+        <div className="flex items-center justify-center py-20 text-[var(--color-text-muted)]">
+          <FiRefreshCw className="animate-spin mr-3" size={24} />
+          <span>Aggregating Workspace Portfolio Intelligence...</span>
+        </div>
+      ) : (
+        <>
+          {/* KPI Overview Strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {/* Overall Health */}
+            <Card className="p-4 col-span-2 sm:col-span-1">
+              <div className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
+                Portfolio Health
+              </div>
+              <div className="flex items-baseline space-x-2 mt-1">
+                <span className="text-2xl font-black text-[var(--color-text)]">
+                  {portfolioHealthScore}
+                </span>
+                <span className="text-xs text-[var(--color-text-subtle)]">/ 100</span>
+              </div>
+              <span
+                className={`inline-block mt-1 px-2 py-0.5 rounded-full font-bold text-[10px] border ${
+                  statusBadgeColors[portfolioStatus] || "bg-[var(--color-surface-muted)] text-[var(--color-text)]"
+                }`}
+              >
+                {portfolioStatus}
+              </span>
+            </Card>
 
-        <button
-          onClick={() => setActiveTab("cross-project")}
-          className={`px-4 py-2.5 border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "cross-project"
-              ? "border-indigo-600 text-indigo-600 font-bold"
-              : "border-transparent text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          🔗 Cross-Project Relationships
-        </button>
+            {/* Total Projects */}
+            <Card className="p-4">
+              <div className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
+                Projects
+              </div>
+              <div className="text-2xl font-bold text-[var(--color-text)] mt-1">
+                {totalProjects}
+              </div>
+              <div className="text-xs text-[var(--color-text-muted)] mt-1">Active initiatives</div>
+            </Card>
 
-        <button
-          onClick={() => setActiveTab("what-if")}
-          className={`px-4 py-2.5 border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "what-if"
-              ? "border-indigo-600 text-indigo-600 font-bold"
-              : "border-transparent text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          🧪 Portfolio What-If
-        </button>
-      </div>
+            {/* Healthy */}
+            <Card className="p-4">
+              <div className="text-xs font-semibold text-[var(--color-brand)] uppercase tracking-wider">
+                Healthy
+              </div>
+              <div className="text-2xl font-bold text-[var(--color-brand)] mt-1">
+                {distribution.HEALTHY || 0}
+              </div>
+              <div className="text-xs text-[var(--color-text-muted)] mt-1">Operating on track</div>
+            </Card>
 
-      {/* Tab Panels */}
-      <div>
-        {activeTab === "risk-map" && (
-          <PortfolioRiskMap projects={projects} riskConcentration={riskConcentration} />
-        )}
+            {/* Watch */}
+            <Card className="p-4">
+              <div className="text-xs font-semibold text-[var(--color-info)] uppercase tracking-wider">
+                Watch
+              </div>
+              <div className="text-2xl font-bold text-[var(--color-info)] mt-1">
+                {distribution.WATCH || 0}
+              </div>
+              <div className="text-xs text-[var(--color-text-muted)] mt-1">Minor drift signals</div>
+            </Card>
 
-        {activeTab === "resources" && (
-          <ResourceConflictPanel workspaceId={workspaceId} />
-        )}
+            {/* At Risk */}
+            <Card className="p-4">
+              <div className="text-xs font-semibold text-[var(--color-peach)] uppercase tracking-wider">
+                At Risk
+              </div>
+              <div className="text-2xl font-bold text-[var(--color-peach)] mt-1">
+                {distribution.AT_RISK || 0}
+              </div>
+              <div className="text-xs text-[var(--color-text-muted)] mt-1">Elevated risk load</div>
+            </Card>
 
-        {activeTab === "cross-project" && (
-          <CrossProjectIntelligence workspaceId={workspaceId} />
-        )}
+            {/* Critical */}
+            <Card className="p-4">
+              <div className="text-xs font-semibold text-[var(--color-danger)] uppercase tracking-wider">
+                Critical
+              </div>
+              <div className="text-2xl font-bold text-[var(--color-danger)] mt-1">
+                {distribution.CRITICAL || 0}
+              </div>
+              <div className="text-xs text-[var(--color-text-muted)] mt-1">Immediate intervention</div>
+            </Card>
+          </div>
 
-        {activeTab === "what-if" && (
-          <div className="space-y-6">
-            {!simulationResult ? (
-              <PortfolioScenarioBuilder
-                workspaceId={workspaceId}
-                projects={projects}
-                onSimulationComplete={(res) => setSimulationResult(res)}
-              />
-            ) : (
-              <PortfolioScenarioResults
-                result={simulationResult}
-                onReset={() => setSimulationResult(null)}
-              />
+          {/* Navigation Tabs */}
+          <div className="flex items-center space-x-1 border-b border-[var(--color-border)] overflow-x-auto text-xs font-semibold">
+            {[
+              { id: "risk-map", label: "📊 Portfolio Risk Map" },
+              { id: "resources", label: "👥 Resource Conflicts" },
+              { id: "cross-project", label: "🔗 Cross-Project Relationships" },
+              { id: "what-if", label: "🧪 Portfolio What-If" }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2.5 border-b-2 transition-colors whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? "border-[var(--color-brand)] text-[var(--color-brand)] font-bold"
+                    : "border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab Panels */}
+          <div>
+            {activeTab === "risk-map" && (
+              <PortfolioRiskMap projects={projects} riskConcentration={riskConcentration} />
+            )}
+
+            {activeTab === "resources" && (
+              <ResourceConflictPanel workspaceId={workspaceId} />
+            )}
+
+            {activeTab === "cross-project" && (
+              <CrossProjectIntelligence workspaceId={workspaceId} />
+            )}
+
+            {activeTab === "what-if" && (
+              <div className="space-y-6">
+                {!simulationResult ? (
+                  <PortfolioScenarioBuilder
+                    workspaceId={workspaceId}
+                    projects={projects}
+                    onSimulationComplete={(res) => setSimulationResult(res)}
+                  />
+                ) : (
+                  <PortfolioScenarioResults
+                    result={simulationResult}
+                    onReset={() => setSimulationResult(null)}
+                  />
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }

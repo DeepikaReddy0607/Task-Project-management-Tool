@@ -242,7 +242,7 @@ export default function ShockwaveGraph({
             const isCritical = node.isCritical;
             const isBottleneck = node.isBottleneck;
 
-            let strokeColor = "#334155";
+            let strokeColor;
             if (isSelected) strokeColor = "#38bdf8";
             else if (isCritical) strokeColor = "#ef4444";
             else if (isBottleneck) strokeColor = "#a855f7";

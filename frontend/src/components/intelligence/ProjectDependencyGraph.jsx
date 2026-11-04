@@ -82,7 +82,7 @@ export default function ProjectDependencyGraph({ projectId }) {
         <div>
           <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
             <FiLayers className="text-blue-600" />
-            Project Dependency Graph (Phase 13)
+            Project Dependency Graph
           </h3>
           <p className="text-xs text-gray-500 mt-0.5">
             Topological structure, critical chain sequence, and execution blockers.

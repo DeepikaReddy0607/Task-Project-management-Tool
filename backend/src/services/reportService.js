@@ -1,35 +1,32 @@
 import prisma from "../config/prisma.js";
+import { getProjectWorkspaceId } from "./taskService.js";
 
 const validateProjectAccess = async (projectId, userId) => {
-    const project = await prisma.projects.findUnique({
-        where: {
-            id: projectId
-        },
-        select: {
-            id: true,
-            workspace_id: true
-        }
-    });
+    const workspaceId = await getProjectWorkspaceId(projectId);
 
-    if (!project) {
-        throw new Error("Project not found");
+    if (!workspaceId) {
+        const error = new Error("Project not found");
+        error.statusCode = 404;
+        throw error;
     }
 
     const workspaceMembership =
         await prisma.workspace_members.findUnique({
             where: {
                 workspace_id_user_id: {
-                    workspace_id: project.workspace_id,
+                    workspace_id: workspaceId,
                     user_id: userId
                 }
             }
         });
 
     if (!workspaceMembership) {
-        throw new Error("Workspace access denied");
+        const error = new Error("Workspace access denied");
+        error.statusCode = 403;
+        throw error;
     }
 
-    return project;
+    return { id: projectId, workspace_id: workspaceId };
 };
 
 const getStartOfTodayUtc = (refDate = new Date()) => {
@@ -38,20 +35,58 @@ const getStartOfTodayUtc = (refDate = new Date()) => {
 };
 
 /**
- * Get task completion statistics
+ * Scopes tasks strictly to the authorized workspace/project context.
+ * Prevents un-scoped global queries that inadvertently include synthetic load test tasks.
  */
-const getTaskCompletion = async (projectId = null, userId) => {
-    if (projectId) {
-        await validateProjectAccess(projectId, userId);
-    }
-
+const resolveTaskScopeWhere = async (projectId, userId, workspaceId = null) => {
     const where = {
         is_archived: false
     };
 
     if (projectId) {
+        await validateProjectAccess(projectId, userId);
         where.project_id = projectId;
+        return where;
     }
+
+    if (workspaceId) {
+        const membership = await prisma.workspace_members.findUnique({
+            where: {
+                workspace_id_user_id: {
+                    workspace_id: workspaceId,
+                    user_id: userId
+                }
+            }
+        });
+        if (!membership) {
+            const error = new Error("Workspace access denied");
+            error.statusCode = 403;
+            throw error;
+        }
+        where.projects = {
+            workspace_id: workspaceId
+        };
+        return where;
+    }
+
+    // Default: Scope to all workspaces where this user is an authorized member
+    const memberships = await prisma.workspace_members.findMany({
+        where: { user_id: userId },
+        select: { workspace_id: true }
+    });
+
+    const userWorkspaceIds = memberships.map((m) => m.workspace_id);
+    where.projects = {
+        workspace_id: { in: userWorkspaceIds }
+    };
+    return where;
+};
+
+/**
+ * Get task completion statistics
+ */
+const getTaskCompletion = async (projectId = null, userId, skipAccessCheck = false, workspaceId = null) => {
+    const where = await resolveTaskScopeWhere(projectId, userId, workspaceId);
 
     const totalTasks = await prisma.tasks.count({
         where
@@ -82,23 +117,16 @@ const getTaskCompletion = async (projectId = null, userId) => {
 /**
  * Get pending and overdue task statistics
  */
-const getPendingOverdue = async (projectId = null, userId) => {
-    if (projectId) {
-        await validateProjectAccess(projectId, userId);
-    }
-
+const getPendingOverdue = async (projectId = null, userId, skipAccessCheck = false, workspaceId = null) => {
+    const scopeWhere = await resolveTaskScopeWhere(projectId, userId, workspaceId);
     const today = getStartOfTodayUtc();
 
     const baseWhere = {
-        is_archived: false,
+        ...scopeWhere,
         status: {
             not: "Completed"
         }
     };
-
-    if (projectId) {
-        baseWhere.project_id = projectId;
-    }
 
     const pendingTasks = await prisma.tasks.count({
         where: baseWhere
@@ -123,17 +151,8 @@ const getPendingOverdue = async (projectId = null, userId) => {
 /**
  * Get tasks grouped by priority
  */
-const getTasksByPriority = async (projectId = null, userId) => {
-    if (projectId) {
-        await validateProjectAccess(projectId, userId);
-    }
-    const where = {
-        is_archived: false
-    };
-
-    if (projectId) {
-        where.project_id = projectId;
-    }
+const getTasksByPriority = async (projectId = null, userId, skipAccessCheck = false, workspaceId = null) => {
+    const where = await resolveTaskScopeWhere(projectId, userId, workspaceId);
 
     const tasks = await prisma.tasks.groupBy({
         by: ["priority"],
@@ -152,17 +171,8 @@ const getTasksByPriority = async (projectId = null, userId) => {
 /**
  * Get tasks grouped by status
  */
-const getTasksByStatus = async (projectId = null, userId) => {
-    if (projectId) {
-        await validateProjectAccess(projectId, userId);
-    }
-    const where = {
-        is_archived: false
-    };
-
-    if (projectId) {
-        where.project_id = projectId;
-    }
+const getTasksByStatus = async (projectId = null, userId, skipAccessCheck = false, workspaceId = null) => {
+    const where = await resolveTaskScopeWhere(projectId, userId, workspaceId);
 
     const tasks = await prisma.tasks.groupBy({
         by: ["status"],
@@ -181,22 +191,65 @@ const getTasksByStatus = async (projectId = null, userId) => {
 /**
  * Get all reports and analytics
  */
-const getDashboardAnalytics = async (projectId = null, userId) => {
-    const [
-        completion,
-        pendingOverdue,
-        byPriority,
-        byStatus
-    ] = await Promise.all([
-        getTaskCompletion(projectId, userId),
-        getPendingOverdue(projectId, userId),
-        getTasksByPriority(projectId, userId),
-        getTasksByStatus(projectId, userId)
+const getDashboardAnalytics = async (projectId = null, userId, workspaceId = null) => {
+    const baseWhere = await resolveTaskScopeWhere(projectId, userId, workspaceId);
+    const today = getStartOfTodayUtc();
+
+    const [statusGroups, priorityGroups, overdueTasks] = await Promise.all([
+        prisma.tasks.groupBy({
+            by: ["status"],
+            where: baseWhere,
+            _count: { id: true }
+        }),
+        prisma.tasks.groupBy({
+            by: ["priority"],
+            where: baseWhere,
+            _count: { id: true }
+        }),
+        prisma.tasks.count({
+            where: {
+                ...baseWhere,
+                status: { not: "Completed" },
+                due_date: { not: null, lt: today }
+            }
+        })
     ]);
 
+    const byStatus = statusGroups.map((item) => ({
+        status: item.status,
+        count: item._count.id
+    }));
+
+    const byPriority = priorityGroups.map((item) => ({
+        priority: item.priority,
+        count: item._count.id
+    }));
+
+    let totalTasks = 0;
+    let completedTasks = 0;
+    for (const item of byStatus) {
+        totalTasks += item.count;
+        if (item.status === "Completed") {
+            completedTasks += item.count;
+        }
+    }
+    const pendingTasks = totalTasks - completedTasks;
+    const completionRate =
+        totalTasks === 0
+            ? 0
+            : Math.round((completedTasks / totalTasks) * 100);
+
     return {
-        completion,
-        pendingOverdue,
+        completion: {
+            totalTasks,
+            completedTasks,
+            pendingTasks,
+            completionRate
+        },
+        pendingOverdue: {
+            pendingTasks,
+            overdueTasks
+        },
         byPriority,
         byStatus
     };

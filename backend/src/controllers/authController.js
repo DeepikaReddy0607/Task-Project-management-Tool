@@ -152,18 +152,17 @@ const reset = async (req, res, next) => {
 
     } catch (error) {
 
-        if (
-            error.message ===
-            "Reset link is invalid or expired"
-        ) {
-            return res.status(400).json({
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
                 message: error.message
             });
         }
 
         if (
-            error.message ===
-            "Invalid password reset token"
+            error.message === "Reset link is invalid or expired" ||
+            error.message === "Invalid password reset token" ||
+            error.message === "Password reset token has already been used" ||
+            error.message === "Invalid password reset request"
         ) {
             return res.status(400).json({
                 message: error.message

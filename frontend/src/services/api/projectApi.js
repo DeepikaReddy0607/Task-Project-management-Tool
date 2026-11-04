@@ -45,6 +45,12 @@ export const archiveProject = async (projectId) => {
   return response.data;
 };
 
+// Restore project
+export const restoreProject = async (projectId) => {
+  const response = await api.patch(`/projects/${projectId}/restore`);
+  return response.data;
+};
+
 // Delete project
 export const deleteProject = async (projectId) => {
   const response = await api.delete(

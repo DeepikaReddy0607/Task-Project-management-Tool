@@ -18,12 +18,6 @@ export default function ProjectRedTeam({ projectId, onClose, onLaunchCounterfact
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => {
-    if (projectId) {
-      handleFetchOrRunRedTeam();
-    }
-  }, [projectId]);
-
   const handleFetchOrRunRedTeam = async () => {
     setLoading(true);
     setError(null);
@@ -37,6 +31,12 @@ export default function ProjectRedTeam({ projectId, onClose, onLaunchCounterfact
     }
   };
 
+  useEffect(() => {
+    if (projectId) {
+      handleFetchOrRunRedTeam();
+    }
+  }, [projectId]);
+
   const handleValidateWithChaos = async (finding) => {
     setValidatingFindingId(finding.findingId);
     setValidationResult(null);
@@ -47,7 +47,7 @@ export default function ProjectRedTeam({ projectId, onClose, onLaunchCounterfact
       });
       setValidationResult(res);
     } catch (err) {
-      alert("Chaos validation failed: " + (err?.response?.data?.error || err.message));
+      setError("Chaos validation failed: " + (err?.response?.data?.error || err.message));
     } finally {
       setValidatingFindingId(null);
     }
@@ -99,7 +99,7 @@ export default function ProjectRedTeam({ projectId, onClose, onLaunchCounterfact
             <span className="text-xl">🛡️</span>
             <h2 className="text-lg font-bold">Project Red Team (Adversarial Analysis)</h2>
             <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 font-semibold border border-red-300 dark:border-red-700">
-              Phase 11
+              Adversarial Engine
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -203,7 +203,7 @@ export default function ProjectRedTeam({ projectId, onClose, onLaunchCounterfact
             {/* Quick Handoff Action */}
             <div className="p-5 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-950/30 dark:to-blue-950/30 border border-indigo-200 dark:border-indigo-800/50 flex flex-col justify-between">
               <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider">
-                Phase 12 Time Travel
+                Time Travel Analysis
               </span>
               <p className="text-xs text-slate-600 dark:text-slate-300 my-2">
                 Turn any challenged assumption into an alternate historical counterfactual simulation.
