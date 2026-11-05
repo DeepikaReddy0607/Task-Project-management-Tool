@@ -1,4 +1,4 @@
-import { FiArrowRight, FiCircle, FiStar } from "react-icons/fi";
+import { FiArrowRight, FiStar } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import Quackie from "../brand/Quackie";
 import TaskFlowMark from "../brand/TaskFlowMark";
@@ -106,7 +106,7 @@ function FirstTimeExperience() {
                       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface)] text-[var(--color-brand-hover)]"
                       aria-hidden="true"
                     >
-                      {index === 0 ? <FiCircle size={16} /> : index + 1}
+                      {index + 1}
                     </span>
                     <div className="min-w-0 flex-1">
                       <h3 className="text-sm font-semibold text-[var(--color-text)]">
