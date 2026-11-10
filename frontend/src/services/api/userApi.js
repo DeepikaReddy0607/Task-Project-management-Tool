@@ -17,3 +17,11 @@ export const updateProfile = async (profileData) => {
 
     return response.data;
 };
+
+export const completeOnboarding = async () => {
+    const response = await api.post(
+        "/users/onboarding/complete"
+    );
+
+    return response.data;
+};

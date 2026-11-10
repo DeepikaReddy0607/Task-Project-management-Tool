@@ -5,6 +5,11 @@ import {
     resetPassword,
     changePassword as changePasswordService
 } from "../services/authService.js";
+import {
+    initiateRegistration,
+    verifyOtpAndCreateUser,
+    resendRegistrationOtp as resendRegistrationOtpService
+} from "../services/otpService.js";
 
 
 const register = async (req, res, next) => {
@@ -29,7 +34,7 @@ const register = async (req, res, next) => {
             });
         }
 
-        const user = await registerUser({
+        const result = await initiateRegistration({
             firstName,
             lastName,
             email,
@@ -37,12 +42,15 @@ const register = async (req, res, next) => {
             phone
         });
 
-        return res.status(201).json({
-            message: "Registration successful",
-            user
-        });
+        return res.status(200).json(result);
 
     } catch (error) {
+
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
 
         if (error.message === "Email already registered") {
             return res.status(409).json({
@@ -50,6 +58,65 @@ const register = async (req, res, next) => {
             });
         }
 
+        next(error);
+    }
+};
+
+
+const verifyRegistrationOtp = async (req, res, next) => {
+    try {
+        const { email, otp } = req.body;
+
+        if (!email || !otp) {
+            return res.status(400).json({
+                message: "Email and verification code are required"
+            });
+        }
+
+        const user = await verifyOtpAndCreateUser({
+            email,
+            otp
+        });
+
+        return res.status(201).json({
+            message: "Registration verified successfully",
+            user
+        });
+    } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+        next(error);
+    }
+};
+
+
+const resendRegistrationOtp = async (req, res, next) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                message: "Email address is required"
+            });
+        }
+
+        const result = await resendRegistrationOtpService({
+            email
+        });
+
+        return res.status(200).json(result);
+    } catch (error) {
+        if (error.statusCode) {
+            const responseData = { message: error.message };
+            if (error.retryAfter) {
+                responseData.retryAfter = error.retryAfter;
+                res.setHeader("Retry-After", error.retryAfter);
+            }
+            return res.status(error.statusCode).json(responseData);
+        }
         next(error);
     }
 };
@@ -85,7 +152,8 @@ const login = async (req, res, next) => {
 
         if (
             error.message === "Invalid email or password" ||
-            error.message === "Account is inactive"
+            error.message === "Account is inactive" ||
+            error.message?.includes("verify your email")
         ) {
             return res.status(401).json({
                 message: error.message
@@ -232,6 +300,8 @@ const changePassword = async (req, res, next) => {
 
 export {
     register,
+    verifyRegistrationOtp,
+    resendRegistrationOtp,
     login,
     forgotPassword,
     reset,

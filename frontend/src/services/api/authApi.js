@@ -9,6 +9,25 @@ export const registerUser = async (userData) => {
     return response.data;
 };
 
+export const verifyRegistrationOtp = async (verificationData) => {
+    const response = await api.post(
+        "/auth/verify-registration-otp",
+        verificationData
+    );
+
+    return response.data;
+};
+
+export const resendRegistrationOtp = async (data) => {
+    const response = await api.post(
+        "/auth/resend-registration-otp",
+        data
+    );
+
+    return response.data;
+};
+
+
 export const loginUser = async (credentials) => {
     const response = await api.post(
         "/auth/login",

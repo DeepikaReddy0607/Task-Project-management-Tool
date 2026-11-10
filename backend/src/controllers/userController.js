@@ -1,6 +1,7 @@
 import {
     getMyProfile,
-    updateMyProfile
+    updateMyProfile,
+    completeUserOnboarding
 } from "../services/userService.js";
 
 
@@ -27,7 +28,8 @@ const updateProfile = async (req, res, next) => {
             firstName,
             lastName,
             phone,
-            profilePicture
+            profilePicture,
+            hasCompletedOnboarding
         } = req.body;
 
         const user = await updateMyProfile(
@@ -36,7 +38,8 @@ const updateProfile = async (req, res, next) => {
                 firstName,
                 lastName,
                 phone,
-                profilePicture
+                profilePicture,
+                hasCompletedOnboarding
             }
         );
 
@@ -69,7 +72,29 @@ const updateProfile = async (req, res, next) => {
 };
 
 
+const completeOnboarding = async (req, res, next) => {
+    try {
+        const user = await completeUserOnboarding(
+            req.user.userId
+        );
+
+        return res.status(200).json({
+            message: "Onboarding completed successfully",
+            user
+        });
+    } catch (error) {
+        if (error.message === "User not found") {
+            return res.status(404).json({
+                message: error.message
+            });
+        }
+        next(error);
+    }
+};
+
+
 export {
     getProfile,
-    updateProfile
+    updateProfile,
+    completeOnboarding
 };

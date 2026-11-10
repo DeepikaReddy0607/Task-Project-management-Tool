@@ -9,6 +9,7 @@ import { PreferencesProvider } from "../context/PreferencesContext";
 const Dashboard = lazy(() => import("../pages/dashboard/Dashboard"));
 const Login = lazy(() => import("../pages/auth/Login"));
 const Register = lazy(() => import("../pages/auth/Register"));
+const VerifyOtp = lazy(() => import("../pages/auth/VerifyOtp"));
 const ForgotPassword = lazy(() => import("../pages/auth/ForgotPassword"));
 const ResetPassword = lazy(() => import("../pages/auth/ResetPassword"));
 const Workspaces = lazy(() => import("../pages/workspaces/Workspaces"));
@@ -54,6 +55,7 @@ function AppRoutes() {
                 {/* Public Authentication Routes */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/verify-otp" element={<VerifyOtp />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
 

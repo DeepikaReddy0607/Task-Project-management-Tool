@@ -1,9 +1,11 @@
+import { useEffect } from "react";
 import { FiArrowRight, FiStar } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import Quackie from "../brand/Quackie";
 import TaskFlowMark from "../brand/TaskFlowMark";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
+import { completeOnboarding } from "../../services/api/userApi";
 
 const setupSteps = [
   {
@@ -32,8 +34,42 @@ const setupSteps = [
 function FirstTimeExperience() {
   const navigate = useNavigate();
 
+  // If user has already completed onboarding, redirect to dashboard
+  useEffect(() => {
+    try {
+      const rawUser = localStorage.getItem("taskflow_user");
+      const user = rawUser ? JSON.parse(rawUser) : null;
+      if (user && user.hasCompletedOnboarding === true) {
+        navigate("/", { replace: true });
+      }
+    } catch {
+      // Ignore parse errors
+    }
+  }, [navigate]);
+
+  const handleComplete = async (targetPath = "/") => {
+    try {
+      await completeOnboarding();
+    } catch (err) {
+      console.error("Failed to persist onboarding completion:", err);
+    } finally {
+      try {
+        const rawUser = localStorage.getItem("taskflow_user");
+        if (rawUser) {
+          const parsed = JSON.parse(rawUser);
+          parsed.hasCompletedOnboarding = true;
+          localStorage.setItem("taskflow_user", JSON.stringify(parsed));
+          window.dispatchEvent(new Event("taskflow_user_updated"));
+        }
+      } catch {
+        // Ignore local storage errors
+      }
+      navigate(targetPath, { replace: true });
+    }
+  };
+
   const goToDashboard = () => {
-    navigate("/", { replace: true });
+    void handleComplete("/");
   };
 
   return (
@@ -119,7 +155,7 @@ function FirstTimeExperience() {
                     <Button
                       variant="soft"
                       className="w-full shrink-0 sm:w-auto"
-                      onClick={() => navigate(step.path)}
+                      onClick={() => void handleComplete(step.path)}
                     >
                       {step.action}
                       <FiArrowRight size={15} aria-hidden="true" />

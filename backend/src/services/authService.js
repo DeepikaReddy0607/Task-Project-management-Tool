@@ -62,7 +62,8 @@ const registerUser = async (data) => {
             email: email.toLowerCase(),
             password_hash: passwordHash,
             phone: phone || null,
-            role_id: role.id
+            role_id: role.id,
+            has_completed_onboarding: false
         },
         include: {
             roles: true
@@ -76,7 +77,8 @@ const registerUser = async (data) => {
         lastName: user.last_name,
         email: user.email,
         phone: user.phone,
-        role: user.roles.role_name
+        role: user.roles.role_name,
+        hasCompletedOnboarding: false
     };
 };
 
@@ -95,6 +97,15 @@ const loginUser = async (email, password) => {
 
     // 2. User doesn't exist
     if (!user) {
+        const pending = await prisma.pending_registrations.findUnique({
+            where: {
+                email: email.toLowerCase()
+            }
+        });
+        if (pending) {
+            throw new Error("Please verify your email with the OTP sent before logging in");
+        }
+
         throw new Error("Invalid email or password");
     }
 
@@ -153,6 +164,10 @@ const loginUser = async (email, password) => {
     }
 
     // 6. Return token and user information
+    const hasCompletedOnboarding = Boolean(
+        user.has_completed_onboarding || (memberships && memberships.length > 0)
+    );
+
     return {
         token,
         user: {
@@ -161,7 +176,8 @@ const loginUser = async (email, password) => {
             lastName: user.last_name,
             email: user.email,
             phone: user.phone,
-            role: user.roles.role_name
+            role: user.roles.role_name,
+            hasCompletedOnboarding
         }
     };
 };

@@ -223,6 +223,10 @@ function Dashboard() {
         profileResponse;
 
       setUser(profile || null);
+      if (profile && profile.hasCompletedOnboarding === false) {
+        navigate("/onboarding", { replace: true });
+        return;
+      }
     } catch (error) {
       console.error("Failed to load current user:", error);
       if (!silent) {
@@ -310,8 +314,18 @@ function Dashboard() {
   }, []);
 
   useEffect(() => {
+    try {
+      const rawUser = localStorage.getItem("taskflow_user");
+      const user = rawUser ? JSON.parse(rawUser) : null;
+      if (user && user.hasCompletedOnboarding === false) {
+        navigate("/onboarding", { replace: true });
+        return;
+      }
+    } catch {
+      // Ignore
+    }
     void loadDashboard();
-  }, [loadDashboard]);
+  }, [loadDashboard, navigate]);
 
   // Real-time synchronization for Dashboard overview
   useSocketEvent("*", (event) => {

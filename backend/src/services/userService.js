@@ -23,12 +23,13 @@ const getMyProfile = async (userId) => {
         email: user.email,
         phone: user.phone,
         profilePicture: user.profile_picture || null,
-        role: user.roles?.role_name || null
+        role: user.roles?.role_name || null,
+        hasCompletedOnboarding: Boolean(user.has_completed_onboarding)
     };
 };
 
 const updateMyProfile = async (userId, data) => {
-    const { firstName, lastName, phone, profilePicture } = data;
+    const { firstName, lastName, phone, profilePicture, hasCompletedOnboarding } = data;
 
     if (firstName !== undefined && !firstName.trim()) {
         throw new Error("First name cannot be empty");
@@ -60,6 +61,9 @@ const updateMyProfile = async (userId, data) => {
             }),
             ...(profilePicture !== undefined && {
                 profile_picture: profilePicture || null
+            }),
+            ...(hasCompletedOnboarding !== undefined && {
+                has_completed_onboarding: Boolean(hasCompletedOnboarding)
             })
         },
         include: {
@@ -78,11 +82,48 @@ const updateMyProfile = async (userId, data) => {
         email: updatedUser.email,
         phone: updatedUser.phone,
         profilePicture: updatedUser.profile_picture || null,
-        role: updatedUser.roles?.role_name || null
+        role: updatedUser.roles?.role_name || null,
+        hasCompletedOnboarding: Boolean(updatedUser.has_completed_onboarding)
+    };
+};
+
+const completeUserOnboarding = async (userId) => {
+    const existingUser = await prisma.users.findUnique({
+        where: { id: userId }
+    });
+
+    if (!existingUser) {
+        throw new Error("User not found");
+    }
+
+    const updatedUser = await prisma.users.update({
+        where: { id: userId },
+        data: {
+            has_completed_onboarding: true
+        },
+        include: {
+            roles: {
+                select: {
+                    role_name: true
+                }
+            }
+        }
+    });
+
+    return {
+        id: updatedUser.id,
+        firstName: updatedUser.first_name,
+        lastName: updatedUser.last_name,
+        email: updatedUser.email,
+        phone: updatedUser.phone,
+        profilePicture: updatedUser.profile_picture || null,
+        role: updatedUser.roles?.role_name || null,
+        hasCompletedOnboarding: true
     };
 };
 
 export {
     getMyProfile,
-    updateMyProfile
+    updateMyProfile,
+    completeUserOnboarding
 };

@@ -30,7 +30,7 @@ api.interceptors.response.use(
       localStorage.removeItem("taskflow_token");
       localStorage.removeItem("taskflow_user");
 
-      const publicPaths = ["/login", "/register", "/forgot-password", "/reset-password"];
+      const publicPaths = ["/login", "/register", "/verify-otp", "/forgot-password", "/reset-password"];
       const currentPath = window.location.pathname;
 
       if (!publicPaths.some((p) => currentPath.startsWith(p)) && !isRedirecting) {

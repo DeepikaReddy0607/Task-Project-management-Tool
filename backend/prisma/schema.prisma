@@ -270,6 +270,7 @@ model users {
   phone                          String?             @db.VarChar(15)
   profile_picture                String?
   is_active                      Boolean             @default(true)
+  has_completed_onboarding       Boolean             @default(false)
   created_at                     DateTime            @default(now()) @db.Timestamptz(6)
   updated_at                     DateTime            @default(now()) @db.Timestamptz(6)
   activity_logs                  activity_logs[]
@@ -565,5 +566,24 @@ model message_pins {
   @@index([channel_id], map: "idx_message_pins_channel")
   @@index([conversation_id], map: "idx_message_pins_conversation")
   @@index([pinned_by], map: "idx_message_pins_pinned_by")
+}
+
+model pending_registrations {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                 String    @unique(map: "uq_pending_registrations_email") @db.VarChar(255)
+  first_name            String    @db.VarChar(50)
+  last_name             String    @db.VarChar(50)
+  phone                 String?   @db.VarChar(15)
+  password_hash         String
+  otp_hash              String?   @db.VarChar(128)
+  otp_expires_at        DateTime  @db.Timestamptz(6)
+  verification_attempts Int       @default(0)
+  last_resend_at        DateTime? @db.Timestamptz(6)
+  resend_count          Int       @default(0)
+  created_at            DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([email], map: "idx_pending_registrations_email")
+  @@index([otp_expires_at], map: "idx_pending_registrations_expires")
 }
 

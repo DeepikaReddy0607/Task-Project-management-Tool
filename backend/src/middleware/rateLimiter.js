@@ -87,3 +87,15 @@ export const forgotPasswordRateLimiter = createRateLimiter({
     max: 5,                   // 5 requests per 15 min per IP
     message: "Too many password reset requests. Please try again later."
 });
+
+export const otpVerifyRateLimiter = createRateLimiter({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 15,                  // 15 verification attempts per 15 min per IP
+    message: "Too many verification attempts from this IP. Please try again later."
+});
+
+export const otpResendRateLimiter = createRateLimiter({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 6,                   // 6 resend requests per 15 min per IP
+    message: "Too many OTP resend requests from this IP. Please try again later."
+});

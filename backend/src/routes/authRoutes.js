@@ -2,6 +2,8 @@ import express from "express";
 
 import {
     register,
+    verifyRegistrationOtp,
+    resendRegistrationOtp,
     login,
     forgotPassword,
     reset,
@@ -11,12 +13,18 @@ import authMiddleware from "../middleware/authMiddleware.js";
 import {
     registerRateLimiter,
     loginRateLimiter,
-    forgotPasswordRateLimiter
+    forgotPasswordRateLimiter,
+    otpVerifyRateLimiter,
+    otpResendRateLimiter
 } from "../middleware/rateLimiter.js";
 
 const router = express.Router();
 
 router.post("/register", registerRateLimiter, register);
+
+router.post("/verify-registration-otp", otpVerifyRateLimiter, verifyRegistrationOtp);
+
+router.post("/resend-registration-otp", otpResendRateLimiter, resendRegistrationOtp);
 
 router.post("/login", loginRateLimiter, login);
 

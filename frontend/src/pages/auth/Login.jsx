@@ -157,7 +157,11 @@ function Login() {
 
       setHasMockSuccess(true);
 
-      navigate(shouldStartOnboarding ? "/onboarding" : "/", {
+      const needsOnboarding = user?.hasCompletedOnboarding === false || (shouldStartOnboarding && user?.hasCompletedOnboarding !== true);
+      const searchParams = new URLSearchParams(location.search);
+      const redirectPath = searchParams.get("redirect");
+
+      navigate(needsOnboarding ? "/onboarding" : (redirectPath || "/"), {
         replace: true,
       });
     } catch (error) {

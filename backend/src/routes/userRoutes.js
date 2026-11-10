@@ -4,7 +4,8 @@ import authMiddleware from "../middleware/authMiddleware.js";
 
 import {
     getProfile,
-    updateProfile
+    updateProfile,
+    completeOnboarding
 } from "../controllers/userController.js";
 
 const router = express.Router();
@@ -19,6 +20,12 @@ router.patch(
     "/profile",
     authMiddleware,
     updateProfile
+);
+
+router.post(
+    "/onboarding/complete",
+    authMiddleware,
+    completeOnboarding
 );
 
 export default router;
