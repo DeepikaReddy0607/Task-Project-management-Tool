@@ -28,6 +28,10 @@ import authMiddleware from "./middleware/authMiddleware.js";
 
 const app = express();
 
+// Trust front-facing reverse proxy (1 hop for Render / Cloudflare)
+// Ensures secure determination of req.ip and req.ips without blindly trusting arbitrary client headers
+app.set("trust proxy", 1);
+
 app.use(cors(getCorsOptions()));
 app.use(express.json());
 // Direct static access to /uploads is disabled to enforce strict tenant isolation.

@@ -12,7 +12,9 @@ import {
 } from "../services/authService.js";
 import {
     loginRateLimiter,
+    loginAccountRateLimiter,
     registerRateLimiter,
+    registerEmailRateLimiter,
     forgotPasswordRateLimiter
 } from "../middleware/rateLimiter.js";
 import { getAllowedOrigins } from "../config/cors.js";
@@ -74,7 +76,9 @@ describe("PHASE 22B: Security Hardening Test Suite (Single-Use Tokens, Rate Limi
 
     beforeEach(() => {
         loginRateLimiter.reset();
+        loginAccountRateLimiter.reset();
         registerRateLimiter.reset();
+        registerEmailRateLimiter.reset();
         forgotPasswordRateLimiter.reset();
     });
 
@@ -243,11 +247,11 @@ describe("PHASE 22B: Security Hardening Test Suite (Single-Use Tokens, Rate Limi
     // DEFECT 2: AUTHENTICATION RATE LIMITING TESTS
     // =========================================================================
 
-    test("6. Login rate limiting allows up to 10 attempts and rejects the 11th with HTTP 429", async () => {
+    test("6. Login rate limiting allows up to 30 attempts and rejects the 31st with HTTP 429", async () => {
         const clientIp = "192.168.1.101";
 
-        // Make 10 requests (all should pass through rate limiter, will get 401 for wrong credentials)
-        for (let i = 0; i < 10; i++) {
+        // Make 30 requests (all should pass through rate limiter, will get 401 for wrong credentials)
+        for (let i = 0; i < 30; i++) {
             const res = await fetch(`${baseApiUrl}/auth/login`, {
                 method: "POST",
                 headers: {
@@ -255,7 +259,7 @@ describe("PHASE 22B: Security Hardening Test Suite (Single-Use Tokens, Rate Limi
                     "X-Forwarded-For": clientIp
                 },
                 body: JSON.stringify({
-                    email: "test@example.com",
+                    email: `login_quota_${i}@test.com`,
                     password: "wrongpassword"
                 })
             });
@@ -263,7 +267,7 @@ describe("PHASE 22B: Security Hardening Test Suite (Single-Use Tokens, Rate Limi
             assert.notEqual(res.status, 429, `Attempt ${i + 1} was prematurely rate limited`);
         }
 
-        // 11th request must exceed rate limit and return HTTP 429
+        // 31st request must exceed rate limit and return HTTP 429
         const blockedRes = await fetch(`${baseApiUrl}/auth/login`, {
             method: "POST",
             headers: {
@@ -271,7 +275,7 @@ describe("PHASE 22B: Security Hardening Test Suite (Single-Use Tokens, Rate Limi
                 "X-Forwarded-For": clientIp
             },
             body: JSON.stringify({
-                email: "test@example.com",
+                email: "login_quota_31@test.com",
                 password: "wrongpassword"
             })
         });
@@ -283,10 +287,10 @@ describe("PHASE 22B: Security Hardening Test Suite (Single-Use Tokens, Rate Limi
         assert.ok(blockedRes.headers.get("retry-after"));
     });
 
-    test("7. Registration rate limiting allows up to 10 attempts and rejects the 11th with HTTP 429", async () => {
+    test("7. Registration rate limiting allows up to 30 requests and rejects the 31st with HTTP 429", async () => {
         const clientIp = "192.168.1.102";
 
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 30; i++) {
             const res = await fetch(`${baseApiUrl}/auth/register`, {
                 method: "POST",
                 headers: {
@@ -294,14 +298,16 @@ describe("PHASE 22B: Security Hardening Test Suite (Single-Use Tokens, Rate Limi
                     "X-Forwarded-For": clientIp
                 },
                 body: JSON.stringify({
-                    email: `register_attempt_${i}@test.com`,
-                    password: "Short" // Fails validation in controller, but consumes 1 rate token
+                    firstName: "Rate",
+                    lastName: "Tester",
+                    email: `register_quota_${i}@test.com`,
+                    password: "Password123!"
                 })
             });
             assert.notEqual(res.status, 429, `Registration attempt ${i + 1} was prematurely blocked`);
         }
 
-        // 11th request must return 429
+        // 31st request must return 429
         const blockedRes = await fetch(`${baseApiUrl}/auth/register`, {
             method: "POST",
             headers: {
@@ -309,7 +315,9 @@ describe("PHASE 22B: Security Hardening Test Suite (Single-Use Tokens, Rate Limi
                 "X-Forwarded-For": clientIp
             },
             body: JSON.stringify({
-                email: "register_blocked@test.com",
+                firstName: "Rate",
+                lastName: "Tester",
+                email: "register_quota_31@test.com",
                 password: "Password123!"
             })
         });
@@ -317,6 +325,8 @@ describe("PHASE 22B: Security Hardening Test Suite (Single-Use Tokens, Rate Limi
         assert.equal(blockedRes.status, 429);
         const blockedData = await blockedRes.json();
         assert.equal(blockedData.message, "Too many accounts created from this IP. Please try again later.");
+        assert.ok(blockedData.retryAfter >= 1);
+        assert.ok(blockedRes.headers.get("retry-after"));
     });
 
     test("8. Forgot-password rate limiting allows up to 5 requests and rejects the 6th with HTTP 429", async () => {

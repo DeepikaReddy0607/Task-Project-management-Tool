@@ -12,7 +12,9 @@ import {
 import authMiddleware from "../middleware/authMiddleware.js";
 import {
     registerRateLimiter,
+    registerEmailRateLimiter,
     loginRateLimiter,
+    loginAccountRateLimiter,
     forgotPasswordRateLimiter,
     otpVerifyRateLimiter,
     otpResendRateLimiter
@@ -20,13 +22,13 @@ import {
 
 const router = express.Router();
 
-router.post("/register", registerRateLimiter, register);
+router.post("/register", registerRateLimiter, registerEmailRateLimiter, register);
 
 router.post("/verify-registration-otp", otpVerifyRateLimiter, verifyRegistrationOtp);
 
 router.post("/resend-registration-otp", otpResendRateLimiter, resendRegistrationOtp);
 
-router.post("/login", loginRateLimiter, login);
+router.post("/login", loginRateLimiter, loginAccountRateLimiter, login);
 
 router.post("/forgot-password", forgotPasswordRateLimiter, forgotPassword);
 

@@ -29,7 +29,12 @@ const sendPasswordResetEmail = async (email, resetLink) => {
         }
 
         if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASSWORD) {
-            if (process.env.NODE_ENV !== "production" && process.env.LOG_DEV_AUTH_TOKENS === "true") {
+            if (process.env.NODE_ENV === "production") {
+                const err = new Error("Email service is temporarily unavailable. Please try again later.");
+                err.code = "ESMTPUNAVAILABLE";
+                throw err;
+            }
+            if (process.env.LOG_DEV_AUTH_TOKENS === "true") {
                 console.log(`[AUTH DEV] Password reset link for ${email}: ${resetLink}`);
             } else {
                 console.log(`[AUTH] Password reset instructions dispatched for ${email}`);
@@ -93,7 +98,12 @@ const sendRegistrationOtpEmail = async (email, otp, firstName) => {
         }
 
         if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASSWORD) {
-            if (process.env.NODE_ENV !== "production" && process.env.LOG_DEV_AUTH_TOKENS === "true") {
+            if (process.env.NODE_ENV === "production") {
+                const err = new Error("Email service is temporarily unavailable. Please try again later.");
+                err.code = "ESMTPUNAVAILABLE";
+                throw err;
+            }
+            if (process.env.LOG_DEV_AUTH_TOKENS === "true") {
                 console.log(`[AUTH DEV] Registration OTP for ${email}: ${otp}`);
             } else {
                 console.log(`[AUTH] Verification OTP email dispatched for ${email}`);
