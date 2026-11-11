@@ -47,58 +47,20 @@ export default function InterventionImpactPanel({ projectId, initialTaskId = nul
       });
 
       setEvaluation(result);
-    } catch {
-      // Graceful fallback for mock/demo environments
-      setEvaluation({
-        supported: true,
-        projectId,
-        impactScore: 82,
-        classification: "HIGH_POSITIVE_IMPACT",
-        scoringFactors: [
-          "Schedule recovery of +2.1 day(s) (+17 pts)",
-          "Project health improvement of +9 pts (+9 pts)",
-          "1 structural bottleneck(s) resolved (+8 pts)",
-          "Critical path reduction of 2 task(s) (+10 pts)",
-          "Workload pressure added: +7h (-11 pts)"
-        ],
-        recommendation: {
-          verdict: "RECOMMENDED_WITH_TRADE_OFFS",
-          rationale: "Potentially beneficial (+2.1d recovery), but creates additional workload pressure on target assignee."
-        },
-        impactVector: {
-          scheduleRecoveryDays: 2.1,
-          healthDelta: 9,
-          criticalTasksDelta: -2,
-          bottleneckDelta: -1
-        },
-        benefits: [
-          { title: "Schedule Recovery +2.1 Days", evidence: "Task moved off critical path, advancing projected milestone." },
-          { title: "Health Improvement (+9 pts)", evidence: "Reduced bottleneck friction and critical path float elongation." },
-          { title: "Shockwave Containment +24%", evidence: "Downstream affected blast radius reduced from 7 to 4 tasks." }
-        ],
-        costs: [
-          { title: `Target Assignee Workload (+7h)`, description: "Utilization increases to 74% with additional responsibilities." }
-        ],
-        sideEffects: [
-          { type: "NEW_BOTTLENECK", severity: "MEDIUM", title: "Secondary Bottleneck", description: "Frontend Integration emerged as secondary dependency queue." }
-        ],
-        comparison: {
-          health: { before: 61, after: 70, delta: 9 },
-          projectedEnd: { before: "2026-10-13", after: "2026-10-11" },
-          scheduleDelayDays: { before: 3, after: 1, recoveredDays: 2 },
-          criticalTasks: { before: 7, after: 5, delta: -2 },
-          bottlenecks: { before: 2, after: 1, delta: -1 },
-          deadlineRisks: { before: 3, after: 1, delta: -2 }
-        },
-        baseStateHash: "mock-hash-abc123e89f76a"
-      });
+    } catch (err) {
+      setEvaluation(null);
+      setError(err.response?.data?.message || err.message || "Failed to evaluate intervention.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Auto-run default evaluation on mount
+  // Auto-run default evaluation on mount or project change
   useEffect(() => {
+    setEvaluation(null);
+    setComparison(null);
+    setPreparedProposal(null);
+    setError(null);
     if (projectId) {
       handleEvaluate();
     }
@@ -107,6 +69,7 @@ export default function InterventionImpactPanel({ projectId, initialTaskId = nul
   const handleCompare = async () => {
     setLoading(true);
     setError(null);
+    setComparison(null);
     try {
       const invA = {
         name: "Option A: Reassign Task",
@@ -134,24 +97,9 @@ export default function InterventionImpactPanel({ projectId, initialTaskId = nul
       });
 
       setComparison(result);
-    } catch (_) {
-      setComparison({
-        comparisonMatrix: {
-          optionsCount: 3,
-          recommendedOption: {
-            optionId: "Option A",
-            name: "Option A: Reassign Task",
-            score: 82,
-            verdict: "HIGHLY_RECOMMENDED",
-            rationale: "Highest balance of schedule recovery (+2d) against minimal risk."
-          },
-          rankedOptions: [
-            { rank: 1, optionId: "Option A", name: "Option A: Reassign Task", score: 82, recoveryDays: 2.1, healthDelta: 9, verdict: "RECOMMENDED" },
-            { rank: 2, optionId: "Option B", name: "Option B: Add Capacity / Resource", score: 76, recoveryDays: 3.0, healthDelta: 7, verdict: "RECOMMENDED" },
-            { rank: 3, optionId: "Option C", name: "Option C: Parallelize Work", score: 62, recoveryDays: 1.2, healthDelta: 4, verdict: "MODERATE" }
-          ]
-        }
-      });
+    } catch (err) {
+      setComparison(null);
+      setError(err.response?.data?.message || err.message || "Failed to compare candidate interventions.");
     } finally {
       setLoading(false);
     }
@@ -160,6 +108,7 @@ export default function InterventionImpactPanel({ projectId, initialTaskId = nul
   const handleStageProposal = async () => {
     if (!evaluation) return;
     setStagingLoading(true);
+    setError(null);
     try {
       const proposal = await prepareInterventionProposal({
         projectId,
@@ -173,13 +122,8 @@ export default function InterventionImpactPanel({ projectId, initialTaskId = nul
       });
       setPreparedProposal(proposal);
     } catch (err) {
-      setPreparedProposal({
-        proposalId: `prop-intv-${Date.now()}`,
-        title: `Intervention Proposal: ${interventionType}`,
-        status: "PROPOSED",
-        expiresAt: new Date(Date.now() + 86400000).toISOString(),
-        message: "Intervention proposal staged for Approval Center review. ZERO project changes will occur until explicitly approved."
-      });
+      setPreparedProposal(null);
+      setError(err.response?.data?.message || err.message || "Failed to stage proposal in Approval Center.");
     } finally {
       setStagingLoading(false);
     }
@@ -218,6 +162,20 @@ export default function InterventionImpactPanel({ projectId, initialTaskId = nul
           </button>
         </div>
       </div>
+
+      {/* Error Message Banner */}
+      {error && (
+        <div className="mb-6 p-4 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between">
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="text-rose-400 hover:text-rose-200 ml-4 font-bold text-sm"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Mode 1: Single Intervention Evaluation */}
       {activeTab === "evaluate" && (
@@ -427,10 +385,30 @@ export default function InterventionImpactPanel({ projectId, initialTaskId = nul
               )}
             </div>
           )}
+          {loading && !evaluation && (
+            <div className="p-8 text-center bg-slate-800/40 rounded-lg border border-slate-700/60 text-slate-400 text-xs">
+              Simulating intervention impact...
+            </div>
+          )}
+          {!loading && !evaluation && !error && (
+            <div className="p-8 text-center bg-slate-800/40 rounded-lg border border-slate-700/60 text-slate-400 text-xs">
+              Select intervention parameters above and click &quot;Evaluate Impact&quot; to simulate outcomes.
+            </div>
+          )}
         </div>
       )}
 
       {/* Mode 2: Multi-Option Comparison */}
+      {activeTab === "compare" && loading && (
+        <div className="p-8 text-center bg-slate-800/40 rounded-lg border border-slate-700/60 text-slate-400 text-xs">
+          Comparing candidate interventions...
+        </div>
+      )}
+      {activeTab === "compare" && !loading && !comparison && !error && (
+        <div className="p-8 text-center bg-slate-800/40 rounded-lg border border-slate-700/60 text-slate-400 text-xs">
+          No comparison run yet. Click &quot;Compare Alternatives&quot; to evaluate trade-offs across options.
+        </div>
+      )}
       {activeTab === "compare" && comparison && (
         <div className="space-y-6">
           <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">

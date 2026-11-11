@@ -3,9 +3,9 @@ import { simulatePortfolioScenario } from "../../services/api/intelligenceApi";
 
 export default function PortfolioScenarioBuilder({ workspaceId, projects = [], members = [], onSimulationComplete }) {
   const [scenarioType, setScenarioType] = useState("RESOURCE_UNAVAILABLE");
-  const [selectedUserId, setSelectedUserId] = useState(members[0]?.userId || "");
+  const [selectedUserId, setSelectedUserId] = useState(() => members[0]?.userId || members[0]?.id || "");
   const [unavailableDays, setUnavailableDays] = useState(5);
-  const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.projectId || "");
+  const [selectedProjectId, setSelectedProjectId] = useState(() => projects[0]?.projectId || projects[0]?.id || "");
   const [deadlineShiftDays, setDeadlineShiftDays] = useState(7);
   const [scopeTaskCount, setScopeTaskCount] = useState(3);
   const [simulating, setSimulating] = useState(false);
@@ -18,13 +18,28 @@ export default function PortfolioScenarioBuilder({ workspaceId, projects = [], m
 
       const params = {};
       if (scenarioType === "RESOURCE_UNAVAILABLE") {
-        params.userId = selectedUserId || members[0]?.userId || "user-mock";
+        const targetUserId = selectedUserId || members[0]?.userId || members[0]?.id;
+        if (!targetUserId) {
+          setError("Please select or enter a valid team member before simulating an unavailable resource.");
+          return;
+        }
+        params.userId = targetUserId;
         params.days = Number(unavailableDays) || 5;
       } else if (scenarioType === "PROJECT_DEADLINE_CHANGE") {
-        params.projectId = selectedProjectId || projects[0]?.projectId;
+        const targetProjId = selectedProjectId || projects[0]?.projectId || projects[0]?.id;
+        if (!targetProjId) {
+          setError("Please select a project before simulating a deadline change.");
+          return;
+        }
+        params.projectId = targetProjId;
         params.days = Number(deadlineShiftDays) || 0;
       } else if (scenarioType === "SCOPE_GROWTH") {
-        params.projectId = selectedProjectId || projects[0]?.projectId;
+        const targetProjId = selectedProjectId || projects[0]?.projectId || projects[0]?.id;
+        if (!targetProjId) {
+          setError("Please select a project before simulating scope growth.");
+          return;
+        }
+        params.projectId = targetProjId;
         params.taskCount = Number(scopeTaskCount) || 3;
       }
 
@@ -135,11 +150,15 @@ export default function PortfolioScenarioBuilder({ workspaceId, projects = [], m
                   onChange={(e) => setSelectedUserId(e.target.value)}
                   className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white"
                 >
-                  {members.map((m) => (
-                    <option key={m.userId} value={m.userId}>
-                      {m.name} ({m.projectCount || 1} project(s))
-                    </option>
-                  ))}
+                  {members.map((m) => {
+                    const mid = m.userId || m.id || m.user_id;
+                    const mname = m.name || `${m.firstName || ""} ${m.lastName || ""}`.trim() || m.email || mid;
+                    return (
+                      <option key={mid} value={mid}>
+                        {mname} ({m.projectCount || 1} project(s))
+                      </option>
+                    );
+                  })}
                 </select>
               ) : (
                 <input
@@ -174,11 +193,14 @@ export default function PortfolioScenarioBuilder({ workspaceId, projects = [], m
                 onChange={(e) => setSelectedProjectId(e.target.value)}
                 className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white"
               >
-                {projects.map((p) => (
-                  <option key={p.projectId} value={p.projectId}>
-                    {p.title}
-                  </option>
-                ))}
+                {projects.map((p) => {
+                  const pid = p.projectId || p.id;
+                  return (
+                    <option key={pid} value={pid}>
+                      {p.title || p.name || pid}
+                    </option>
+                  );
+                })}
               </select>
             </div>
             <div>

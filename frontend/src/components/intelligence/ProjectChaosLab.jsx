@@ -68,162 +68,19 @@ export default function ProjectChaosLab({ projectId, onClose }) {
         setRecoveryResult({ recommendedIntervention: result.recommendedRecovery });
       }
     } catch (err) {
-      // Graceful realistic fallback for mock/demo environments
-      setLabResult({
-        supported: true,
-        projectId,
-        seed: Number(seed),
-        scenariosEvaluated: Number(scenarioCount),
-        resilienceScore: {
-          score: 68,
-          classification: "MODERATE_RESILIENCE",
-          explanation: "Project has moderate resilience. Critical path tasks and multi-point dependencies show high sensitivity to delay shocks."
-        },
-        summary: {
-          totalScenarios: Number(scenarioCount),
-          failureClassificationCounts: {
-            RESILIENT: 8,
-            ATTENTION: 9,
-            HIGH_RISK: 5,
-            CRITICAL_FAILURE: 3
-          },
-          resiliencePercentage: 32,
-          averageChaosImpactScore: 48.4,
-          maxChaosImpactScore: 88
-        },
-        mostDangerousComponent: {
-          componentId: "task-cpm-core",
-          componentTitle: "Core Architectural Engine",
-          componentType: "TASK",
-          maxChaosScore: 88,
-          averageDownstreamImpact: 6.2,
-          scenariosInvolving: 4,
-          rationale: "Positioned directly at the earliest zero-slack critical juncture with fanout to 5 downstream modules."
-        },
-        failureThreshold: {
-          collapsePointDays: 4,
-          toleranceDays: 2,
-          targetTaskId: null,
-          targetTaskTitle: "Critical Path Baseline",
-          failureMode: "CRITICAL_PATH_CASCADE",
-          progression: [
-            { step: 1, addedDisruptionDays: 1, simulatedHealth: 78, status: "HEALTHY", isCriticalFailure: false },
-            { step: 2, addedDisruptionDays: 2, simulatedHealth: 71, status: "WARNING", isCriticalFailure: false },
-            { step: 3, addedDisruptionDays: 3, simulatedHealth: 63, status: "WARNING", isCriticalFailure: false },
-            { step: 4, addedDisruptionDays: 4, simulatedHealth: 48, status: "CRITICAL", isCriticalFailure: true },
-            { step: 5, addedDisruptionDays: 5, simulatedHealth: 39, status: "CRITICAL", isCriticalFailure: true }
-          ]
-        },
-        sensitivityAnalysis: {
-          highestVulnerability: "Dependency delay cascade",
-          dimensions: [
-            { dimension: "Dependency delay cascade", averageImpact: 74, resilienceScore: 26, scenarioCount: 7 },
-            { dimension: "Team availability / Resource loss", averageImpact: 62, resilienceScore: 38, scenarioCount: 5 },
-            { dimension: "Task effort shock", averageImpact: 51, resilienceScore: 49, scenarioCount: 4 },
-            { dimension: "Deadline compression", averageImpact: 46, resilienceScore: 54, scenarioCount: 5 },
-            { dimension: "Scope expansion", averageImpact: 38, resilienceScore: 62, scenarioCount: 4 }
-          ]
-        },
-        monteCarloComparison: {
-          baselineP80FinishDate: "2026-10-22",
-          averageP80FinishDate: "2026-10-28",
-          averageP80ShiftDays: 6,
-          worstP80ShiftDays: 14
-        },
-        recommendedRecovery: {
-          strategy: "Parallelize downstream QA & add buffer to Core Architectural Engine",
-          healthGain: 14,
-          delayReductionDays: 3.5,
-          rationale: "Absorbs 82% of downstream shockwave propagation before critical path shift occurs."
-        },
-        scenarios: [
-          {
-            id: "chaos-scen-1",
-            category: "COMBINED_FAILURE",
-            title: "Simultaneous Core Architecture Slip & Lead Architect Absence",
-            severity: "CRITICAL",
-            classification: "CRITICAL_FAILURE",
-            chaosImpactScore: 88,
-            healthDelta: -32,
-            completionDelayDays: 7,
-            downstreamAffectedCount: 8,
-            primaryFailureMode: "CRITICAL_PATH_CASCADE",
-            propagationPath: ["Core Architectural Engine", "API Gateway", "Auth Module", "End-to-End Testing"],
-            shocks: [
-              { targetTitle: "Core Architectural Engine", type: "TASK_DELAY", magnitude: 5 },
-              { targetTitle: "Lead Architect", type: "TEAM_AVAILABILITY", magnitude: 50 }
-            ]
-          },
-          {
-            id: "chaos-scen-2",
-            category: "BOTTLENECK_FAILURE",
-            title: "Severe Queue Saturation on API Gateway Bottleneck",
-            severity: "HIGH",
-            classification: "HIGH_RISK",
-            chaosImpactScore: 78,
-            healthDelta: -22,
-            completionDelayDays: 5,
-            downstreamAffectedCount: 6,
-            primaryFailureMode: "BOTTLENECK_SATURATION",
-            propagationPath: ["API Gateway", "Integration Test Suite", "Frontend Staging"],
-            shocks: [
-              { targetTitle: "API Gateway", type: "TASK_EFFORT_SHOCK", magnitude: 40 }
-            ]
-          },
-          {
-            id: "chaos-scen-3",
-            category: "DEPENDENCY_FAILURE",
-            title: "External Auth Dependency Contract Breakage",
-            severity: "HIGH",
-            classification: "HIGH_RISK",
-            chaosImpactScore: 72,
-            healthDelta: -18,
-            completionDelayDays: 4,
-            downstreamAffectedCount: 5,
-            primaryFailureMode: "DEPENDENCY_BLOCK",
-            propagationPath: ["Auth Module", "Billing Service", "Mobile Client"],
-            shocks: [
-              { targetTitle: "Auth Module", type: "DEPENDENCY_FAILURE", magnitude: 4 }
-            ]
-          },
-          {
-            id: "chaos-scen-4",
-            category: "DEADLINE_COMPRESSION",
-            title: "Executive Milestone Brought Forward by 4 Days",
-            severity: "MEDIUM",
-            classification: "ATTENTION",
-            chaosImpactScore: 56,
-            healthDelta: -14,
-            completionDelayDays: 0,
-            downstreamAffectedCount: 4,
-            primaryFailureMode: "DEADLINE_PRESSURE",
-            shocks: [
-              { targetTitle: "Project Alpha Milestone", type: "DEADLINE_COMPRESSION", magnitude: 4 }
-            ]
-          },
-          {
-            id: "chaos-scen-5",
-            category: "TASK_DELAY",
-            title: "Documentation & Release Notes 3-Day Slip",
-            severity: "LOW",
-            classification: "RESILIENT",
-            chaosImpactScore: 18,
-            healthDelta: -3,
-            completionDelayDays: 0,
-            downstreamAffectedCount: 1,
-            primaryFailureMode: "FLOAT_ABSORPTION",
-            shocks: [
-              { targetTitle: "Documentation & Release Notes", type: "TASK_DELAY", magnitude: 3 }
-            ]
-          }
-        ]
-      });
+      setLabResult(null);
+      setError(err.response?.data?.message || err.message || "Failed to execute Chaos Lab simulation.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    setLabResult(null);
+    setSelectedScenario(null);
+    setThresholdResult(null);
+    setRecoveryResult(null);
+    setError(null);
     if (projectId) {
       handleRunChaosLab();
     }
@@ -422,6 +279,32 @@ export default function ProjectChaosLab({ projectId, onClose }) {
           </div>
         </div>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-center justify-between">
+          <span>{error}</span>
+          <button type="button" onClick={() => setError(null)} className="text-red-500 hover:text-red-700 font-bold ml-2">✕</button>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {loading && !labResult && (
+        <div className="p-12 text-center bg-white border border-slate-200 rounded-2xl shadow-sm">
+          <div className="text-2xl animate-spin inline-block mb-3">⚡</div>
+          <div className="text-sm font-bold text-slate-800">Executing Chaos Lab Stress-Test...</div>
+          <p className="text-xs text-slate-500 mt-1">Simulating synthetic failure permutations against the Project Digital Twin.</p>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && !labResult && !error && (
+        <div className="p-12 text-center bg-white border border-slate-200 rounded-2xl shadow-sm">
+          <div className="text-2xl inline-block mb-3 text-slate-400">🛡️</div>
+          <div className="text-sm font-bold text-slate-800">No Stress-Test Results</div>
+          <p className="text-xs text-slate-500 mt-1">Configure options above and click &quot;Run Chaos Lab&quot; to test systemic resilience.</p>
+        </div>
+      )}
 
       {/* 2. Top-Level Resilience KPI Cards */}
       {labResult && (

@@ -28,6 +28,7 @@ export default function ProjectCommandCenter({ projectId, workspaceId }) {
 
   // Core telemetry state
   const [healthData, setHealthData] = useState(null);
+  const [telemetryError, setTelemetryError] = useState(null);
   const [cpmData, setCpmData] = useState(null);
   const [bottlenecksData, setBottlenecksData] = useState(null);
   const [coordinationData, setCoordinationData] = useState(null);
@@ -41,6 +42,7 @@ export default function ProjectCommandCenter({ projectId, workspaceId }) {
   const fetchTelemetry = async () => {
     if (!projectId) return;
     setLoading(true);
+    setTelemetryError(null);
     try {
       const [h, cp, bn, coord, actions, apprv, decs] = await Promise.allSettled([
         getProjectHealth(projectId),
@@ -52,7 +54,12 @@ export default function ProjectCommandCenter({ projectId, workspaceId }) {
         getProjectDecisions(projectId, { limit: 1 })
       ]);
 
-      if (h.status === "fulfilled") setHealthData(h.value);
+      if (h.status === "fulfilled") {
+        setHealthData(h.value);
+      } else {
+        setHealthData(null);
+        setTelemetryError(h.reason?.response?.data?.message || h.reason?.message || "Failed to load project health telemetry.");
+      }
       if (cp.status === "fulfilled") setCpmData(cp.value);
       if (bn.status === "fulfilled") setBottlenecksData(bn.value);
       if (coord.status === "fulfilled") setCoordinationData(coord.value);
@@ -61,6 +68,7 @@ export default function ProjectCommandCenter({ projectId, workspaceId }) {
       if (decs.status === "fulfilled" && decs.value?.summary) setDecisionSummary(decs.value.summary);
     } catch (err) {
       console.error("Telemetry fetch error:", err);
+      setTelemetryError("Failed to fetch project telemetry.");
     } finally {
       setLoading(false);
     }
@@ -107,8 +115,9 @@ export default function ProjectCommandCenter({ projectId, workspaceId }) {
     "Prepare a recovery plan"
   ];
 
-  const healthScore = healthData?.score ?? healthData?.healthScore ?? 85;
-  const healthStatus = healthData?.status ?? healthData?.healthStatus ?? "HEALTHY";
+  const rawHealthScore = healthData?.score ?? healthData?.healthScore ?? null;
+  const healthScore = typeof rawHealthScore === "number" ? rawHealthScore : null;
+  const healthStatus = healthData?.status ?? healthData?.healthStatus ?? null;
 
   return (
     <div className="space-y-6 p-6 max-w-7xl mx-auto text-gray-900">
@@ -119,17 +128,27 @@ export default function ProjectCommandCenter({ projectId, workspaceId }) {
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">
               Project Command Center
             </h1>
-            <span
-              className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                healthStatus === "CRITICAL"
-                  ? "bg-red-100 text-red-800"
-                  : healthStatus === "AT_RISK"
-                  ? "bg-amber-100 text-amber-800"
-                  : "bg-emerald-100 text-emerald-800"
-              }`}
-            >
-              {healthStatus} ({healthScore}/100)
-            </span>
+            {loading && healthScore === null ? (
+              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 animate-pulse">
+                Assessing Health...
+              </span>
+            ) : healthScore !== null ? (
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  healthStatus === "CRITICAL"
+                    ? "bg-red-100 text-red-800"
+                    : healthStatus === "AT_RISK"
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-emerald-100 text-emerald-800"
+                }`}
+              >
+                {healthStatus || "CALCULATED"} ({healthScore}/100)
+              </span>
+            ) : (
+              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+                Health Data Unavailable
+              </span>
+            )}
           </div>
           <p className="text-sm text-gray-500 mt-1">
             Production Intelligence & Deterministic Natural-Language Control Layer
@@ -145,6 +164,14 @@ export default function ProjectCommandCenter({ projectId, workspaceId }) {
           </button>
         </div>
       </div>
+
+      {/* Telemetry Error Banner */}
+      {telemetryError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs flex items-center justify-between">
+          <span>{telemetryError}</span>
+          <button type="button" onClick={() => setTelemetryError(null)} className="text-red-500 hover:text-red-700 font-bold ml-2">✕</button>
+        </div>
+      )}
 
       {/* 2. Natural-Language Query Interface (Part 11) */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5 shadow-sm">
@@ -377,17 +404,32 @@ export default function ProjectCommandCenter({ projectId, workspaceId }) {
           {/* Health Card */}
           <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Project Health</h3>
-            <div className="flex items-center justify-between">
-              <div className="text-3xl font-black text-gray-900">{healthScore}<span className="text-sm font-normal text-gray-500">/100</span></div>
-              <span className={`px-2.5 py-1 text-xs font-semibold rounded ${
-                healthStatus === "CRITICAL" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"
-              }`}>
-                {healthStatus}
-              </span>
-            </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Synthesized from active tasks, drift, and structural bottlenecks.
-            </p>
+            {loading && healthScore === null ? (
+              <div className="py-4 text-center text-xs text-gray-400 animate-pulse">Calculating health telemetry...</div>
+            ) : healthScore !== null ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <div className="text-3xl font-black text-gray-900">{healthScore}<span className="text-sm font-normal text-gray-500">/100</span></div>
+                  <span className={`px-2.5 py-1 text-xs font-semibold rounded ${
+                    healthStatus === "CRITICAL"
+                      ? "bg-red-100 text-red-700"
+                      : healthStatus === "AT_RISK"
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-emerald-100 text-emerald-700"
+                  }`}>
+                    {healthStatus}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Synthesized from active tasks, drift, and structural bottlenecks.
+                </p>
+              </>
+            ) : (
+              <div className="py-2">
+                <div className="text-sm font-semibold text-gray-600">Health metric unavailable</div>
+                <p className="text-xs text-gray-400 mt-1">Unable to determine project health score from telemetry.</p>
+              </div>
+            )}
           </div>
 
           {/* Critical Path Card */}

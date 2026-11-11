@@ -32,7 +32,7 @@ function Login() {
   const [apiError, setApiError] = useState("");
   const [activeField, setActiveField] = useState(null);
   const [isTyping, setIsTyping] = useState(false);
-  const [hasMockSuccess, setHasMockSuccess] = useState(false);
+  const [hasSuccess, setHasSuccess] = useState(false);
   const [introPhase, setIntroPhase] = useState(() => (
     getInitialIntroPhase(shouldSkipIntro) === "complete" ? "complete" : "beanieFalling"
   ));
@@ -72,7 +72,7 @@ function Login() {
         ? "eyesclosed"
         : isTyping
           ? "thinking"
-          : hasMockSuccess
+          : hasSuccess
             ? "excited"
             : activeField === "email"
               ? "curious"
@@ -120,7 +120,7 @@ function Login() {
   }, [shouldSkipIntro]);
 
   const handleFieldFocus = (field) => {
-    setHasMockSuccess(false);
+    setHasSuccess(false);
     setIsTyping(false);
     setActiveField(field);
   };
@@ -132,7 +132,7 @@ function Login() {
   };
 
   const handleFieldChange = (event, onChange) => {
-    setHasMockSuccess(false);
+    setHasSuccess(false);
     setIsTyping(true);
     onChange(event);
   };
@@ -140,7 +140,7 @@ function Login() {
   const onSubmit = async (data) => {
     setIsSubmitting(true);
     setApiError("");
-    setHasMockSuccess(false);
+    setHasSuccess(false);
 
     try {
       const response = await api.post("/auth/login", {
@@ -155,7 +155,7 @@ function Login() {
 
       console.log("Login successful:", user);
 
-      setHasMockSuccess(true);
+      setHasSuccess(true);
 
       const needsOnboarding = user?.hasCompletedOnboarding === false || (shouldStartOnboarding && user?.hasCompletedOnboarding !== true);
       const searchParams = new URLSearchParams(location.search);
@@ -272,7 +272,7 @@ function Login() {
                     onBlur={(event) => handleFieldBlur(event, passwordRegistration.onBlur)}
                     onChange={(event) => handleFieldChange(event, passwordRegistration.onChange)}
                   />
-                  <button type="button" onFocus={() => handleFieldFocus("password")} onBlur={() => { setIsTyping(false); setActiveField(null); }} onClick={() => { setHasMockSuccess(false); setActiveField("password"); setShowPassword((currentValue) => !currentValue); }} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-[var(--radius-sm)] p-2 text-[var(--color-text-subtle)] transition duration-[var(--duration-base)] hover:bg-[var(--color-canvas-soft)] hover:text-[var(--color-brand-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]" aria-label={showPassword ? "Hide password" : "Show password"}>
+                  <button type="button" onFocus={() => handleFieldFocus("password")} onBlur={() => { setIsTyping(false); setActiveField(null); }} onClick={() => { setHasSuccess(false); setActiveField("password"); setShowPassword((currentValue) => !currentValue); }} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-[var(--radius-sm)] p-2 text-[var(--color-text-subtle)] transition duration-[var(--duration-base)] hover:bg-[var(--color-canvas-soft)] hover:text-[var(--color-brand-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]" aria-label={showPassword ? "Hide password" : "Show password"}>
                     {showPassword ? <FiEye size={18} /> : <FiEyeOff size={18} />}
                   </button>
                 </div>

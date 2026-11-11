@@ -29,7 +29,7 @@ function Register() {
   const [apiError, setApiError] = useState("");
   const [activeField, setActiveField] = useState(null);
   const [isTyping, setIsTyping] = useState(false);
-  const [hasMockSuccess, setHasMockSuccess] = useState(false);
+  const [hasSuccess, setHasSuccess] = useState(false);
   const {
     register,
     handleSubmit,
@@ -81,14 +81,14 @@ function Register() {
         ? "eyesclosed"
         : isTyping
           ? "thinking"
-          : hasMockSuccess
+          : hasSuccess
             ? "excited"
             : activeField === "firstName" || activeField === "lastName" || activeField === "email" || activeField === "phone"
               ? "curious"
               : "happy";
 
   const handleFieldFocus = (field) => {
-    setHasMockSuccess(false);
+    setHasSuccess(false);
     setIsTyping(false);
     setActiveField(field);
   };
@@ -100,7 +100,7 @@ function Register() {
   };
 
   const handleFieldChange = (event, onChange) => {
-    setHasMockSuccess(false);
+    setHasSuccess(false);
     setIsTyping(true);
     onChange(event);
   };
@@ -108,7 +108,7 @@ function Register() {
   const onSubmit = async (data) => {
     setIsSubmitting(true);
     setApiError("");
-    setHasMockSuccess(false);
+    setHasSuccess(false);
 
     try {
       const response = await api.post("/auth/register", {
@@ -302,7 +302,7 @@ function Register() {
                     type="button"
                     onFocus={() => handleFieldFocus("password")}
                     onBlur={() => { setIsTyping(false); setActiveField(null); }}
-                    onClick={() => { setHasMockSuccess(false); setActiveField("password"); setShowPassword((currentValue) => !currentValue); }}
+                    onClick={() => { setHasSuccess(false); setActiveField("password"); setShowPassword((currentValue) => !currentValue); }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 rounded-[var(--radius-sm)] p-2 text-[var(--color-text-subtle)] transition duration-[var(--duration-base)] hover:bg-[var(--color-canvas-soft)] hover:text-[var(--color-brand-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
@@ -335,7 +335,7 @@ function Register() {
                     type="button"
                     onFocus={() => handleFieldFocus("confirmPassword")}
                     onBlur={() => { setIsTyping(false); setActiveField(null); }}
-                    onClick={() => { setHasMockSuccess(false); setActiveField("confirmPassword"); setShowConfirmPassword((currentValue) => !currentValue); }}
+                    onClick={() => { setHasSuccess(false); setActiveField("confirmPassword"); setShowConfirmPassword((currentValue) => !currentValue); }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 rounded-[var(--radius-sm)] p-2 text-[var(--color-text-subtle)] transition duration-[var(--duration-base)] hover:bg-[var(--color-canvas-soft)] hover:text-[var(--color-brand-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
                     aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
                   >
