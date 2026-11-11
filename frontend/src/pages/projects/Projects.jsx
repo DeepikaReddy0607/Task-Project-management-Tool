@@ -36,8 +36,13 @@ const statusClasses = { Planning: "bg-[var(--color-surface-muted)] text-[var(--c
 const severityRank = { Low: 1, Medium: 2, High: 3, Critical: 4 };
 const probabilityRank = { Low: 1, Medium: 2, High: 3 };
 const formatDate = (value) => new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(new Date(`${value}T00:00:00`));
+
+const PROJECT_CATEGORIES = ["Product", "Design", "Engineering", "Marketing", "Operations", "Personal"];
+const PROJECT_PRIORITIES = ["Low", "Medium", "High", "Critical"];
+const PROJECT_STATUSES = ["Planning", "In Progress", "On Track", "At Risk", "Complete"];
+
 const emptyProjectForm = { title: "", description: "", category: "Product", priority: "Medium", status: "Planning", startDate: "", endDate: "" };
-const emptyRiskForm = { title: "", description: "", severity: "Medium", probability: "Medium", ownerId: "user-geethika", mitigationPlan: "" };
+const emptyRiskForm = { title: "", description: "", severity: "Medium", probability: "Medium", ownerId: "", mitigationPlan: "" };
 
 function Dialog({ children, onClose, title, wide = false, topmost = false }) {
   useEffect(() => {
@@ -78,6 +83,7 @@ function Projects() {
   const [projects, setProjects] = useState([]);
   const [workspaces, setWorkspaces] = useState([]);
   const [workspaceId, setWorkspaceId] = useState(null);
+  const [workspaceMembers, setWorkspaceMembers] = useState([]);
   const [includeArchived, setIncludeArchived] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState(() => searchParams.get("projectId") || null);
   const [projectModalTab, setProjectModalTab] = useState(() => {
@@ -89,7 +95,7 @@ function Projects() {
   const [riskForm, setRiskForm] = useState(emptyRiskForm);
   const [formError, setFormError] = useState("");
   const [riskSort, setRiskSort] = useState({ key: "severity", direction: "desc" });
-  const [memberUserId, setMemberUserId] = useState("user-noah");
+  const [memberUserId, setMemberUserId] = useState("");
   const [filesByProject, setFilesByProject] = useState({});
   const { setPageContext } = useAssistantContext();
 
