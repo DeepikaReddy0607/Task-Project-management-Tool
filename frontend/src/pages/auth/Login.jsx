@@ -44,7 +44,7 @@ function Login() {
     formState: { errors },
   } = useForm({
     defaultValues: {
-      email: "",
+      email: location.state?.email || "",
       password: "",
     },
   });
@@ -228,6 +228,14 @@ function Login() {
             </header>
 
             <form className="mt-7 space-y-5" onSubmit={handleSubmit(onSubmit)} noValidate>
+              {location.state?.message && !apiError && (
+                <div
+                  role="status"
+                  className="rounded-[var(--radius-md)] border border-[var(--color-brand)] bg-[var(--color-surface-sage)] px-4 py-3 text-sm font-medium text-[var(--color-brand-hover)]"
+                >
+                  {location.state.message}
+                </div>
+              )}
               {apiError && (
                 <div
                   role="alert"

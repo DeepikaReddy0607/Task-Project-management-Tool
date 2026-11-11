@@ -113,13 +113,7 @@ describe("Onboarding Routing & State Persistence Test Suite", () => {
         setTimeout(() => process.exit(0), 100);
     });
 
-    test("1. User registration & OTP verification returns hasCompletedOnboarding: false", async () => {
-        let sentOtp;
-        setMailMock((mail) => {
-            if (mail.otp) sentOtp = mail.otp;
-            return Promise.resolve();
-        });
-
+    test("1. Direct user registration creates permanent user with hasCompletedOnboarding: false", async () => {
         const regRes = await fetch(`${baseUrl}/auth/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -131,18 +125,14 @@ describe("Onboarding Routing & State Persistence Test Suite", () => {
             })
         });
         assert.equal(regRes.status, 200);
-
-        const verifyRes = await fetch(`${baseUrl}/auth/verify-registration-otp`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                email: "test_register_flow@taskflow.dev",
-                otp: sentOtp
-            })
-        });
-        assert.equal(verifyRes.status, 201);
-        const data = await verifyRes.json();
+        const data = await regRes.json();
         assert.equal(data.user.hasCompletedOnboarding, false);
+
+        const permanent = await prisma.users.findUnique({
+            where: { email: "test_register_flow@taskflow.dev" }
+        });
+        assert.ok(permanent, "Permanent user must exist directly in DB without OTP");
+        assert.equal(permanent.has_completed_onboarding, false);
     });
 
     test("2. First-time login endpoint returns hasCompletedOnboarding: false", async () => {

@@ -106,7 +106,7 @@ describe("Resend Email Delivery & Registration Error Recovery Test Suite", () =>
     // -------------------------------------------------------------------------
     // TEST 3: Successful Email Delivery via Resend API Mock
     // -------------------------------------------------------------------------
-    test("3. Successful email delivery: Resend dispatches OTP email and registration succeeds with HTTP 200", async () => {
+    test("3. Successful email delivery: sendRegistrationOtpEmail dispatches OTP email with valid payload", async () => {
         const testEmail = `resendtest_success_${Date.now()}@example.com`;
         let dispatchedPayload = null;
 
@@ -119,45 +119,18 @@ describe("Resend Email Delivery & Registration Error Recovery Test Suite", () =>
             }
         });
 
-        const res = await fetch(`${baseApiUrl}/auth/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                firstName: "Alex",
-                lastName: "Morgan",
-                email: testEmail,
-                password: testPassword
-            })
-        });
-
-        assert.equal(res.status, 200, "Registration must succeed with HTTP 200");
-        const body = await res.json();
-        assert.equal(body.message, "Verification code sent to your email");
-        assert.equal(body.email, testEmail);
-
-        // Verify Resend payload was constructed correctly
+        const result = await sendRegistrationOtpEmail(testEmail, "123456", "Alex");
+        assert.ok(result);
         assert.ok(dispatchedPayload, "Resend emails.send must have been called");
         assert.equal(dispatchedPayload.to, testEmail);
         assert.ok(dispatchedPayload.subject.includes("verification code"));
         assert.ok(dispatchedPayload.html.includes("Confirm your email address"));
-
-        // Verify database state: pending record created, no permanent user created
-        const pending = await prisma.pending_registrations.findUnique({
-            where: { email: testEmail }
-        });
-        assert.ok(pending, "Pending registration must exist in DB");
-        assert.ok(pending.otp_hash, "Pending registration must contain HMAC-SHA256 OTP hash");
-
-        const user = await prisma.users.findUnique({
-            where: { email: testEmail }
-        });
-        assert.equal(user, null, "Permanent user must NOT be created prior to OTP verification");
     });
 
     // -------------------------------------------------------------------------
     // TEST 4: Invalid API Key / Provider Rejection (HTTP 401 from Resend)
     // -------------------------------------------------------------------------
-    test("4. Invalid API key/provider rejection: returns HTTP 500, cleans pending registration, refunds rate-limit quota", async () => {
+    test("4. Invalid API key/provider rejection: sendRegistrationOtpEmail throws with descriptive error", async () => {
         const testEmail = `resendtest_invalidkey_${Date.now()}@example.com`;
 
         setResendClientOverride({
@@ -175,37 +148,21 @@ describe("Resend Email Delivery & Registration Error Recovery Test Suite", () =>
             }
         });
 
-        const res = await fetch(`${baseApiUrl}/auth/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                firstName: "Jordan",
-                lastName: "Lee",
-                email: testEmail,
-                password: testPassword
-            })
-        });
-
-        assert.equal(res.status, 500, "Must return HTTP 500 on Resend rejection");
-        const body = await res.json();
-        assert.equal(body.message, "Failed to send verification email. Please check your email address and try again.");
-
-        // Verify pending registration was purged
-        const pending = await prisma.pending_registrations.findUnique({
-            where: { email: testEmail }
-        });
-        assert.equal(pending, null, "Pending registration must be purged after email failure");
-
-        // Verify rate-limit quota was refunded
-        const keyCount = registerEmailRateLimiter.getKeyCount(testEmail.toLowerCase().trim());
-        assert.equal(keyCount, 0, "Email rate-limit hit must be refunded on HTTP 500");
+        await assert.rejects(
+            async () => {
+                await sendRegistrationOtpEmail(testEmail, "123456", "Jordan");
+            },
+            (err) => {
+                assert.ok(err.message.includes("API key is invalid") || err.message.includes("Failed to send"));
+                return true;
+            }
+        );
     });
 
     // -------------------------------------------------------------------------
     // TEST 5: Network Timeout Handling
     // -------------------------------------------------------------------------
-    test("5. Network timeout: sendWithTimeout rejects promptly on timeout, cleans pending registration", async () => {
-        // First verify sendWithTimeout rejects with ETIMEDOUT when operation hangs
+    test("5. Network timeout: sendWithTimeout rejects promptly on timeout", async () => {
         const hangingOperation = new Promise((resolve) => setTimeout(resolve, 500));
         await assert.rejects(
             async () => {
@@ -217,50 +174,14 @@ describe("Resend Email Delivery & Registration Error Recovery Test Suite", () =>
             },
             "sendWithTimeout must reject with ETIMEDOUT when timer expires"
         );
-
-        // Next test via registration endpoint
-        const testEmail = `resendtest_timeout_${Date.now()}@example.com`;
-
-        setResendClientOverride({
-            emails: {
-                send: async () => {
-                    const timeoutErr = new Error("Email delivery timed out after 10000ms");
-                    timeoutErr.code = "ETIMEDOUT";
-                    throw timeoutErr;
-                }
-            }
-        });
-
-        const start = Date.now();
-        const res = await fetch(`${baseApiUrl}/auth/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                firstName: "Taylor",
-                lastName: "Swift",
-                email: testEmail,
-                password: testPassword
-            })
-        });
-        const duration = Date.now() - start;
-
-        assert.equal(res.status, 500, "Must return HTTP 500 on timeout");
-        assert.ok(duration < 5000, "Must return promptly without hanging indefinitely");
-
-        // Verify pending record cleaned up
-        const pending = await prisma.pending_registrations.findUnique({
-            where: { email: testEmail }
-        });
-        assert.equal(pending, null, "Pending registration must be purged after timeout failure");
     });
 
     // -------------------------------------------------------------------------
-    // TEST 6: Registration Retry After Provider Recovery
+    // TEST 6: Registration Resiliency Without Provider Bottlenecks
     // -------------------------------------------------------------------------
-    test("6. Failed registration allows a legitimate retry after provider recovers", async () => {
+    test("6. Direct registration succeeds reliably regardless of Resend provider status", async () => {
         const testEmail = `resendtest_retry_${Date.now()}@example.com`;
 
-        // 1. First attempt fails due to Resend error
         setResendClientOverride({
             emails: {
                 send: async () => ({
@@ -270,81 +191,33 @@ describe("Resend Email Delivery & Registration Error Recovery Test Suite", () =>
             }
         });
 
-        const failRes = await fetch(`${baseApiUrl}/auth/register`, {
+        const res = await fetch(`${baseApiUrl}/auth/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                firstName: "Retry",
-                lastName: "User",
-                email: testEmail,
-                password: testPassword
-            })
-        });
-        assert.equal(failRes.status, 500);
-
-        // 2. Provider recovers
-        setResendClientOverride({
-            emails: {
-                send: async () => ({ data: { id: "resend_msg_recovered_123" }, error: null })
-            }
-        });
-
-        const retryRes = await fetch(`${baseApiUrl}/auth/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                firstName: "Retry",
+                firstName: "Direct",
                 lastName: "User",
                 email: testEmail,
                 password: testPassword
             })
         });
 
-        assert.equal(retryRes.status, 200, "Retry must succeed with HTTP 200");
-        const pending = await prisma.pending_registrations.findUnique({
+        assert.equal(res.status, 200, "Direct registration must succeed without email bottleneck");
+        const user = await prisma.users.findUnique({
             where: { email: testEmail }
         });
-        assert.ok(pending, "Pending registration must exist after successful retry");
+        assert.ok(user, "Permanent user created directly in database");
+
+        // Cleanup
+        await prisma.users.deleteMany({ where: { email: testEmail } });
     });
 
     // -------------------------------------------------------------------------
-    // TEST 7: OTP Resend Failure & Previous OTP Invalidation
+    // TEST 7: Password-Reset Email Failure Handling
     // -------------------------------------------------------------------------
-    test("7. OTP resend failure: returns HTTP 500, preserves pending state, and invalidates previous OTP", async () => {
-        const testEmail = `resendtest_resend_${Date.now()}@example.com`;
-        let firstOtp = null;
+    test("7. Password-reset email failure handles provider error gracefully without crashing", async () => {
+        const resetEmail = `resendtest_resend_err_${Date.now()}@example.com`;
 
-        // 1. Initial registration succeeds
-        setResendClientOverride({
-            emails: {
-                send: async (payload) => {
-                    const match = payload.subject.match(/(\d{6})/);
-                    if (match) firstOtp = match[1];
-                    return { data: { id: "msg_init_123" }, error: null };
-                }
-            }
-        });
-
-        const regRes = await fetch(`${baseApiUrl}/auth/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                firstName: "Resend",
-                lastName: "Tester",
-                email: testEmail,
-                password: testPassword
-            })
-        });
-        assert.equal(regRes.status, 200);
-        assert.ok(firstOtp, "First OTP must be captured");
-
-        // Advance cooldown timestamp so resend is allowed
-        await prisma.pending_registrations.update({
-            where: { email: testEmail },
-            data: { last_resend_at: new Date(Date.now() - 70000) }
-        });
-
-        // 2. Make Resend reject during resend attempt
         setResendClientOverride({
             emails: {
                 send: async () => ({
@@ -354,29 +227,9 @@ describe("Resend Email Delivery & Registration Error Recovery Test Suite", () =>
             }
         });
 
-        const resendRes = await fetch(`${baseApiUrl}/auth/resend-registration-otp`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: testEmail })
-        });
-
-        assert.equal(resendRes.status, 500, "Must return HTTP 500 on resend email failure");
-
-        // 3. Verify pending registration was NOT deleted (user should not lose their session)
-        const pending = await prisma.pending_registrations.findUnique({
-            where: { email: testEmail }
-        });
-        assert.ok(pending, "Pending registration must remain intact after resend failure");
-
-        // 4. Verify the first OTP cannot be verified anymore because resend generated a new hash
-        const verifyOldRes = await fetch(`${baseApiUrl}/auth/verify-registration-otp`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: testEmail, otp: firstOtp })
-        });
-        assert.equal(verifyOldRes.status, 400, "Old OTP must be rejected");
-        const verifyBody = await verifyOldRes.json();
-        assert.ok(verifyBody.message.includes("Invalid verification code"), "Must reject with invalid code message");
+        // sendPasswordResetEmail catches and logs error gracefully
+        const res = await sendPasswordResetEmail(resetEmail, "http://localhost:5173/reset-password?token=mock");
+        assert.equal(res, undefined, "Gracefully returns undefined on provider error");
     });
 
     // -------------------------------------------------------------------------
@@ -455,21 +308,10 @@ describe("Resend Email Delivery & Registration Error Recovery Test Suite", () =>
     // -------------------------------------------------------------------------
     // TEST 10: Concurrent Registration Attempts Consistency
     // -------------------------------------------------------------------------
-    test("10. Concurrent registration attempts: exactly 1 pending record persists and only final committed OTP verifies", async () => {
+    test("10. Concurrent registration attempts: exactly 1 permanent user created and concurrent duplicates return 409", async () => {
         const testEmail = `resendtest_concurrent_${Date.now()}@example.com`;
-        const capturedOtps = [];
 
-        setResendClientOverride({
-            emails: {
-                send: async (payload) => {
-                    const match = payload.subject.match(/(\d{6})/);
-                    if (match) capturedOtps.push(match[1]);
-                    return { data: { id: `resend_msg_${Date.now()}` }, error: null };
-                }
-            }
-        });
-
-        // Fire 5 concurrent registrations
+        // Fire 5 concurrent registrations for the same email
         const requests = Array.from({ length: 5 }, (_, i) =>
             fetch(`${baseApiUrl}/auth/register`, {
                 method: "POST",
@@ -484,41 +326,20 @@ describe("Resend Email Delivery & Registration Error Recovery Test Suite", () =>
         );
 
         const responses = await Promise.all(requests);
-        for (const r of responses) {
-            assert.equal(r.status, 200, "All concurrent requests should return 200");
-        }
+        const statuses = responses.map((r) => r.status);
+        const successCount = statuses.filter((s) => s === 200).length;
+        const conflictCount = statuses.filter((s) => s === 409).length;
 
-        // Exactly one pending registration record must exist in DB
-        const pendingRecords = await prisma.pending_registrations.findMany({
-            where: { email: testEmail }
-        });
-        assert.equal(pendingRecords.length, 1, "There must be exactly one pending registration record");
+        assert.equal(successCount, 1, `Exactly 1 registration must succeed with 200 (statuses: ${statuses.join(", ")})`);
+        assert.equal(conflictCount, 4, `The remaining 4 concurrent registrations must return 409 Conflict`);
 
-        // Exactly 0 permanent users must exist
+        // Exactly one user must exist in DB
         const users = await prisma.users.findMany({
             where: { email: testEmail }
         });
-        assert.equal(users.length, 0, "No permanent user must exist prior to verification");
+        assert.equal(users.length, 1, "There must be exactly one user record");
 
-        // The final captured OTP must verify successfully
-        const finalOtp = capturedOtps[capturedOtps.length - 1];
-        const verifyRes = await fetch(`${baseApiUrl}/auth/verify-registration-otp`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: testEmail, otp: finalOtp })
-        });
-        assert.equal(verifyRes.status, 201, "Final OTP must verify and create user");
-
-        // Earlier OTPs must now be rejected
-        if (capturedOtps.length > 1) {
-            const firstOtp = capturedOtps[0];
-            const verifyFirstRes = await fetch(`${baseApiUrl}/auth/verify-registration-otp`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: testEmail, otp: firstOtp })
-            });
-            // Pending registration was deleted upon successful verification, so returns 404 or 409
-            assert.ok([400, 404, 409].includes(verifyFirstRes.status), "Old OTP must not verify");
-        }
+        // Cleanup
+        await prisma.users.deleteMany({ where: { email: testEmail } });
     });
 });

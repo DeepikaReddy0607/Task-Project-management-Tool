@@ -55,10 +55,14 @@ export const generateReplanningProposals = async ({
         twin = await getProjectDigitalTwin(projectId, userId);
     }
 
+    const rawDeps = Array.isArray(twin.rawDependencies)
+        ? twin.rawDependencies
+        : (Array.isArray(twin.dependencies) ? twin.dependencies : (twin.dependencies?.items || []));
+
     const baseStateHash = computeProjectStateHash({
         project: twin.project,
         tasks: twin.tasks.items || [],
-        dependencies: twin.dependencies
+        dependencies: rawDeps
     });
 
     const proposals = [];
@@ -108,74 +112,76 @@ export const generateReplanningProposals = async ({
                     const sim = runScenarioSimulation({
                         project: twin.project,
                         tasks,
-                        dependencies: twin.dependencies,
+                        dependencies: rawDeps,
                         projectMembers: twin.team.members,
                         mutations,
                         baseDigitalTwin: twin,
                         startOfToday
                     });
 
-                    proposals.push({
-                        proposalId: `prop_${crypto.randomUUID()}`,
-                        projectId,
-                        title: `Rebalance Workload: Move '${taskToMove.title}' to ${lightest.name}`,
-                        strategy: REPLANNING_STRATEGIES.WORKLOAD_BALANCING,
-                        rationale: `${heaviest.name} currently holds ${Math.round(heavyShare)}% of project hours (${heaviest.remainingHours}h), while ${lightest.name} has only ${lightest.remainingHours}h.`,
-                        proposedChanges: [
-                            {
-                                type: MUTATION_TYPES.TASK_REASSIGN,
-                                taskId: taskToMove.id,
-                                taskTitle: taskToMove.title,
-                                fromUserId: heavyUserId,
-                                fromUserName: heaviest.name,
-                                toUserId: lightUserId,
-                                toUserName: lightest.name,
-                                estimatedHours: taskToMove.estimated_hours
-                            }
-                        ],
-                        projectedImpact: {
-                            projectedCompletion: {
-                                before: sim.baseline.projectedEnd,
-                                after: sim.scenario.projectedEnd,
-                                deltaDays: sim.delta.scheduleVarianceDays
+                    if (sim.valid) {
+                        proposals.push({
+                            proposalId: `prop_${crypto.randomUUID()}`,
+                            projectId,
+                            title: `Rebalance Workload: Move '${taskToMove.title}' to ${lightest.name}`,
+                            strategy: REPLANNING_STRATEGIES.WORKLOAD_BALANCING,
+                            rationale: `${heaviest.name} currently holds ${Math.round(heavyShare)}% of project hours (${heaviest.remainingHours}h), while ${lightest.name} has only ${lightest.remainingHours}h.`,
+                            proposedChanges: [
+                                {
+                                    type: MUTATION_TYPES.TASK_REASSIGN,
+                                    taskId: taskToMove.id,
+                                    taskTitle: taskToMove.title,
+                                    fromUserId: heavyUserId,
+                                    fromUserName: heaviest.name,
+                                    toUserId: lightUserId,
+                                    toUserName: lightest.name,
+                                    estimatedHours: taskToMove.estimated_hours
+                                }
+                            ],
+                            projectedImpact: {
+                                projectedCompletion: {
+                                    before: sim.baseline.projectedEnd,
+                                    after: sim.scenario.projectedEnd,
+                                    deltaDays: sim.delta.scheduleVarianceDays
+                                },
+                                health: {
+                                    before: sim.baseline.healthScore,
+                                    after: sim.scenario.healthScore,
+                                    scoreDelta: sim.delta.healthScoreDelta
+                                },
+                                criticalTasks: {
+                                    before: sim.baseline.criticalTasksCount,
+                                    after: sim.scenario.criticalTasksCount
+                                },
+                                bottlenecks: {
+                                    before: sim.baseline.bottlenecksCount,
+                                    after: sim.scenario.bottlenecksCount
+                                },
+                                workloadConcentration: {
+                                    before: sim.baseline.workloadConcentrationScore,
+                                    after: sim.scenario.workloadConcentrationScore
+                                }
                             },
-                            health: {
-                                before: sim.baseline.healthScore,
-                                after: sim.scenario.healthScore,
-                                scoreDelta: sim.delta.healthScoreDelta
-                            },
-                            criticalTasks: {
-                                before: sim.baseline.criticalTasksCount,
-                                after: sim.scenario.criticalTasksCount
-                            },
-                            bottlenecks: {
-                                before: sim.baseline.bottlenecksCount,
-                                after: sim.scenario.bottlenecksCount
-                            },
-                            workloadConcentration: {
-                                before: sim.baseline.workloadConcentrationScore,
-                                after: sim.scenario.workloadConcentrationScore
-                            }
-                        },
-                        evidence: [
-                            `${heaviest.name} workload share: ${Math.round(heavyShare)}% (${heaviest.remainingHours}h remaining)`,
-                            `${lightest.name} available capacity: only ${lightest.remainingHours}h assigned`,
-                            `Task '${taskToMove.title}' estimated effort: ${taskToMove.estimated_hours}h`
-                        ],
-                        risks: [
-                            "Task assignment suitability cannot be fully guaranteed without an explicit skill matrix."
-                        ],
-                        warnings: [
-                            "Task assignment suitability cannot be fully guaranteed without an explicit skill matrix."
-                        ],
-                        assumptions: [
-                            `${lightest.name} has the requisite domain context to execute '${taskToMove.title}' at equivalent velocity.`
-                        ],
-                        baseStateHash,
-                        generatedAt: new Date().toISOString(),
-                        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-                        status: SCENARIO_STATUS.PROPOSED
-                    });
+                            evidence: [
+                                `${heaviest.name} workload share: ${Math.round(heavyShare)}% (${heaviest.remainingHours}h remaining)`,
+                                `${lightest.name} available capacity: only ${lightest.remainingHours}h assigned`,
+                                `Task '${taskToMove.title}' estimated effort: ${taskToMove.estimated_hours}h`
+                            ],
+                            risks: [
+                                "Task assignment suitability cannot be fully guaranteed without an explicit skill matrix."
+                            ],
+                            warnings: [
+                                "Task assignment suitability cannot be fully guaranteed without an explicit skill matrix."
+                            ],
+                            assumptions: [
+                                `${lightest.name} has the requisite domain context to execute '${taskToMove.title}' at equivalent velocity.`
+                            ],
+                            baseStateHash,
+                            generatedAt: new Date().toISOString(),
+                            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                            status: SCENARIO_STATUS.PROPOSED
+                        });
+                    }
                 }
             }
         }
@@ -239,63 +245,65 @@ export const generateReplanningProposals = async ({
                     const sim = runScenarioSimulation({
                         project: twin.project,
                         tasks,
-                        dependencies: twin.dependencies,
+                        dependencies: rawDeps,
                         projectMembers: twin.team.members,
                         mutations,
                         baseDigitalTwin: twin,
                         startOfToday
                     });
 
-                    proposals.push({
-                        proposalId: `prop_${crypto.randomUUID()}`,
-                        projectId,
-                        title: `Relieve Bottleneck on '${bnTask.title}'`,
-                        strategy: REPLANNING_STRATEGIES.BOTTLENECK_RELIEF,
-                        rationale: `Task '${bnTask.title}' is a ${topBottleneck.severity} bottleneck directly obstructing ${topBottleneck.blockedDownstreamCount} downstream task(s).`,
-                        proposedChanges,
-                        projectedImpact: {
-                            projectedCompletion: {
-                                before: sim.baseline.projectedEnd,
-                                after: sim.scenario.projectedEnd,
-                                deltaDays: sim.delta.scheduleVarianceDays
+                    if (sim.valid) {
+                        proposals.push({
+                            proposalId: `prop_${crypto.randomUUID()}`,
+                            projectId,
+                            title: `Relieve Bottleneck on '${bnTask.title}'`,
+                            strategy: REPLANNING_STRATEGIES.BOTTLENECK_RELIEF,
+                            rationale: `Task '${bnTask.title}' is a ${topBottleneck.severity} bottleneck directly obstructing ${topBottleneck.blockedDownstreamCount} downstream task(s).`,
+                            proposedChanges,
+                            projectedImpact: {
+                                projectedCompletion: {
+                                    before: sim.baseline.projectedEnd,
+                                    after: sim.scenario.projectedEnd,
+                                    deltaDays: sim.delta.scheduleVarianceDays
+                                },
+                                health: {
+                                    before: sim.baseline.healthScore,
+                                    after: sim.scenario.healthScore,
+                                    scoreDelta: sim.delta.healthScoreDelta
+                                },
+                                criticalTasks: {
+                                    before: sim.baseline.criticalTasksCount,
+                                    after: sim.scenario.criticalTasksCount
+                                },
+                                bottlenecks: {
+                                    before: sim.baseline.bottlenecksCount,
+                                    after: sim.scenario.bottlenecksCount
+                                },
+                                workloadConcentration: {
+                                    before: sim.baseline.workloadConcentrationScore,
+                                    after: sim.scenario.workloadConcentrationScore
+                                }
                             },
-                            health: {
-                                before: sim.baseline.healthScore,
-                                after: sim.scenario.healthScore,
-                                scoreDelta: sim.delta.healthScoreDelta
-                            },
-                            criticalTasks: {
-                                before: sim.baseline.criticalTasksCount,
-                                after: sim.scenario.criticalTasksCount
-                            },
-                            bottlenecks: {
-                                before: sim.baseline.bottlenecksCount,
-                                after: sim.scenario.bottlenecksCount
-                            },
-                            workloadConcentration: {
-                                before: sim.baseline.workloadConcentrationScore,
-                                after: sim.scenario.workloadConcentrationScore
-                            }
-                        },
-                        evidence: [
-                            `Bottleneck severity: ${topBottleneck.severity} (score: ${topBottleneck.score})`,
-                            `Directly blocks ${topBottleneck.blockedDownstreamCount} downstream task(s)`,
-                            `Current task priority: ${bnTask.priority}`
-                        ],
-                        risks: [
-                            "Elevating priority does not reduce physical effort; it ensures immediate team focus."
-                        ],
-                        warnings: [
-                            "Elevating priority does not reduce physical effort; it ensures immediate team focus."
-                        ],
-                        assumptions: [
-                            "Expediting this blocker unblocks the longest dependent downstream execution chain."
-                        ],
-                        baseStateHash,
-                        generatedAt: new Date().toISOString(),
-                        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-                        status: SCENARIO_STATUS.PROPOSED
-                    });
+                            evidence: [
+                                `Bottleneck severity: ${topBottleneck.severity} (score: ${topBottleneck.score})`,
+                                `Directly blocks ${topBottleneck.blockedDownstreamCount} downstream task(s)`,
+                                `Current task priority: ${bnTask.priority}`
+                            ],
+                            risks: [
+                                "Elevating priority does not reduce physical effort; it ensures immediate team focus."
+                            ],
+                            warnings: [
+                                "Elevating priority does not reduce physical effort; it ensures immediate team focus."
+                            ],
+                            assumptions: [
+                                "Expediting this blocker unblocks the longest dependent downstream execution chain."
+                            ],
+                            baseStateHash,
+                            generatedAt: new Date().toISOString(),
+                            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                            status: SCENARIO_STATUS.PROPOSED
+                        });
+                    }
                 }
             }
         }
@@ -306,7 +314,7 @@ export const generateReplanningProposals = async ({
     // ========================================================
     if (strategy === REPLANNING_STRATEGIES.ALL || strategy === REPLANNING_STRATEGIES.SEQUENCE_OPTIMIZATION || strategy === REPLANNING_STRATEGIES.DEADLINE_RECOVERY) {
         // Look for dependencies between critical path tasks that might be parallelizable
-        const deps = twin.dependencies || [];
+        const deps = rawDeps;
         const criticalDeps = deps.filter(
             (d) => criticalTaskIds.has(d.task_id) && criticalTaskIds.has(d.depends_on_task_id)
         );
@@ -329,7 +337,7 @@ export const generateReplanningProposals = async ({
                 const sim = runScenarioSimulation({
                     project: twin.project,
                     tasks,
-                    dependencies: twin.dependencies,
+                    dependencies: rawDeps,
                     projectMembers: twin.team.members,
                     mutations,
                     baseDigitalTwin: twin,

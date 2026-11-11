@@ -1,3 +1,4 @@
+import prisma from "../config/prisma.js";
 import {
     registerUser,
     loginUser,
@@ -34,7 +35,13 @@ const register = async (req, res, next) => {
             });
         }
 
-        const result = await initiateRegistration({
+        // Clean up any legacy pending registrations for this email
+        await prisma.pending_registrations.deleteMany({
+            where: { email: email.toLowerCase() }
+        }).catch(() => {});
+
+        // Direct registration: create permanent user directly (registration OTP is temporarily disabled)
+        const user = await registerUser({
             firstName,
             lastName,
             email,
@@ -42,7 +49,11 @@ const register = async (req, res, next) => {
             phone
         });
 
-        return res.status(200).json(result);
+        return res.status(200).json({
+            message: "User registered successfully",
+            email: user.email,
+            user
+        });
 
     } catch (error) {
 

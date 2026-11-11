@@ -119,15 +119,17 @@ function Register() {
         phone: data.phone || null,
       });
 
-      console.log("Registration initiated, OTP sent:", response.data);
+      console.log("Registration successful:", response.data);
 
       const normalizedEmail = data.email.toLowerCase().trim();
-      sessionStorage.setItem("taskflow_pending_email", normalizedEmail);
+      sessionStorage.removeItem("taskflow_pending_email");
+      setHasSuccess(true);
 
-      navigate("/verify-otp", {
+      navigate("/login", {
         state: {
           email: normalizedEmail,
-          firstName: data.firstName,
+          registrationSuccess: true,
+          message: "Registration successful! You can now log in.",
         },
       });
     } catch (error) {

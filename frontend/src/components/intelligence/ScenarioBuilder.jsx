@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FiPlus, FiTrash2, FiPlay, FiZap, FiAlertCircle } from "react-icons/fi";
 
 /**
@@ -10,8 +10,11 @@ const ScenarioBuilder = ({
   tasks = [],
   members = [],
   onSimulate,
-  isLoading = false
+  isLoading = false,
+  error = null
 }) => {
+  const activeTasks = tasks.filter((t) => !t.is_archived);
+
   const [scenarioName, setScenarioName] = useState("Hypothetical Plan A");
   const [description, setDescription] = useState("");
   const [mutations, setMutations] = useState([
@@ -26,7 +29,17 @@ const ScenarioBuilder = ({
     }
   ]);
 
-  const activeTasks = tasks.filter((t) => !t.is_archived);
+  useEffect(() => {
+    if (activeTasks.length > 0) {
+      setMutations((prev) =>
+        prev.map((m) =>
+          !m.taskId || !activeTasks.some((t) => t.id === m.taskId)
+            ? { ...m, taskId: activeTasks[0].id }
+            : m
+        )
+      );
+    }
+  }, [tasks]);
 
   const addMutation = () => {
     setMutations([
@@ -58,6 +71,7 @@ const ScenarioBuilder = ({
 
   const handleSimulate = (e) => {
     e.preventDefault();
+    if (!activeTasks.length) return;
     if (onSimulate) {
       onSimulate({
         name: scenarioName,
@@ -90,6 +104,20 @@ const ScenarioBuilder = ({
           Pure In-Memory Simulation
         </span>
       </div>
+
+      {error && (
+        <div className="flex items-center gap-2 p-3 mb-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-700 dark:text-red-300">
+          <FiAlertCircle className="w-4 h-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {activeTasks.length === 0 && (
+        <div className="flex items-center gap-2 p-3 mb-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg text-xs text-amber-700 dark:text-amber-300">
+          <FiAlertCircle className="w-4 h-4 shrink-0" />
+          <span>No active tasks available in this project to run simulations against.</span>
+        </div>
+      )}
 
       <form onSubmit={handleSimulate} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -266,7 +294,7 @@ const ScenarioBuilder = ({
         <div className="flex justify-end pt-2">
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || activeTasks.length === 0}
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-indigo-400 disabled:opacity-60"
           >
             <FiPlay className="w-4 h-4" />

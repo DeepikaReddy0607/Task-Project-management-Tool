@@ -618,6 +618,11 @@ const getProjectMembers = async (
     const project = await prisma.projects.findUnique({
         where: {
             id: projectId
+        },
+        include: {
+            users: {
+                select: SAFE_USER_SELECT
+            }
         }
     });
 
@@ -662,6 +667,22 @@ const getProjectMembers = async (
                 user_id: "asc"
             }
         });
+
+    // Ensure the project manager is included in the project members list if not already present
+    if (project.users && !members.some((m) => m.user_id === project.manager_id)) {
+        members.unshift({
+            id: `pm-manager-${project.manager_id}`,
+            project_id: projectId,
+            user_id: project.manager_id,
+            role_id: null,
+            joined_at: project.created_at,
+            roles: {
+                role_name: "Project Manager",
+                description: "Project Manager"
+            },
+            users: project.users
+        });
+    }
 
     return members;
 };

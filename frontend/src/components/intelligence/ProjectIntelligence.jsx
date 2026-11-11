@@ -67,6 +67,7 @@ export default function ProjectIntelligence({ projectId, initialTaskId = null, c
   const [activeProposalForPreview, setActiveProposalForPreview] = useState(null);
   const [isExecutingProposal, setIsExecutingProposal] = useState(false);
   const [proposalError, setProposalError] = useState(null);
+  const [simulationError, setSimulationError] = useState(null);
   const [executionSuccess, setExecutionSuccess] = useState(null);
 
   const debounceTimerRef = useRef(null);
@@ -186,6 +187,7 @@ export default function ProjectIntelligence({ projectId, initialTaskId = null, c
   // Phase 3 Actions
   const handleSimulate = async (scenarioData) => {
     setIsSimulating(true);
+    setSimulationError(null);
     try {
       const created = await createScenario(projectId, scenarioData);
       const sId = created?.data?.scenarioId;
@@ -195,6 +197,11 @@ export default function ProjectIntelligence({ projectId, initialTaskId = null, c
       }
     } catch (err) {
       console.error("Simulation failed:", err);
+      setSimulationError(
+        err.response?.data?.message ||
+          err.message ||
+          "Simulation failed. Please check your scenario inputs and try again."
+      );
     } finally {
       setIsSimulating(false);
     }
@@ -202,11 +209,17 @@ export default function ProjectIntelligence({ projectId, initialTaskId = null, c
 
   const handleGenerateReplanning = async (strategy = "ALL") => {
     setIsLoadingProposals(true);
+    setProposalError(null);
     try {
       const res = await generateReplanning(projectId, strategy);
       setProposals(res?.data?.proposals || []);
     } catch (err) {
       console.error("Replanning failed:", err);
+      setProposalError(
+        err.response?.data?.message ||
+          err.message ||
+          "Failed to generate replanning proposals. Please verify project tasks and dependencies."
+      );
     } finally {
       setIsLoadingProposals(false);
     }
@@ -626,6 +639,7 @@ export default function ProjectIntelligence({ projectId, initialTaskId = null, c
             members={overviewData?.digitalTwin?.team?.members || []}
             onSimulate={handleSimulate}
             isLoading={isSimulating}
+            error={simulationError}
           />
           {simulationResult && (
             <ScenarioResults
@@ -658,6 +672,7 @@ export default function ProjectIntelligence({ projectId, initialTaskId = null, c
             onApprove={handleApproveProposal}
             onReject={handleRejectProposal}
             isLoading={isLoadingProposals}
+            error={proposalError}
           />
         </div>
       )}

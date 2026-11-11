@@ -268,8 +268,10 @@ export const buildDigitalTwin = ({
             blockedChains: blockedChainsCount,
             criticalDependencies: criticalDependenciesCount,
             hasCycle: Boolean(cpm.hasCycle),
-            cycleNodes: cpm.cycleNodes || []
+            cycleNodes: cpm.cycleNodes || [],
+            items: dependencies || []
         },
+        rawDependencies: dependencies || [],
         criticalPath: {
             criticalTasks: cpm.criticalTaskIds || cpm.criticalTasks || [],
             criticalPath: cpm.criticalPath || [],

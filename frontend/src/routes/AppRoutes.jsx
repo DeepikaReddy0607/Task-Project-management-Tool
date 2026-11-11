@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "../components/auth/ProtectedRoute";
 import { AssistantProvider } from "../context/AssistantContext";
 import { SocketProvider } from "../context/SocketContext";
@@ -55,7 +55,7 @@ function AppRoutes() {
                 {/* Public Authentication Routes */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
-                <Route path="/verify-otp" element={<VerifyOtp />} />
+                <Route path="/verify-otp" element={<Navigate to="/login" replace />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
 

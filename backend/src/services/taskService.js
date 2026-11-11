@@ -110,9 +110,11 @@ const createTask = async (
                 });
 
             if (!assignedMember) {
-                throw new Error(
+                const error = new Error(
                     "Assigned user is not a member of the project"
                 );
+                error.statusCode = 400;
+                throw error;
             }
         }
     }
@@ -161,7 +163,7 @@ const createTask = async (
                 estimatedHours !== null
                     ? estimatedHours
                     : null,
-            assigned_to: assignedTo || userId,
+            assigned_to: assignedTo ? assignedTo : null,
             created_by: userId
         },
         include: {
@@ -478,8 +480,40 @@ const updateTask = async (
                 : null;
     }
 
-    if (data.assignedTo !== undefined) {
-        updateData.assigned_to = data.assignedTo || null;
+    if (data.assignedTo !== undefined || data.assigned_to !== undefined) {
+        const candidateAssignee = data.assignedTo !== undefined ? data.assignedTo : data.assigned_to;
+        if (candidateAssignee) {
+            const user = await prisma.users.findUnique({
+                where: { id: candidateAssignee }
+            });
+            if (!user) {
+                const error = new Error("User not found");
+                error.statusCode = 404;
+                throw error;
+            }
+            const project = await prisma.projects.findUnique({
+                where: { id: existingTask.project_id }
+            });
+            const isManager = project && project.manager_id === candidateAssignee;
+            if (!isManager) {
+                const projectMembership = await prisma.project_members.findUnique({
+                    where: {
+                        project_id_user_id: {
+                            project_id: existingTask.project_id,
+                            user_id: candidateAssignee
+                        }
+                    }
+                });
+                if (!projectMembership) {
+                    const error = new Error("Assigned user is not a member of the project");
+                    error.statusCode = 400;
+                    throw error;
+                }
+            }
+            updateData.assigned_to = candidateAssignee;
+        } else {
+            updateData.assigned_to = null;
+        }
     }
 
     updateData.updated_at = new Date();
@@ -548,7 +582,8 @@ const assignTask = async (
             projects: {
                 select: {
                     id: true,
-                    workspace_id: true
+                    workspace_id: true,
+                    manager_id: true
                 }
             }
         }
@@ -584,21 +619,26 @@ const assignTask = async (
         throw new Error("User not found");
     }
 
-    // Check that assigned user belongs to this project
-    const projectMembership =
-        await prisma.project_members.findUnique({
-            where: {
-                project_id_user_id: {
-                    project_id: task.project_id,
-                    user_id: assignedTo
+    // Check that assigned user belongs to this project or is project manager
+    const isManager = task.projects?.manager_id === assignedTo;
+    if (!isManager) {
+        const projectMembership =
+            await prisma.project_members.findUnique({
+                where: {
+                    project_id_user_id: {
+                        project_id: task.project_id,
+                        user_id: assignedTo
+                    }
                 }
-            }
-        });
+            });
 
-    if (!projectMembership) {
-        throw new Error(
-            "Assigned user is not a member of the project"
-        );
+        if (!projectMembership) {
+            const error = new Error(
+                "Assigned user is not a member of the project"
+            );
+            error.statusCode = 400;
+            throw error;
+        }
     }
 
     // Assign task
@@ -905,6 +945,14 @@ const getMyTasks = async (userId, { archived } = {}) => {
                 }
             },
             users_tasks_created_byTousers: {
+                select: {
+                    id: true,
+                    first_name: true,
+                    last_name: true,
+                    email: true
+                }
+            },
+            users_tasks_assigned_toTousers: {
                 select: {
                     id: true,
                     first_name: true,

@@ -101,6 +101,12 @@ const create = async (req, res, next) => {
             });
         }
 
+        if (error.message === "Assigned user is not a member of the project") {
+            return res.status(400).json({
+                message: error.message
+            });
+        }
+
         if (error.message === "Invalid task priority") {
             return res.status(400).json({
                 message: error.message
@@ -167,6 +173,12 @@ const getAll = async (req, res, next) => {
 
         if (error.statusCode) {
             return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Assigned user is not a member of the project") {
+            return res.status(400).json({
                 message: error.message
             });
         }
@@ -310,6 +322,12 @@ const update = async (req, res, next) => {
 
         if (error.statusCode) {
             return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+
+        if (error.message === "Assigned user is not a member of the project") {
+            return res.status(400).json({
                 message: error.message
             });
         }

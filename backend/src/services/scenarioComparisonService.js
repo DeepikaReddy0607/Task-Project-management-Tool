@@ -50,11 +50,15 @@ export const compareProjectScenarios = async ({
         warningsCount: 0
     };
 
+    const rawDeps = Array.isArray(baselineTwin.rawDependencies)
+        ? baselineTwin.rawDependencies
+        : (Array.isArray(baselineTwin.dependencies) ? baselineTwin.dependencies : (baselineTwin.dependencies?.items || []));
+
     // Run a zero-mutation simulation on baseline to get exact standard metrics structure
     const baselineSim = runScenarioSimulation({
         project: baselineTwin.project,
         tasks: baselineTwin.tasks.items || [],
-        dependencies: baselineTwin.dependencies,
+        dependencies: rawDeps,
         baseDigitalTwin: baselineTwin,
         mutations: []
     });

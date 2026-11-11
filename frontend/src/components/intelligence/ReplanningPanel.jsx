@@ -12,7 +12,8 @@ const ReplanningPanel = ({
   onPreview,
   onApprove,
   onReject,
-  isLoading = false
+  isLoading = false,
+  error = null
 }) => {
   const [selectedStrategy, setSelectedStrategy] = useState("ALL");
 
@@ -83,6 +84,14 @@ const ReplanningPanel = ({
           </button>
         </div>
       </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-700 dark:text-red-300">
+          <FiAlertTriangle className="w-4 h-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
       {/* Proposals List */}
       {proposals.length === 0 ? (

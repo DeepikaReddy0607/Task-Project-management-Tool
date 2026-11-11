@@ -106,12 +106,17 @@ function Kanban() {
                     project.title ||
                     project.name ||
                     "Untitled project",
-                  assignee:
-                    task.assignee?.first_name ||
-                    task.assignee?.firstName ||
-                    task.assignee?.name ||
-                    task.assignee?.full_name ||
-                    "Unassigned",
+                  assignee: (() => {
+                    const user =
+                      task.users_tasks_assigned_toTousers ||
+                      task.assignee ||
+                      null;
+                    if (!user) return "Unassigned";
+                    const first = user.first_name || user.firstName || "";
+                    const last = user.last_name || user.lastName || "";
+                    const full = `${first} ${last}`.trim();
+                    return full || user.name || user.email || "Unassigned";
+                  })(),
                   dueDate: task.due_date
                     ? (() => {
                         const match = String(task.due_date).match(/^(\d{4})-(\d{2})-(\d{2})/);

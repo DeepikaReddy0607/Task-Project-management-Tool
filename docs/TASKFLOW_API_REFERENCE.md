@@ -32,10 +32,13 @@
 
 ### A. AUTHENTICATION & IDENTITY (`/api/auth`)
 
+> [!NOTE]
+> **Registration Email Verification Status**: Registration OTP verification is **temporarily disabled** because production OTP delivery was unreliable. Direct registration is active: `POST /api/auth/register` creates permanent user records directly after validation (preserving bcrypt password hashing, duplicate email checks, and default role assignment). Users can immediately log in without OTP verification. Password reset OTP functionality remains fully active.
+
 #### 1. POST `/api/auth/register`
-- **Purpose:** Initiates registration, hashes password, generates 6-digit OTP, and sends verification email.
+- **Purpose:** Registers a new user directly, hashes password with bcrypt, and creates a permanent user in `users`. *(Note: Email OTP verification temporarily bypassed).*
 - **Auth Required:** No (Public).
-- **Rate Limit:** 10 attempts per hour per IP.
+- **Rate Limit:** 30 attempts per hour per IP; 5 attempts per email.
 - **Request Body:**
   ```json
   {
@@ -49,18 +52,25 @@
 - **Response Structure (200 OK):**
   ```json
   {
-    "message": "Verification code sent to your email",
-    "email": "jane.doe@example.com"
+    "message": "User registered successfully",
+    "email": "jane.doe@example.com",
+    "user": {
+      "id": "c1f7b09e-7164-4e2e-8367-73b320d7a048",
+      "firstName": "Jane",
+      "lastName": "Doe",
+      "email": "jane.doe@example.com",
+      "role": "Team Member"
+    }
   }
   ```
-- **Controller / Service:** `authController.js` $\rightarrow$ `otpService.js` (`initiateRegistration`)
-- **Database Models:** `pending_registrations`, `users`, `roles`
-- **Validation:** Email format, password length >= 8, email uniqueness against `users` table.
-- **Error Responses:** 400 Bad Request, 409 Conflict ("Email already registered"), 500 Email Dispatch Error.
-- **Test Coverage:** `otpVerification.test.js`, `registrationRateLimitingPhase75.test.js`.
+- **Controller / Service:** `authController.js` $\rightarrow$ `authService.js` (`registerUser`)
+- **Database Models:** `users`, `roles`, `pending_registrations` (cleared if legacy pending record exists)
+- **Validation:** Email format, password length >= 6, email uniqueness against `users` table.
+- **Error Responses:** 400 Bad Request, 409 Conflict ("Email already registered").
+- **Test Coverage:** `otpVerification.test.js`, `taskAssigneeAndIntelligenceFixes.test.js`, `registrationRateLimitingPhase75.test.js`.
 
-#### 2. POST `/api/auth/verify-otp`
-- **Purpose:** Validates 6-digit OTP with timing-safe HMAC-SHA256 and atomically promotes pending registration to a permanent user.
+#### 2. POST `/api/auth/verify-otp` (Legacy / Paused)
+- **Purpose:** (Temporarily paused for registration; routes to login) Validates 6-digit OTP with timing-safe HMAC-SHA256 and atomically promotes pending registration to a permanent user.
 - **Auth Required:** No.
 - **Rate Limit:** 5 failed attempts maximum per pending registration.
 - **Request Body:**
@@ -90,8 +100,8 @@
 - **Error Responses:** 400 Bad Request ("Invalid code"), 404 ("No pending registration"), 429 ("Max attempts exceeded").
 - **Test Coverage:** `otpVerification.test.js`, `onboardingRouting.test.js`.
 
-#### 3. POST `/api/auth/resend-otp`
-- **Purpose:** Dispatches a fresh OTP to the pending registration email.
+#### 3. POST `/api/auth/resend-otp` (Legacy / Paused)
+- **Purpose:** (Temporarily paused for registration) Dispatches a fresh OTP to the pending registration email.
 - **Auth Required:** No.
 - **Rate Limit:** Enforces 60-second cooldown between resends (max 5 resends).
 - **Request Body:** `{ "email": "jane.doe@example.com" }`

@@ -97,15 +97,6 @@ const loginUser = async (email, password) => {
 
     // 2. User doesn't exist
     if (!user) {
-        const pending = await prisma.pending_registrations.findUnique({
-            where: {
-                email: email.toLowerCase()
-            }
-        });
-        if (pending) {
-            throw new Error("Please verify your email with the OTP sent before logging in");
-        }
-
         throw new Error("Invalid email or password");
     }
 

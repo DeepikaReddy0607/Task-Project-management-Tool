@@ -63,6 +63,10 @@ export const deepClone = (obj) => {
  * Used for stale-state protection.
  */
 export const computeProjectStateHash = ({ project, tasks = [], dependencies = [] }) => {
+    const rawDeps = Array.isArray(dependencies)
+        ? dependencies
+        : (dependencies?.items || dependencies?.rawDependencies || []);
+
     const sortedTasks = [...tasks]
         .filter((t) => !t.is_archived)
         .sort((a, b) => String(a.id).localeCompare(String(b.id)))
@@ -75,7 +79,7 @@ export const computeProjectStateHash = ({ project, tasks = [], dependencies = []
             assigned_to: t.assigned_to || null
         }));
 
-    const sortedDeps = [...dependencies]
+    const sortedDeps = [...rawDeps]
         .map((d) => ({
             task_id: d.task_id,
             depends_on_task_id: d.depends_on_task_id
@@ -107,7 +111,11 @@ export const validateScenarioMutations = ({
 }) => {
     const errors = [];
     const taskMap = new Map(tasks.map((t) => [t.id, t]));
-    const memberSet = new Set((projectMembers || []).map((m) => m.user_id || m.id));
+    const memberSet = new Set(
+        (projectMembers || [])
+            .map((m) => m.userId || m.user_id || m.id)
+            .filter(Boolean)
+    );
 
     if (!Array.isArray(mutations) || mutations.length === 0) {
         return { valid: true, errors: [] };
@@ -476,11 +484,15 @@ export const runScenarioSimulation = ({
     baseDigitalTwin = null,
     startOfToday = getStartOfTodayUtc()
 }) => {
+    const rawDeps = Array.isArray(dependencies)
+        ? dependencies
+        : (dependencies?.items || dependencies?.rawDependencies || []);
+
     // 1. Validate mutations
     const validation = validateScenarioMutations({
         project,
         tasks,
-        dependencies,
+        dependencies: rawDeps,
         projectMembers,
         mutations
     });
@@ -496,7 +508,7 @@ export const runScenarioSimulation = ({
     const baseline = baseDigitalTwin || buildDigitalTwin({
         project,
         tasks,
-        dependencies,
+        dependencies: rawDeps,
         projectMembers,
         risks,
         decisions,
@@ -512,7 +524,7 @@ export const runScenarioSimulation = ({
     // 3. Clone relevant state in memory
     const clonedProject = deepClone(project);
     const clonedTasks = deepClone(tasks);
-    const clonedDependencies = deepClone(dependencies);
+    const clonedDependencies = deepClone(rawDeps);
     const clonedMembers = deepClone(projectMembers);
     const clonedRisks = deepClone(risks);
     const clonedDecisions = deepClone(decisions);
@@ -679,11 +691,15 @@ export const createProjectScenario = async ({
     // 2. Fetch digital twin as base snapshot
     const digitalTwin = await getProjectDigitalTwin(projectId, userId);
 
+    const rawDeps = Array.isArray(digitalTwin.rawDependencies)
+        ? digitalTwin.rawDependencies
+        : (digitalTwin.dependencies?.items || []);
+
     // 3. Compute base state hash
     const baseStateHash = computeProjectStateHash({
         project: digitalTwin.project,
-        tasks: digitalTwin.tasks.items || [],
-        dependencies: digitalTwin.dependencies
+        tasks: digitalTwin.tasks?.items || [],
+        dependencies: rawDeps
     });
 
     const scenarioId = `scen_${crypto.randomUUID()}`;

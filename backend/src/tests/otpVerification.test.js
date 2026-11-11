@@ -1,22 +1,31 @@
-import { test, describe, before, after, beforeEach } from "node:test";
+import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
+import bcrypt from "bcrypt";
 import app from "../app.js";
 import prisma from "../config/prisma.js";
 import { setMailMock } from "../services/mailService.js";
+import { requestPasswordReset, resetPassword } from "../services/authService.js";
 
-describe("Phase 3: Safe Email OTP Verification Test Suite", () => {
+/**
+ * Phase 3: Direct Registration & Authentication Security Test Suite
+ *
+ * NOTE: Registration email verification (OTP) is temporarily disabled due to
+ * unreliable production SMTP delivery. Direct registration creates permanent
+ * user records with bcrypt password hashing, default role assignment, and onboarding
+ * tracking. Password reset OTP verification and shared security code remain fully intact.
+ */
+describe("Phase 3: Direct Registration & Authentication Security Test Suite (Registration OTP Temporarily Disabled)", () => {
     let server;
     let baseUrl;
     let capturedMails = [];
-    const sentOtps = new Map();
     const testPassword = "SecurePassword123!";
 
     const testUsers = {
         valid: {
             firstName: "Alice",
             lastName: "Tester",
-            email: "alice.otp.test@taskflow.dev",
+            email: "alice.direct.reg@taskflow.dev",
             password: testPassword,
             phone: "+1234567890"
         },
@@ -27,16 +36,10 @@ describe("Phase 3: Safe Email OTP Verification Test Suite", () => {
             password: testPassword,
             phone: "+1234567891"
         },
-        attempts: {
+        loginTest: {
             firstName: "Charlie",
-            lastName: "Attempts",
-            email: "charlie.attempts.test@taskflow.dev",
-            password: testPassword
-        },
-        resend: {
-            firstName: "Diana",
-            lastName: "Resend",
-            email: "diana.resend.test@taskflow.dev",
+            lastName: "Login",
+            email: "charlie.login.test@taskflow.dev",
             password: testPassword
         }
     };
@@ -45,17 +48,14 @@ describe("Phase 3: Safe Email OTP Verification Test Suite", () => {
         // Disable rate limiting for deterministic integration testing
         process.env.DISABLE_RATE_LIMITING = "true";
 
-        // Setup mock email delivery capturing dispatched emails and OTPs
+        // Setup mock email delivery capturing dispatched emails
         setMailMock((mail) => {
             capturedMails.push(mail);
-            if (mail.email && mail.otp) {
-                sentOtps.set(mail.email.toLowerCase(), mail.otp);
-            }
-            return Promise.resolve({ messageId: "mock-otp-id" });
+            return Promise.resolve({ messageId: "mock-mail-id" });
         });
 
         // Clean up any remnants of test data
-        const testEmails = Object.values(testUsers).map(u => u.email);
+        const testEmails = Object.values(testUsers).map(u => u.email.toLowerCase());
         await prisma.pending_registrations.deleteMany({
             where: { email: { in: testEmails } }
         }).catch(() => {});
@@ -64,7 +64,7 @@ describe("Phase 3: Safe Email OTP Verification Test Suite", () => {
             where: { email: { in: testEmails } }
         }).catch(() => {});
 
-        // Pre-create existing user for OTP02
+        // Pre-create existing user for duplicate check
         const role = await prisma.roles.findFirst();
         if (!role) throw new Error("No role found in database");
 
@@ -72,8 +72,8 @@ describe("Phase 3: Safe Email OTP Verification Test Suite", () => {
             data: {
                 first_name: testUsers.existing.firstName,
                 last_name: testUsers.existing.lastName,
-                email: testUsers.existing.email,
-                password_hash: "$2b$10$abcdefghijklmnopqrstuuNOPQRSTUVWXYZ1234567890abcdefghij",
+                email: testUsers.existing.email.toLowerCase(),
+                password_hash: await bcrypt.hash(testPassword, 10),
                 role_id: role.id,
                 has_completed_onboarding: true
             }
@@ -86,11 +86,9 @@ describe("Phase 3: Safe Email OTP Verification Test Suite", () => {
     });
 
     after(async () => {
-        // Restore mail mock
         setMailMock(null);
 
-        // Clean up test data
-        const testEmails = Object.values(testUsers).map(u => u.email);
+        const testEmails = Object.values(testUsers).map(u => u.email.toLowerCase());
         await prisma.pending_registrations.deleteMany({
             where: { email: { in: testEmails } }
         }).catch(() => {});
@@ -105,10 +103,7 @@ describe("Phase 3: Safe Email OTP Verification Test Suite", () => {
         await prisma.$disconnect().catch(() => {});
     });
 
-    // -------------------------------------------------------------
-    // OTP01: Valid registration
-    // -------------------------------------------------------------
-    test("OTP01: Valid registration sends OTP and creates pending record without permanent user", async () => {
+    test("REG01: Direct registration creates permanent user in database with password hashing without requiring OTP", async () => {
         const res = await fetch(`${baseUrl}/auth/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -117,34 +112,38 @@ describe("Phase 3: Safe Email OTP Verification Test Suite", () => {
 
         assert.equal(res.status, 200);
         const data = await res.json();
-        assert.equal(data.message, "Verification code sent to your email");
+        assert.equal(data.message, "User registered successfully");
         assert.equal(data.email, testUsers.valid.email.toLowerCase());
+        assert.ok(data.user);
+        assert.equal(data.user.email, testUsers.valid.email.toLowerCase());
+        assert.equal(data.user.firstName, testUsers.valid.firstName);
+        assert.equal(data.user.lastName, testUsers.valid.lastName);
 
-        // Verify email was dispatched via mailService mock
-        assert.equal(capturedMails.length, 1);
-        assert.equal(capturedMails[0].type, "OTP");
-        assert.equal(capturedMails[0].email, testUsers.valid.email.toLowerCase());
-        assert.match(capturedMails[0].otp, /^\d{6}$/);
+        // Verify permanent user was created in database
+        const permanentUser = await prisma.users.findUnique({
+            where: { email: testUsers.valid.email.toLowerCase() },
+            include: { roles: true }
+        });
+        assert.ok(permanentUser, "Permanent user must exist in database");
+        assert.equal(permanentUser.first_name, testUsers.valid.firstName);
+        assert.equal(permanentUser.last_name, testUsers.valid.lastName);
+        assert.equal(permanentUser.has_completed_onboarding, false);
+        assert.equal(permanentUser.is_active, true);
+        assert.equal(permanentUser.roles.role_name, "Team Member");
 
-        // Verify pending registration exists in database
+        // Verify password hashing
+        assert.notEqual(permanentUser.password_hash, testPassword);
+        const passwordMatches = await bcrypt.compare(testPassword, permanentUser.password_hash);
+        assert.equal(passwordMatches, true, "Bcrypt password comparison must succeed");
+
+        // Verify NO pending registration remains
         const pending = await prisma.pending_registrations.findUnique({
             where: { email: testUsers.valid.email.toLowerCase() }
         });
-        assert.ok(pending, "Pending registration must exist in taskflow.pending_registrations");
-        assert.ok(pending.otp_hash, "otp_hash must be stored");
-        assert.notEqual(pending.otp_hash, capturedMails[0].otp, "Plaintext OTP must NEVER be stored in DB");
-
-        // Verify permanent user was NOT created in taskflow.users
-        const permanentUser = await prisma.users.findUnique({
-            where: { email: testUsers.valid.email.toLowerCase() }
-        });
-        assert.equal(permanentUser, null, "Permanent user must NOT be created before OTP verification");
+        assert.equal(pending, null, "No pending registration record should exist");
     });
 
-    // -------------------------------------------------------------
-    // OTP02: Existing email
-    // -------------------------------------------------------------
-    test("OTP02: Registration with an already registered email is rejected with 409", async () => {
+    test("REG02: Registration with an already registered email is rejected with 409 Conflict", async () => {
         const res = await fetch(`${baseUrl}/auth/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -154,152 +153,42 @@ describe("Phase 3: Safe Email OTP Verification Test Suite", () => {
         assert.equal(res.status, 409);
         const data = await res.json();
         assert.equal(data.message, "Email already registered");
-        const existingMails = capturedMails.filter(m => m.email === testUsers.existing.email.toLowerCase());
-        assert.equal(existingMails.length, 0, "No OTP email must be dispatched for already registered email");
     });
 
-    // -------------------------------------------------------------
-    // OTP11: Login before verification
-    // -------------------------------------------------------------
-    test("OTP11: Login before verification is rejected with 401", async () => {
-        const res = await fetch(`${baseUrl}/auth/login`, {
+    test("REG03: Registration rejects missing required fields with 400 Bad Request", async () => {
+        const res = await fetch(`${baseUrl}/auth/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                email: testUsers.valid.email,
-                password: testUsers.valid.password
-            })
-        });
-
-        assert.equal(res.status, 401);
-        const data = await res.json();
-        assert.ok(
-            data.message.includes("verify your email") || data.message === "Invalid email or password",
-            `Expected message to reject unverified user, got: ${data.message}`
-        );
-    });
-
-    // -------------------------------------------------------------
-    // OTP03: Invalid OTP
-    // -------------------------------------------------------------
-    test("OTP03: Verification with an incorrect OTP is rejected with 400 and increments attempts", async () => {
-        const res = await fetch(`${baseUrl}/auth/verify-registration-otp`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                email: testUsers.valid.email,
-                otp: "000000" // Wrong code
+                firstName: "Incomplete",
+                email: "incomplete@taskflow.dev"
+                // missing lastName and password
             })
         });
 
         assert.equal(res.status, 400);
         const data = await res.json();
-        assert.ok(data.message.includes("Invalid verification code"), data.message);
-
-        // Check attempts in DB
-        const pending = await prisma.pending_registrations.findUnique({
-            where: { email: testUsers.valid.email.toLowerCase() }
-        });
-        assert.equal(pending.verification_attempts, 1);
+        assert.ok(data.message.includes("required"));
     });
 
-    // -------------------------------------------------------------
-    // OTP04: Expired OTP
-    // -------------------------------------------------------------
-    test("OTP04: Expired OTP is rejected with 400", async () => {
-        const validOtp = sentOtps.get(testUsers.valid.email.toLowerCase());
-
-        // Artificially expire the OTP in the database
-        await prisma.pending_registrations.update({
-            where: { email: testUsers.valid.email.toLowerCase() },
-            data: { otp_expires_at: new Date(Date.now() - 10000) } // 10s in the past
-        });
-
-        const res = await fetch(`${baseUrl}/auth/verify-registration-otp`, {
+    test("REG04: Registration rejects passwords under 6 characters with 400 Bad Request", async () => {
+        const res = await fetch(`${baseUrl}/auth/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                email: testUsers.valid.email,
-                otp: validOtp
+                firstName: "Short",
+                lastName: "Pass",
+                email: "shortpass@taskflow.dev",
+                password: "123"
             })
         });
 
         assert.equal(res.status, 400);
         const data = await res.json();
-        assert.ok(data.message.includes("expired"), `Expected expiry message, got: ${data.message}`);
-
-        // Restore expiry for subsequent tests
-        await prisma.pending_registrations.update({
-            where: { email: testUsers.valid.email.toLowerCase() },
-            data: { otp_expires_at: new Date(Date.now() + 5 * 60 * 1000) }
-        });
+        assert.ok(data.message.includes("at least 6 characters"));
     });
 
-    // -------------------------------------------------------------
-    // OTP05: Valid OTP creates permanent user
-    // -------------------------------------------------------------
-    test("OTP05: Valid OTP verification creates permanent user and deletes pending registration", async () => {
-        const validOtp = sentOtps.get(testUsers.valid.email.toLowerCase());
-
-        const res = await fetch(`${baseUrl}/auth/verify-registration-otp`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                email: testUsers.valid.email,
-                otp: validOtp
-            })
-        });
-
-        assert.equal(res.status, 201);
-        const data = await res.json();
-        assert.equal(data.message, "Registration verified successfully");
-        assert.ok(data.user);
-        assert.equal(data.user.email, testUsers.valid.email.toLowerCase());
-        assert.equal(data.user.firstName, testUsers.valid.firstName);
-        assert.equal(data.user.lastName, testUsers.valid.lastName);
-        assert.equal(data.user.role, "Team Member");
-        assert.equal(data.user.hasCompletedOnboarding, false);
-
-        // Verify pending registration was deleted
-        const pending = await prisma.pending_registrations.findUnique({
-            where: { email: testUsers.valid.email.toLowerCase() }
-        });
-        assert.equal(pending, null, "Pending registration must be deleted after successful verification");
-
-        // Verify permanent user exists in DB
-        const permanentUser = await prisma.users.findUnique({
-            where: { email: testUsers.valid.email.toLowerCase() }
-        });
-        assert.ok(permanentUser, "Permanent user must exist in DB");
-        assert.equal(permanentUser.has_completed_onboarding, false);
-        assert.equal(permanentUser.is_active, true);
-    });
-
-    // -------------------------------------------------------------
-    // OTP06: Reuse OTP
-    // -------------------------------------------------------------
-    test("OTP06: Reusing an already used OTP is rejected", async () => {
-        const usedOtp = sentOtps.get(testUsers.valid.email.toLowerCase());
-
-        const res = await fetch(`${baseUrl}/auth/verify-registration-otp`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                email: testUsers.valid.email,
-                otp: usedOtp
-            })
-        });
-
-        // Rejected because pending registration was already deleted
-        assert.ok(res.status === 404 || res.status === 409);
-        const data = await res.json();
-        assert.ok(data.message.includes("already") || data.message.includes("No pending registration"));
-    });
-
-    // -------------------------------------------------------------
-    // OTP12: Login after verification
-    // -------------------------------------------------------------
-    test("OTP12: Login after verification is successful and issues valid JWT token", async () => {
+    test("REG05: Direct registered user can log in immediately and obtain valid JWT token", async () => {
         const res = await fetch(`${baseUrl}/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -314,31 +203,26 @@ describe("Phase 3: Safe Email OTP Verification Test Suite", () => {
         assert.equal(data.message, "Login successful");
         assert.ok(data.token, "JWT token must be present");
         assert.equal(data.user.email, testUsers.valid.email.toLowerCase());
+        assert.equal(data.user.hasCompletedOnboarding, false);
     });
 
-    // -------------------------------------------------------------
-    // OTP13: First login hasCompletedOnboarding is false
-    // -------------------------------------------------------------
-    test("OTP13: First-time login reflects hasCompletedOnboarding: false", async () => {
+    test("REG06: Login rejects invalid password for directly registered user with 401 Unauthorized", async () => {
         const res = await fetch(`${baseUrl}/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 email: testUsers.valid.email,
-                password: testUsers.valid.password
+                password: "WrongPassword999!"
             })
         });
 
-        assert.equal(res.status, 200);
+        assert.equal(res.status, 401);
         const data = await res.json();
-        assert.equal(data.user.hasCompletedOnboarding, false);
+        assert.equal(data.message, "Invalid email or password");
     });
 
-    // -------------------------------------------------------------
-    // OTP14: Complete onboarding
-    // -------------------------------------------------------------
-    test("OTP14: Completing onboarding marks state true and subsequent logins return hasCompletedOnboarding: true", async () => {
-        // Login to get token
+    test("REG07: Completing onboarding persists state and subsequent logins reflect hasCompletedOnboarding: true", async () => {
+        // Log in to get token
         const loginRes = await fetch(`${baseUrl}/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -350,7 +234,7 @@ describe("Phase 3: Safe Email OTP Verification Test Suite", () => {
         const loginData = await loginRes.json();
         const token = loginData.token;
 
-        // Call complete onboarding endpoint
+        // Complete onboarding
         const completeRes = await fetch(`${baseUrl}/users/onboarding/complete`, {
             method: "POST",
             headers: {
@@ -362,7 +246,7 @@ describe("Phase 3: Safe Email OTP Verification Test Suite", () => {
         const completeData = await completeRes.json();
         assert.equal(completeData.user.hasCompletedOnboarding, true);
 
-        // Verify subsequent login reflects hasCompletedOnboarding: true
+        // Verify subsequent login reflects completed onboarding
         const secondLoginRes = await fetch(`${baseUrl}/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -375,179 +259,97 @@ describe("Phase 3: Safe Email OTP Verification Test Suite", () => {
         assert.equal(secondLoginData.user.hasCompletedOnboarding, true);
     });
 
-    // -------------------------------------------------------------
-    // OTP07, OTP08, OTP09: Resend workflow & cooldown
-    // -------------------------------------------------------------
-    test("OTP07: Resending OTP too early is rejected with 429 cooldown active", async () => {
-        // Register diana
-        await fetch(`${baseUrl}/auth/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(testUsers.resend)
+    test("REG08: Registration clears any legacy pending registration records for that email", async () => {
+        const legacyEmail = "legacy.pending@taskflow.dev";
+
+        // Seed a stale pending registration record
+        await prisma.pending_registrations.upsert({
+            where: { email: legacyEmail },
+            update: { otp_hash: "stale_hash", verification_attempts: 2 },
+            create: {
+                email: legacyEmail,
+                first_name: "Legacy",
+                last_name: "Pending",
+                password_hash: "stale_hash",
+                otp_hash: "stale_hash",
+                otp_expires_at: new Date(Date.now() + 10000),
+                verification_attempts: 2
+            }
         });
 
-        // Immediate resend within 60s
-        const res = await fetch(`${baseUrl}/auth/resend-registration-otp`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: testUsers.resend.email })
-        });
-
-        assert.equal(res.status, 429);
-        const data = await res.json();
-        assert.ok(data.message.includes("seconds before requesting"), data.message);
-        assert.ok(data.retryAfter > 0);
-    });
-
-    test("OTP08 & OTP09: Resend after cooldown sends new OTP and invalidates previous OTP", async () => {
-        const initialOtp = sentOtps.get(testUsers.resend.email.toLowerCase());
-
-        // Fast-forward last_resend_at by 65 seconds in database to simulate cooldown elapse
-        await prisma.pending_registrations.update({
-            where: { email: testUsers.resend.email.toLowerCase() },
-            data: { last_resend_at: new Date(Date.now() - 65 * 1000) }
-        });
-
-        // Request resend
-        const resendRes = await fetch(`${baseUrl}/auth/resend-registration-otp`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: testUsers.resend.email })
-        });
-
-        assert.equal(resendRes.status, 200);
-        const newOtp = sentOtps.get(testUsers.resend.email.toLowerCase());
-        assert.notEqual(newOtp, initialOtp, "New OTP must differ from initial OTP");
-
-        // OTP09: Verify that old OTP is now rejected
-        const oldOtpRes = await fetch(`${baseUrl}/auth/verify-registration-otp`, {
+        // Register user
+        const res = await fetch(`${baseUrl}/auth/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                email: testUsers.resend.email,
-                otp: initialOtp
+                firstName: "Legacy",
+                lastName: "Pending",
+                email: legacyEmail,
+                password: testPassword
             })
         });
+        assert.equal(res.status, 200);
 
-        assert.equal(oldOtpRes.status, 400);
-
-        // Verify that the NEW OTP succeeds
-        const newOtpRes = await fetch(`${baseUrl}/auth/verify-registration-otp`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                email: testUsers.resend.email,
-                otp: newOtp
-            })
-        });
-
-        assert.equal(newOtpRes.status, 201);
-    });
-
-    // -------------------------------------------------------------
-    // OTP10: Exceed attempt limit
-    // -------------------------------------------------------------
-    test("OTP10: 5 incorrect verification attempts invalidates OTP and blocks further attempts with 429", async () => {
-        // Register charlie
-        await fetch(`${baseUrl}/auth/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(testUsers.attempts)
-        });
-
-        // Send 4 wrong attempts (must return 400 with remaining attempts count)
-        for (let i = 1; i <= 4; i++) {
-            const failRes = await fetch(`${baseUrl}/auth/verify-registration-otp`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    email: testUsers.attempts.email,
-                    otp: "111111"
-                })
-            });
-            assert.equal(failRes.status, 400);
-            const failData = await failRes.json();
-            assert.ok(failData.message.includes("remaining"), failData.message);
-        }
-
-        // 5th wrong attempt must return 429 and invalidate current OTP
-        const fifthRes = await fetch(`${baseUrl}/auth/verify-registration-otp`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                email: testUsers.attempts.email,
-                otp: "111111"
-            })
-        });
-
-        assert.equal(fifthRes.status, 429);
-        const fifthData = await fifthRes.json();
-        assert.ok(fifthData.message.includes("Maximum verification attempts exceeded"), fifthData.message);
-
-        // Verify that the pending record still exists (not deleted), but otp_hash is cleared/invalidated
+        // Verify pending record was deleted
         const pending = await prisma.pending_registrations.findUnique({
-            where: { email: testUsers.attempts.email.toLowerCase() }
+            where: { email: legacyEmail }
         });
-        assert.ok(pending, "Pending registration must not be deleted on 5th failure");
-        assert.equal(pending.otp_hash, null, "otp_hash must be invalidated to prevent brute force");
+        assert.equal(pending, null, "Legacy pending registration must be purged upon direct registration");
 
-        // Even with the original valid OTP, verification must now be rejected
-        const originalOtp = sentOtps.get(testUsers.attempts.email.toLowerCase());
-        const blockedRes = await fetch(`${baseUrl}/auth/verify-registration-otp`, {
+        // Verify permanent user exists
+        const user = await prisma.users.findUnique({
+            where: { email: legacyEmail }
+        });
+        assert.ok(user, "Permanent user must exist");
+
+        // Cleanup
+        await prisma.users.deleteMany({ where: { email: legacyEmail } }).catch(() => {});
+    });
+
+    test("REG09: Password reset functionality and email dispatch remain fully functional", async () => {
+        capturedMails = [];
+        let resetToken;
+
+        // Request password reset for existing user
+        const forgotRes = await fetch(`${baseUrl}/auth/forgot-password`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: testUsers.existing.email })
+        });
+        assert.equal(forgotRes.status, 200);
+
+        // Verify mail dispatch was called
+        assert.equal(capturedMails.length, 1);
+        assert.equal(capturedMails[0].type, "PASSWORD_RESET");
+        assert.equal(capturedMails[0].email, testUsers.existing.email.toLowerCase());
+        assert.ok(capturedMails[0].resetLink, "Reset link must be present in dispatch");
+
+        // Extract reset token from resetLink
+        const url = new URL(capturedMails[0].resetLink);
+        resetToken = url.searchParams.get("token");
+        assert.ok(resetToken, "Token parameter must exist in resetUrl");
+
+        // Reset password with token
+        const newPassword = "BrandNewPassword456!";
+        const resetRes = await fetch(`${baseUrl}/auth/reset-password`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                email: testUsers.attempts.email,
-                otp: originalOtp
+                token: resetToken,
+                password: newPassword
             })
         });
-        assert.ok(blockedRes.status === 400 || blockedRes.status === 429);
-    });
+        assert.equal(resetRes.status, 200);
 
-    // -------------------------------------------------------------
-    // OTP15: Concurrency protection
-    // -------------------------------------------------------------
-    test("OTP15: Concurrent OTP verification requests cannot create duplicate accounts", async () => {
-        const concurrentUser = {
-            firstName: "Connie",
-            lastName: "Current",
-            email: "connie.current@taskflow.dev",
-            password: testPassword
-        };
-
-        await fetch(`${baseUrl}/auth/register`, {
+        // Verify login works with new password
+        const newLoginRes = await fetch(`${baseUrl}/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(concurrentUser)
+            body: JSON.stringify({
+                email: testUsers.existing.email,
+                password: newPassword
+            })
         });
-
-        const otp = sentOtps.get(concurrentUser.email.toLowerCase());
-        assert.ok(otp);
-
-        const results = await Promise.all(
-            Array.from({ length: 5 }).map(() =>
-                fetch(`${baseUrl}/auth/verify-registration-otp`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        email: concurrentUser.email,
-                        otp
-                    })
-                })
-            )
-        );
-
-        const statuses = results.map(r => r.status);
-        const successCount = statuses.filter(s => s === 201).length;
-        assert.equal(successCount, 1, `Exactly 1 concurrent verification must succeed (statuses: ${statuses.join(", ")})`);
-
-        const usersCount = await prisma.users.count({
-            where: { email: concurrentUser.email.toLowerCase() }
-        });
-        assert.equal(usersCount, 1, "Database must contain exactly 1 user record");
-
-        await prisma.users.deleteMany({
-            where: { email: concurrentUser.email.toLowerCase() }
-        }).catch(() => {});
+        assert.equal(newLoginRes.status, 200);
     });
 });

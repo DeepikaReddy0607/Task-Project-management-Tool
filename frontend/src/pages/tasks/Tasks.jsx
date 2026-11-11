@@ -235,12 +235,18 @@ function Avatar({ user }) {
 ============================================================ */
 
 const normalizeUser = (user) => {
-  if (!user?.id) return null;
+  if (!user) return null;
+  const id = user.id || user.user_id || user.userId;
+  if (!id) return null;
+
+  const firstName = user.first_name || user.firstName || "";
+  const lastName = user.last_name || user.lastName || "";
+  const fullName = `${firstName} ${lastName}`.trim();
 
   return {
-    id: user.id,
+    id,
     name:
-      `${user.first_name || ""} ${user.last_name || ""}`.trim() ||
+      fullName ||
       user.name ||
       user.email ||
       "Unknown user",
@@ -260,37 +266,44 @@ const normalizeProject = (project) => {
   };
 };
 
-const normalizeTask = (task) => ({
-  ...task,
+const normalizeTask = (task) => {
+  const assigneeObj = task.users_tasks_assigned_toTousers || task.assignee || null;
+  const normalizedAssignee = assigneeObj ? normalizeUser(assigneeObj) : null;
 
-  id: task.id,
+  return {
+    ...task,
 
-  title: task.title || "",
+    id: task.id,
 
-  description: task.description || "",
+    title: task.title || "",
 
-  projectId: task.project_id || task.projectId,
+    description: task.description || "",
 
-  priority: task.priority || "Medium",
+    projectId: task.project_id || task.projectId,
 
-  status: task.status || "To Do",
+    priority: task.priority || "Medium",
 
-  startDate: task.start_date
-    ? task.start_date.slice(0, 10)
-    : (task.startDate || ""),
+    status: task.status || "To Do",
 
-  dueDate: task.due_date
-    ? task.due_date.slice(0, 10)
-    : (task.dueDate || ""),
+    startDate: task.start_date
+      ? task.start_date.slice(0, 10)
+      : (task.startDate || ""),
 
-  estimatedHours: task.estimated_hours ?? task.estimatedHours ?? 0,
+    dueDate: task.due_date
+      ? task.due_date.slice(0, 10)
+      : (task.dueDate || ""),
 
-  assignedTo: task.assigned_to || task.assignedTo || "",
+    estimatedHours: task.estimated_hours ?? task.estimatedHours ?? 0,
 
-  isArchived: task.is_archived ?? task.isArchived ?? false,
+    assignedTo: task.assigned_to || task.assignedTo || "",
 
-  createdAt: task.created_at || task.createdAt,
-});
+    assignee: normalizedAssignee,
+
+    isArchived: task.is_archived ?? task.isArchived ?? false,
+
+    createdAt: task.created_at || task.createdAt,
+  };
+};
 
 /* ============================================================
    TASKS PAGE
@@ -544,7 +557,20 @@ function Tasks() {
     );
   };
 
-  const getUser = (id) => {
+  const getUser = (id, task) => {
+    if (!id) return null;
+
+    if (task?.assignee && task.assignee.id === id) {
+      return task.assignee;
+    }
+
+    if (task?.users_tasks_assigned_toTousers) {
+      const norm = normalizeUser(task.users_tasks_assigned_toTousers);
+      if (norm && norm.id === id) {
+        return norm;
+      }
+    }
+
     for (const members of Object.values(
       membersByProject
     )) {
@@ -739,9 +765,7 @@ function Tasks() {
       setForm({
         ...emptyForm,
         projectId: firstProject?.id || "",
-        assignedTo: firstProject
-          ? projectMembers(firstProject.id)[0]?.id || ""
-          : "",
+        assignedTo: "",
       });
     }
 
@@ -1648,7 +1672,8 @@ function Tasks() {
                 (task) => {
                   const user =
                     getUser(
-                      task.assignedTo
+                      task.assignedTo,
+                      task
                     );
 
                   const project =
@@ -2029,9 +2054,13 @@ function Tasks() {
                         projectId,
 
                         assignedTo:
-                          members[0]
-                            ?.id ||
-                          "",
+                          members.some(
+                            (m) =>
+                              m.id ===
+                              current.assignedTo
+                          )
+                            ? current.assignedTo
+                            : "",
                       })
                     );
                   }}
@@ -2204,9 +2233,10 @@ function Tasks() {
                 }
                 disabled={
                   !form.projectId ||
-                  !projectMembers(
+                  (!projectMembers(
                     form.projectId
-                  ).length
+                  ).length &&
+                    !form.assignedTo)
                 }
                 onChange={(
                   event
@@ -2222,6 +2252,27 @@ function Tasks() {
                 <option value="">
                   Unassigned
                 </option>
+
+                {form.assignedTo &&
+                  !projectMembers(
+                    form.projectId
+                  ).some(
+                    (u) =>
+                      u.id ===
+                      form.assignedTo
+                  ) && (
+                    <option
+                      value={
+                        form.assignedTo
+                      }
+                    >
+                      {getUser(
+                        form.assignedTo,
+                        selectedTask
+                      )?.name ||
+                        "Current Assignee"}
+                    </option>
+                  )}
 
                 {projectMembers(
                   form.projectId
@@ -2403,12 +2454,14 @@ function Tasks() {
                 <p className="mt-1 flex items-center gap-2 font-medium text-[var(--color-text)]">
                   <Avatar
                     user={getUser(
-                      selectedTask.assignedTo
+                      selectedTask.assignedTo,
+                      selectedTask
                     )}
                   />
 
                   {getUser(
-                    selectedTask.assignedTo
+                    selectedTask.assignedTo,
+                    selectedTask
                   )?.name ||
                     "Unassigned"}
                 </p>
