@@ -1,0 +1,148 @@
+{
+  "title": "TaskFlow Phase 7.1 Production Selenium Smoke Test Report",
+  "environment": {
+    "frontend_url": "https://chipmunks-taskflow.vercel.app",
+    "backend_url": "https://task-project-management-tool.onrender.com",
+    "test_email": "deepikareddyrudru+smoke_01@gmail.com",
+    "timestamp": "2026-11-10T19:10:54Z",
+    "deployment_commit": "c100fdf feat(auth): safe email OTP verification with zero regression"
+  },
+  "summary": {
+    "total_tests": 14,
+    "passed": 3,
+    "failed": 6,
+    "paused_or_blocked": 5,
+    "unexpected_console_errors": 1
+  },
+  "tests": {
+    "P01": {
+      "test_id": "P01",
+      "result": "PASS",
+      "http_status": 200,
+      "expected_behavior": "Loads /register, displays TaskFlow branding, form heading, and all registration inputs.",
+      "actual_behavior": "Registration page fully loaded with all fields and TaskFlow branding visible.",
+      "screenshot_path": "D:\\Projects\\Task-Project-management-Tool\\tests\\selenium\\production\\screenshots\\P01_registration_page_loads.png",
+      "timestamp": "2026-11-10T19:09:01Z"
+    },
+    "P12": {
+      "test_id": "P12",
+      "result": "FAIL",
+      "http_status": null,
+      "expected_behavior": "Attempting to register with an existing email rejects with HTTP 409 error alert.",
+      "actual_behavior": "Duplicate email rejection failed: Message: \nStacktrace:\nSymbols not available. Dumping unresolved backtrace:\n\t(No symbol) [0x7ff7aaef9cf5]\n\t(No symbol) [0x7ff7aadf9540]\n\t(No symbol) [0x7ff7aac82763]\n\t(No symbol) [0x7ff7ab4de5d1]\n\t(No symbol) [0x7ff7ab4de82c]\n\t(No symbol) [0x7ff7ab50c787]\n\t(No symbol) [0x7ff7aacb5481]\n\t(No symbol) [0x7ff7aac9b389]\n\t(No symbol) [0x7ff7aac9c6b3]\n\t(No symbol) [0x7ff7ab3c52e1]\n\t(No symbol) [0x7ff7ab3ec54b]\n\t(No symbol) [0x7ff7ab3e0c00]\n\t(No symbol) [0x7ff7ab022f3e]\n\t(No symbol) [0x7ff7aae08d85]\n\t(No symbol) [0x7ff7aae03424]\n\t(No symbol) [0x7ff7aae035b4]\n\t(No symbol) [0x7ff7aadec7ec]\n\t(No symbol) [0x7ffe9dfddda7]\n\t(No symbol) [0x7ffe9e9d9c5c]\n",
+      "screenshot_path": "D:\\Projects\\Task-Project-management-Tool\\tests\\selenium\\production\\screenshots\\P12_duplicate_email_failed.png",
+      "timestamp": "2026-11-10T19:09:41Z"
+    },
+    "P13": {
+      "test_id": "P13",
+      "result": "PASS",
+      "http_status": 302,
+      "expected_behavior": "Navigating to protected routes while unauthenticated redirects to /login.",
+      "actual_behavior": "Unauthenticated access to /workspaces redirected to /login.",
+      "screenshot_path": "D:\\Projects\\Task-Project-management-Tool\\tests\\selenium\\production\\screenshots\\P13_protected_routes_guard.png",
+      "timestamp": "2026-11-10T19:09:48Z"
+    },
+    "P14": {
+      "test_id": "P14",
+      "result": "FAIL",
+      "http_status": null,
+      "expected_behavior": "OTP page renders properly across Desktop (1440x900) and Mobile (390x844) viewports.",
+      "actual_behavior": "Responsive rendering test failed: Message: \nStacktrace:\nSymbols not available. Dumping unresolved backtrace:\n\t(No symbol) [0x7ff7aaef9cf5]\n\t(No symbol) [0x7ff7aadf9540]\n\t(No symbol) [0x7ff7aac82763]\n\t(No symbol) [0x7ff7ab4de5d1]\n\t(No symbol) [0x7ff7ab4de82c]\n\t(No symbol) [0x7ff7ab50c787]\n\t(No symbol) [0x7ff7aacb5481]\n\t(No symbol) [0x7ff7aac9b389]\n\t(No symbol) [0x7ff7aac9c6b3]\n\t(No symbol) [0x7ff7ab3c52e1]\n\t(No symbol) [0x7ff7ab3ec54b]\n\t(No symbol) [0x7ff7ab3e0c00]\n\t(No symbol) [0x7ff7ab022f3e]\n\t(No symbol) [0x7ff7aae08d85]\n\t(No symbol) [0x7ff7aae03424]\n\t(No symbol) [0x7ff7aae035b4]\n\t(No symbol) [0x7ff7aadec7ec]\n\t(No symbol) [0x7ffe9dfddda7]\n\t(No symbol) [0x7ffe9e9d9c5c]\n",
+      "screenshot_path": "D:\\Projects\\Task-Project-management-Tool\\tests\\selenium\\production\\screenshots\\P14_responsive_failed.png",
+      "timestamp": "2026-11-10T19:10:06Z"
+    },
+    "P02": {
+      "test_id": "P02",
+      "result": "PASS",
+      "http_status": 200,
+      "expected_behavior": "Registration form accepts valid user data and submits without errors.",
+      "actual_behavior": "Submitted registration for dedicated test email: deepikareddyrudru+smoke_01@gmail.com",
+      "screenshot_path": "D:\\Projects\\Task-Project-management-Tool\\tests\\selenium\\production\\screenshots\\P02_registration_submitted.png",
+      "timestamp": "2026-11-10T19:10:08Z"
+    },
+    "P03": {
+      "test_id": "P03",
+      "result": "FAIL",
+      "http_status": null,
+      "expected_behavior": "Browser automatically redirects to /verify-otp with email address displayed.",
+      "actual_behavior": "Redirection to /verify-otp failed: Message: \n",
+      "screenshot_path": "D:\\Projects\\Task-Project-management-Tool\\tests\\selenium\\production\\screenshots\\P03_verify_otp_redirect_failed.png",
+      "timestamp": "2026-11-10T19:10:24Z"
+    },
+    "P04": {
+      "test_id": "P04",
+      "result": "FAIL",
+      "http_status": null,
+      "expected_behavior": "Submitting incorrect OTP decrements attempts and displays an error alert.",
+      "actual_behavior": "Incorrect OTP rejection failed: Expected 6 OTP inputs, found 0",
+      "screenshot_path": "D:\\Projects\\Task-Project-management-Tool\\tests\\selenium\\production\\screenshots\\P04_incorrect_otp_failed.png",
+      "timestamp": "2026-11-10T19:10:24Z"
+    },
+    "P05": {
+      "test_id": "P05",
+      "result": "FAIL",
+      "http_status": null,
+      "expected_behavior": "Immediate resend requests respect the 60-second cooldown and button remains disabled.",
+      "actual_behavior": "Resend cooldown test failed: Message: \nStacktrace:\nSymbols not available. Dumping unresolved backtrace:\n\t(No symbol) [0x7ff7aaef9cf5]\n\t(No symbol) [0x7ff7aadf9540]\n\t(No symbol) [0x7ff7aac82763]\n\t(No symbol) [0x7ff7ab4de5d1]\n\t(No symbol) [0x7ff7ab4de82c]\n\t(No symbol) [0x7ff7ab50c787]\n\t(No symbol) [0x7ff7aacb5481]\n\t(No symbol) [0x7ff7aac9b389]\n\t(No symbol) [0x7ff7aac9c6b3]\n\t(No symbol) [0x7ff7ab3c52e1]\n\t(No symbol) [0x7ff7ab3ec54b]\n\t(No symbol) [0x7ff7ab3e0c00]\n\t(No symbol) [0x7ff7ab022f3e]\n\t(No symbol) [0x7ff7aae08d85]\n\t(No symbol) [0x7ff7aae03424]\n\t(No symbol) [0x7ff7aae035b4]\n\t(No symbol) [0x7ff7aadec7ec]\n\t(No symbol) [0x7ffe9dfddda7]\n\t(No symbol) [0x7ffe9e9d9c5c]\n",
+      "screenshot_path": "D:\\Projects\\Task-Project-management-Tool\\tests\\selenium\\production\\screenshots\\P05_resend_cooldown_failed.png",
+      "timestamp": "2026-11-10T19:10:35Z"
+    },
+    "P06": {
+      "test_id": "P06",
+      "result": "PAUSED / AWAITING_MANUAL_OTP",
+      "http_status": null,
+      "expected_behavior": "Correct OTP creates permanent account",
+      "actual_behavior": "Waiting for 6-digit OTP code delivered to dedicated mailbox",
+      "screenshot_path": null,
+      "timestamp": "2026-11-10T19:10:35Z"
+    },
+    "P07": {
+      "test_id": "P07",
+      "result": "BLOCKED",
+      "http_status": null,
+      "expected_behavior": "Login redirects new user to onboarding",
+      "actual_behavior": "Requires verified user from P06",
+      "screenshot_path": null,
+      "timestamp": "2026-11-10T19:10:35Z"
+    },
+    "P08": {
+      "test_id": "P08",
+      "result": "BLOCKED",
+      "http_status": null,
+      "expected_behavior": "Completing onboarding opens dashboard",
+      "actual_behavior": "Requires verified user from P06",
+      "screenshot_path": null,
+      "timestamp": "2026-11-10T19:10:35Z"
+    },
+    "P09": {
+      "test_id": "P09",
+      "result": "BLOCKED",
+      "http_status": null,
+      "expected_behavior": "Logout clears authenticated session",
+      "actual_behavior": "Requires verified user from P06",
+      "screenshot_path": null,
+      "timestamp": "2026-11-10T19:10:35Z"
+    },
+    "P10": {
+      "test_id": "P10",
+      "result": "BLOCKED",
+      "http_status": null,
+      "expected_behavior": "Returning user login opens dashboard directly",
+      "actual_behavior": "Requires verified user from P06",
+      "screenshot_path": null,
+      "timestamp": "2026-11-10T19:10:35Z"
+    },
+    "P11": {
+      "test_id": "P11",
+      "result": "FAIL",
+      "http_status": null,
+      "expected_behavior": "Existing user authentication remains functional.",
+      "actual_behavior": "Existing user login failed: Message: \n",
+      "screenshot_path": "D:\\Projects\\Task-Project-management-Tool\\tests\\selenium\\production\\screenshots\\P11_existing_user_login_failed.png",
+      "timestamp": "2026-11-10T19:10:52Z"
+    }
+  },
+  "browser_console_errors": [
+    "[SEVERE] https://chipmunks-taskflow.vercel.app/assets/Login-BjC6Mr2K.js 0:6685 \"Login failed:\" \"Please verify your email with the OTP sent before logging in\""
+  ]
+}
