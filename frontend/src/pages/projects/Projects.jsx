@@ -9,9 +9,8 @@ import PageHeader from "../../components/ui/PageHeader";
 import ProjectXRay from "../../components/projects/ProjectXRay";
 import ProjectIntelligence from "../../components/intelligence/ProjectIntelligence";
 import FileSection from "../../components/files/FileSection";
-import { projectOptions, projectUsers } from "../../data/projectMockData";
 import MainLayout from "../../layouts/MainLayout";
-import { getWorkspaces } from "../../services/api/workspaceApi";
+import { getWorkspaces, getWorkspaceMembers } from "../../services/api/workspaceApi";
 import {
   getProjects,
   createProject as createProjectApi,

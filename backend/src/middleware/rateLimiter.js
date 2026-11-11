@@ -57,15 +57,29 @@ export const createRateLimiter = ({
 
         // If ignoreStatuses is configured, refund the recorded hit when response finishes with an ignored status code
         if (ignoreStatuses && ignoreStatuses.length > 0) {
+            let refunded = false;
+            const refundHit = () => {
+                if (refunded) return;
+                refunded = true;
+                const currentList = hits.get(key) || [];
+                const idx = currentList.findIndex((item) => item.id === entryId);
+                if (idx !== -1) {
+                    currentList.splice(idx, 1);
+                    if (currentList.length === 0) hits.delete(key);
+                    else hits.set(key, currentList);
+                }
+            };
+
             res.on("finish", () => {
-                if (ignoreStatuses.includes(res.statusCode)) {
-                    const currentList = hits.get(key) || [];
-                    const idx = currentList.findIndex((item) => item.id === entryId);
-                    if (idx !== -1) {
-                        currentList.splice(idx, 1);
-                        if (currentList.length === 0) hits.delete(key);
-                        else hits.set(key, currentList);
-                    }
+                if (ignoreStatuses.includes(res.statusCode) || res.statusCode >= 500) {
+                    refundHit();
+                }
+            });
+
+            res.on("close", () => {
+                // If connection was prematurely terminated by client before completion, refund the hit
+                if (!res.writableEnded) {
+                    refundHit();
                 }
             });
         }

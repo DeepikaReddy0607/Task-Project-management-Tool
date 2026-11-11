@@ -1,5 +1,26 @@
 import nodemailer from "nodemailer";
 
+export const SMTP_TIMEOUTS = {
+    connectionTimeout: 10000, // 10s to establish connection
+    greetingTimeout: 10000,   // 10s to receive greeting
+    socketTimeout: 15000      // 15s of socket inactivity
+};
+
+/**
+ * Sanitizes error messages for safe logging without exposing passwords,
+ * OTP codes, credentials, or personal secrets.
+ */
+export const sanitizeErrorMessage = (message) => {
+    if (!message || typeof message !== "string") return "Unknown error";
+    return message
+        .replace(/([a-zA-Z0-9_\-\.]+)@([a-zA-Z0-9_\-\.]+)\.([a-zA-Z]{2,5})/g, (match, user, host, ext) => {
+            const maskedUser = user.length > 2 ? `${user[0]}***${user[user.length - 1]}` : "***";
+            return `${maskedUser}@${host}.${ext}`;
+        })
+        .replace(/(?:pass(?:word)?|auth|secret|token|key)\s*[:=]\s*\S+/gi, "credential=[REDACTED]")
+        .replace(/\b\d{6}\b/g, "[REDACTED_OTP]");
+};
+
 const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 465,
@@ -7,15 +28,19 @@ const transporter = nodemailer.createTransport({
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_APP_PASSWORD
-    }
+    },
+    ...SMTP_TIMEOUTS
 });
+
 transporter.verify()
     .then(() => {
         console.log("[EMAIL] Gmail SMTP connection verified successfully.");
     })
     .catch((error) => {
-        console.error("[EMAIL] Gmail SMTP verification failed:", error);
+        const errCode = error?.code || error?.responseCode || "EUNKNOWN";
+        console.error(`[EMAIL] Gmail SMTP verification failed [${errCode}]:`, sanitizeErrorMessage(error?.message));
     });
+
 let mailMock = null;
 
 export const setMailMock = (mockFn) => {
@@ -83,7 +108,8 @@ const sendPasswordResetEmail = async (email, resetLink) => {
             `
         });
     } catch (error) {
-        console.error("[AUTH] Failed to send password reset email:", error);
+        const errCode = error?.code || error?.responseCode || "ESMTPFAILED";
+        console.error(`[AUTH] Failed to send password reset email [${errCode}]:`, sanitizeErrorMessage(error?.message));
 
         if (process.env.NODE_ENV !== "production" && process.env.LOG_DEV_AUTH_TOKENS === "true") {
             console.log(`[AUTH DEV] Password reset link for ${email}: ${resetLink}`);
@@ -148,12 +174,17 @@ const sendRegistrationOtpEmail = async (email, otp, firstName) => {
             `
         });
     } catch (error) {
-        console.error("[AUTH] Failed to send registration OTP email:", error.message);
+        const errCode = error?.code || error?.responseCode || "ESMTPFAILED";
+        console.error(`[AUTH] Failed to send registration OTP email [${errCode}]:`, sanitizeErrorMessage(error?.message));
+        if (!error.code) {
+            error.code = errCode;
+        }
         throw error;
     }
 };
 
 export {
+    transporter,
     sendPasswordResetEmail,
     sendRegistrationOtpEmail
 };

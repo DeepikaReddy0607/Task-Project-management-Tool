@@ -124,13 +124,22 @@ export const initiateRegistration = async (data) => {
     try {
         await sendRegistrationOtpEmail(normalizedEmail, otp, firstName.trim());
     } catch (mailError) {
+        const errCode = mailError.code || mailError.responseCode || "ESMTPFAILED";
+        console.error(
+            `[REGISTRATION] Email dispatch failure [${errCode}]:`,
+            mailError.message ? mailError.message.replace(/\b\d{6}\b/g, "[REDACTED_OTP]") : "No message"
+        );
+
         // Remove pending registration record so no inconsistent state remains
         await prisma.pending_registrations.deleteMany({
             where: { email: normalizedEmail }
-        }).catch(() => {});
+        }).catch((cleanupErr) => {
+            console.error("[REGISTRATION] Pending registration cleanup failure:", cleanupErr.message);
+        });
 
         const error = new Error("Failed to send verification email. Please check your email address and try again.");
         error.statusCode = 500;
+        error.code = errCode;
         throw error;
     }
 
@@ -391,7 +400,19 @@ export const resendRegistrationOtp = async ({ email }) => {
     });
 
     // 7. Dispatch fresh OTP email
-    await sendRegistrationOtpEmail(normalizedEmail, newOtp, pending.first_name);
+    try {
+        await sendRegistrationOtpEmail(normalizedEmail, newOtp, pending.first_name);
+    } catch (mailError) {
+        const errCode = mailError.code || mailError.responseCode || "ESMTPFAILED";
+        console.error(
+            `[RESEND_OTP] Email dispatch failure [${errCode}]:`,
+            mailError.message ? mailError.message.replace(/\b\d{6}\b/g, "[REDACTED_OTP]") : "No message"
+        );
+        const error = new Error("Failed to send verification email. Please check your email address and try again.");
+        error.statusCode = 500;
+        error.code = errCode;
+        throw error;
+    }
 
     return {
         message: "A new verification code has been sent to your email.",
