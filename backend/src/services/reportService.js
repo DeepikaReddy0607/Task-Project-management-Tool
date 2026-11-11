@@ -1,32 +1,22 @@
 import prisma from "../config/prisma.js";
 import { getProjectWorkspaceId } from "./taskService.js";
+import { checkProjectAccess } from "./projectService.js";
 
 const validateProjectAccess = async (projectId, userId) => {
-    const workspaceId = await getProjectWorkspaceId(projectId);
+    const project = await prisma.projects.findUnique({
+        where: { id: projectId },
+        select: { id: true, workspace_id: true, manager_id: true }
+    });
 
-    if (!workspaceId) {
+    if (!project) {
         const error = new Error("Project not found");
         error.statusCode = 404;
         throw error;
     }
 
-    const workspaceMembership =
-        await prisma.workspace_members.findUnique({
-            where: {
-                workspace_id_user_id: {
-                    workspace_id: workspaceId,
-                    user_id: userId
-                }
-            }
-        });
+    await checkProjectAccess(project, userId);
 
-    if (!workspaceMembership) {
-        const error = new Error("Workspace access denied");
-        error.statusCode = 403;
-        throw error;
-    }
-
-    return { id: projectId, workspace_id: workspaceId };
+    return { id: projectId, workspace_id: project.workspace_id };
 };
 
 const getStartOfTodayUtc = (refDate = new Date()) => {
@@ -63,21 +53,40 @@ const resolveTaskScopeWhere = async (projectId, userId, workspaceId = null) => {
             error.statusCode = 403;
             throw error;
         }
-        where.projects = {
-            workspace_id: workspaceId
+
+        const projectFilter = {
+            workspace_id: workspaceId,
+            is_archived: false
         };
+
+        if (membership.workspace_role !== "Owner" && membership.workspace_role !== "Admin") {
+            projectFilter.OR = [
+                { manager_id: userId },
+                { project_members: { some: { user_id: userId } } }
+            ];
+        }
+
+        where.projects = projectFilter;
         return where;
     }
 
-    // Default: Scope to all workspaces where this user is an authorized member
-    const memberships = await prisma.workspace_members.findMany({
-        where: { user_id: userId },
+    // Default: Scope to all projects where this user is authorized (Manager, Member, or Workspace Owner/Admin)
+    const adminMemberships = await prisma.workspace_members.findMany({
+        where: {
+            user_id: userId,
+            workspace_role: { in: ["Owner", "Admin"] }
+        },
         select: { workspace_id: true }
     });
+    const adminWorkspaceIds = adminMemberships.map((m) => m.workspace_id);
 
-    const userWorkspaceIds = memberships.map((m) => m.workspace_id);
     where.projects = {
-        workspace_id: { in: userWorkspaceIds }
+        is_archived: false,
+        OR: [
+            { workspace_id: { in: adminWorkspaceIds } },
+            { manager_id: userId },
+            { project_members: { some: { user_id: userId } } }
+        ]
     };
     return where;
 };

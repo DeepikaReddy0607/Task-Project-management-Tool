@@ -1,6 +1,7 @@
 import * as chatService from "../services/chatService.js";
 import {
     emitChatMessageCreated,
+    dispatchChatMessage,
     emitChatMessageUpdated,
     emitChatMessageDeleted,
     emitChatReadReceipt,
@@ -290,8 +291,7 @@ export async function sendMessage(req, res, next) {
             attachments,
         });
 
-        const targetRoom = message.channel_id ? `channel:${message.channel_id}` : `conversation:${message.conversation_id}`;
-        emitChatMessageCreated(message, targetRoom);
+        await dispatchChatMessage(message, userId);
 
         return res.status(201).json({
             success: true,

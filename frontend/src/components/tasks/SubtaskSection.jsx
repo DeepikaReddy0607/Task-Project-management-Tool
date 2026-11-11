@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FiCheck, FiEdit2, FiPlus, FiTrash2 } from "react-icons/fi";
+import { FiCheck, FiEdit2, FiPlus, FiTrash2, FiArchive, FiRotateCcw } from "react-icons/fi";
 import Button from "../ui/Button";
 import Input from "../ui/Input";
 import {
@@ -8,6 +8,8 @@ import {
   updateSubtask,
   updateSubtaskStatus,
   deleteSubtask,
+  archiveSubtask,
+  restoreSubtask,
 } from "../../services/api/subtaskApi";
 
 export const SUBTASK_STATUSES = ["To Do", "In Progress", "Done"];
@@ -30,6 +32,7 @@ function normalizeSubtask(subtask) {
       : "",
     assignedTo: subtask.assigned_to || "",
     status: subtask.status || "To Do",
+    isArchived: Boolean(subtask.is_archived ?? subtask.isArchived),
   };
 }
 
@@ -41,6 +44,7 @@ function SubtaskSection({
   taskId,
 }) {
   const [subtasks, setSubtasks] = useState([]);
+  const [showArchived, setShowArchived] = useState(false);
   const [editor, setEditor] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
@@ -103,13 +107,39 @@ function SubtaskSection({
     };
   }, [taskId]);
 
-  const completed = subtasks.filter(
+  const activeSubtasks = subtasks.filter((s) => !s.isArchived);
+  const archivedSubtasks = subtasks.filter((s) => s.isArchived);
+  const displayedSubtasks = showArchived ? archivedSubtasks : activeSubtasks;
+
+  const completed = activeSubtasks.filter(
     (item) => item.status === "Done" || item.status === "Completed"
   ).length;
 
-  const progress = subtasks.length
-    ? Math.round((completed / subtasks.length) * 100)
+  const progress = activeSubtasks.length
+    ? Math.round((completed / activeSubtasks.length) * 100)
     : 0;
+
+  const handleArchiveSubtask = async (id) => {
+    try {
+      await archiveSubtask(id);
+      setSubtasks((current) =>
+        current.map((item) => (item.id === id ? { ...item, isArchived: true } : item))
+      );
+    } catch (err) {
+      setLoadError(err.response?.data?.message || "Failed to archive subtask.");
+    }
+  };
+
+  const handleRestoreSubtask = async (id) => {
+    try {
+      await restoreSubtask(id);
+      setSubtasks((current) =>
+        current.map((item) => (item.id === id ? { ...item, isArchived: false } : item))
+      );
+    } catch (err) {
+      setLoadError(err.response?.data?.message || "Failed to restore subtask.");
+    }
+  };
 
   const deletingSubtask = subtasks.find(
     (item) => item.id === deleteId
@@ -285,17 +315,30 @@ function SubtaskSection({
           </h3>
 
           <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-            {completed} of {subtasks.length} completed
+            {completed} of {activeSubtasks.length} completed ({progress}%)
           </p>
         </div>
 
-        <Button
-          variant="soft"
-          onClick={() => openEditor()}
-        >
-          <FiPlus size={16} />
-          Add subtask
-        </Button>
+        <div className="flex items-center gap-2">
+          {archivedSubtasks.length > 0 && (
+            <Button
+              variant="secondary"
+              onClick={() => setShowArchived((prev) => !prev)}
+              className="text-xs"
+            >
+              <FiArchive size={14} />
+              {showArchived ? `Show Active (${activeSubtasks.length})` : `Archived (${archivedSubtasks.length})`}
+            </Button>
+          )}
+
+          <Button
+            variant="soft"
+            onClick={() => openEditor()}
+          >
+            <FiPlus size={16} />
+            Add subtask
+          </Button>
+        </div>
       </div>
 
       <div
@@ -453,17 +496,21 @@ function SubtaskSection({
             Loading subtasks...
           </p>
         </div>
-      ) : subtasks.length ? (
+      ) : displayedSubtasks.length ? (
         <ul className="mt-5 space-y-3">
-          {subtasks.map((subtask) => (
+          {displayedSubtasks.map((subtask) => (
             <li
               key={subtask.id}
-              className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+              className={`rounded-[var(--radius-md)] border p-4 ${
+                subtask.isArchived
+                  ? "border-dashed border-[var(--color-border)] bg-[var(--color-canvas-soft)] opacity-75"
+                  : "border-[var(--color-border)] bg-[var(--color-surface)]"
+              }`}
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold text-[var(--color-text)]">
+                    <p className={`font-semibold ${subtask.isArchived ? "line-through text-[var(--color-text-muted)]" : "text-[var(--color-text)]"}`}>
                       {subtask.title}
                     </p>
 
@@ -479,6 +526,12 @@ function SubtaskSection({
                     >
                       {subtask.status}
                     </span>
+
+                    {subtask.isArchived && (
+                      <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-600">
+                        Archived
+                      </span>
+                    )}
                   </div>
 
                   {subtask.description && (
@@ -502,52 +555,90 @@ function SubtaskSection({
                 </div>
 
                 <div className="flex shrink-0 items-center gap-1">
-                  <select
-                    aria-label={
-                      "Change status for " +
-                      subtask.title
-                    }
-                    value={subtask.status}
-                    onChange={(event) =>
-                      changeStatus(
-                        subtask.id,
-                        event.target.value
-                      )
-                    }
-                    className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 text-xs"
-                  >
-                    {statuses.map((status) => (
-                      <option key={status}>
-                        {status}
-                      </option>
-                    ))}
-                  </select>
+                  {subtask.isArchived ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleRestoreSubtask(subtask.id)}
+                        className="rounded-lg p-2 text-[var(--color-brand)] hover:bg-[var(--color-surface-sage)]"
+                        title="Restore subtask"
+                        aria-label={"Restore " + subtask.title}
+                      >
+                        <FiRotateCcw size={16} />
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      openEditor(subtask)
-                    }
-                    className="rounded-lg p-2 text-[var(--color-text-subtle)] hover:bg-[var(--color-canvas-soft)]"
-                    aria-label={
-                      "Edit " + subtask.title
-                    }
-                  >
-                    <FiEdit2 size={16} />
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteId(subtask.id)}
+                        className="rounded-lg p-2 text-[var(--color-text-subtle)] hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)]"
+                        title="Delete subtask"
+                        aria-label={"Delete " + subtask.title}
+                      >
+                        <FiTrash2 size={16} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <select
+                        aria-label={
+                          "Change status for " +
+                          subtask.title
+                        }
+                        value={subtask.status}
+                        onChange={(event) =>
+                          changeStatus(
+                            subtask.id,
+                            event.target.value
+                          )
+                        }
+                        className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 text-xs"
+                      >
+                        {statuses.map((status) => (
+                          <option key={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setDeleteId(subtask.id)
-                    }
-                    className="rounded-lg p-2 text-[var(--color-text-subtle)] hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)]"
-                    aria-label={
-                      "Delete " + subtask.title
-                    }
-                  >
-                    <FiTrash2 size={16} />
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openEditor(subtask)
+                        }
+                        className="rounded-lg p-2 text-[var(--color-text-subtle)] hover:bg-[var(--color-canvas-soft)]"
+                        title="Edit subtask"
+                        aria-label={
+                          "Edit " + subtask.title
+                        }
+                      >
+                        <FiEdit2 size={16} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleArchiveSubtask(subtask.id)}
+                        className="rounded-lg p-2 text-[var(--color-text-subtle)] hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)]"
+                        title="Archive subtask"
+                        aria-label={"Archive " + subtask.title}
+                      >
+                        <FiArchive size={16} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDeleteId(subtask.id)
+                        }
+                        className="rounded-lg p-2 text-[var(--color-text-subtle)] hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)]"
+                        title="Delete subtask"
+                        aria-label={
+                          "Delete " + subtask.title
+                        }
+                      >
+                        <FiTrash2 size={16} />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </li>
@@ -556,7 +647,7 @@ function SubtaskSection({
       ) : (
         <div className="mt-5 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] px-4 py-8 text-center">
           <p className="font-semibold text-[var(--color-text)]">
-            No subtasks yet
+            {showArchived ? "No archived subtasks" : "No subtasks yet"}
           </p>
 
           <p className="mt-1 text-sm text-[var(--color-text-muted)]">

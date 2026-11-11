@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
-import { FiChevronDown, FiMenu, FiSearch } from "react-icons/fi";
+import { FiChevronDown, FiMenu, FiSearch, FiMessageSquare } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import TaskFlowMark from "../components/brand/TaskFlowMark";
 import NotificationBell from "../components/notifications/NotificationBell";
 import { getProfile } from "../services/api/userApi";
+import { useChatNotifications } from "../context/ChatNotificationContext";
 
 function Navbar({ mobileNavigationOpen, onMenuToggle, onOpenSearch }) {
   const navigate = useNavigate();
+  const { totalUnread } = useChatNotifications();
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const raw = localStorage.getItem("taskflow_user");
@@ -90,6 +92,22 @@ function Navbar({ mobileNavigationOpen, onMenuToggle, onOpenSearch }) {
             className="flex h-10 w-10 items-center justify-center rounded-xl text-[var(--color-text-muted)] transition hover:bg-[var(--color-surface)] hover:text-[var(--color-text)] md:hidden"
           >
             <FiSearch size={18} />
+          </button>
+
+          {/* Direct Chat & Unread Notifications */}
+          <button
+            type="button"
+            onClick={() => navigate("/chat")}
+            aria-label="Open chat"
+            className="relative flex h-10 w-10 items-center justify-center rounded-xl text-[var(--color-text-muted)] transition hover:bg-[var(--color-surface)] hover:text-[var(--color-text)]"
+            title="Chat"
+          >
+            <FiMessageSquare size={18} />
+            {totalUnread > 0 && (
+              <span className="absolute top-1.5 right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white leading-none shadow-xs">
+                {totalUnread > 99 ? "99+" : totalUnread}
+              </span>
+            )}
           </button>
 
           <NotificationBell />

@@ -1,8 +1,8 @@
 import api from "./axios";
 
 // Get all subtasks for a task
-export const getSubtasks = async (taskId) => {
-  const response = await api.get(`/tasks/${taskId}/subtasks`);
+export const getSubtasks = async (taskId, params = {}) => {
+  const response = await api.get(`/tasks/${taskId}/subtasks`, { params });
   return response.data;
 };
 
@@ -44,5 +44,17 @@ export const deleteSubtask = async (id) => {
   const response = await api.delete(
     `/subtasks/${id}`
   );
+  return response.data;
+};
+
+// Archive a subtask
+export const archiveSubtask = async (id) => {
+  const response = await api.patch(`/subtasks/${id}/archive`);
+  return response.data;
+};
+
+// Restore a subtask
+export const restoreSubtask = async (id) => {
+  const response = await api.patch(`/subtasks/${id}/restore`);
   return response.data;
 };

@@ -3,6 +3,7 @@ import {
     getWorkspaceProjects, 
     getProject,
     updateProject,
+    deleteProject,
     archiveProject,
     restoreProject,
     addProjectMember,
@@ -390,6 +391,65 @@ const restore = async (req, res, next) => {
         }
         if (error.message === "Project is not archived") {
             return res.status(400).json({
+                message: error.message
+            });
+        }
+        next(error);
+    }
+};
+
+const remove = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({
+                message: "Project ID is required"
+            });
+        }
+
+        const result = await deleteProject(id, req.user.userId);
+
+        try {
+            await createActivity({
+                workspaceId: result.workspaceId,
+                userId: req.user.userId,
+                actionType: "PROJECT_DELETED",
+                entityType: "PROJECT",
+                entityId: id,
+                description: `Permanently deleted project ${id}`
+            });
+        } catch (actErr) {
+            console.error("Activity logging failed for project delete:", actErr);
+        }
+
+        emitRealtimeEvent({
+            type: "project.deleted",
+            workspaceId: result.workspaceId,
+            projectId: id,
+            userId: req.user.userId,
+            data: result
+        });
+
+        return res.status(200).json({
+            message: "Project deleted successfully",
+            project: result
+        });
+    } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+        if (error.message === "Project not found") {
+            return res.status(404).json({
+                message: error.message
+            });
+        }
+        if (
+            error.message === "Project access denied" ||
+            error.message.includes("permissions")
+        ) {
+            return res.status(403).json({
                 message: error.message
             });
         }
@@ -1905,6 +1965,7 @@ export {
     getAll,
     getOne,
     update,
+    remove,
     archive,
     restore,
     addMember,

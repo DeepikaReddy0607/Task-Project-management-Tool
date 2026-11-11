@@ -16,6 +16,7 @@ export const PROJECT_ROLE_MAPPINGS = Object.freeze({
     "member": "Team Member",
     "team member": "Team Member",
     "teammember": "Team Member",
+    "contributor": "Team Member",
     "admin": "Admin",
     "project manager": "Project Manager",
     "projectmanager": "Project Manager",
@@ -138,17 +139,84 @@ const getWorkspaceProjects = async (
     const isArchived = options?.archived === "true" || options?.archived === true || options?.isArchived === true;
 
     // Get projects
+    const where = {
+        workspace_id: workspaceId,
+        is_archived: isArchived
+    };
+
+    // If regular workspace member (not Owner/Admin), strictly filter to projects where user is manager or member
+    if (membership.workspace_role !== "Owner" && membership.workspace_role !== "Admin") {
+        where.OR = [
+            { manager_id: userId },
+            { project_members: { some: { user_id: userId } } }
+        ];
+    }
+
+    // Get projects
     const projects = await prisma.projects.findMany({
-        where: {
-            workspace_id: workspaceId,
-            is_archived: isArchived
-        },
+        where,
         orderBy: {
             created_at: "desc"
         }
     });
 
     return projects;
+};
+
+
+// ============================================================
+// CHECK PROJECT ACCESS HIERARCHY
+// ============================================================
+
+export const checkProjectAccess = async (project, userId) => {
+    if (!project || !userId) {
+        const error = new Error("Project access denied");
+        error.statusCode = 403;
+        throw error;
+    }
+
+    // 1. Check workspace membership
+    const workspaceMembership = await prisma.workspace_members.findFirst({
+        where: {
+            workspace_id: project.workspace_id,
+            user_id: userId
+        }
+    });
+
+    if (!workspaceMembership) {
+        const error = new Error("Workspace access denied");
+        error.statusCode = 403;
+        throw error;
+    }
+
+    // 2. Workspace Owner or Admin has administrative oversight over all projects in the workspace
+    if (workspaceMembership.workspace_role === "Owner" || workspaceMembership.workspace_role === "Admin") {
+        return { isOwnerOrAdmin: true, workspaceMembership };
+    }
+
+    // 3. Project manager has access
+    if (project.manager_id === userId) {
+        return { isManager: true, workspaceMembership };
+    }
+
+    // 4. Project member has access
+    const projectMember = await prisma.project_members.findUnique({
+        where: {
+            project_id_user_id: {
+                project_id: project.id,
+                user_id: userId
+            }
+        }
+    });
+
+    if (projectMember) {
+        return { isMember: true, projectMember, workspaceMembership };
+    }
+
+    // User is only a workspace member without project access
+    const error = new Error("Project access denied");
+    error.statusCode = 403;
+    throw error;
 };
 
 
@@ -173,19 +241,8 @@ const getProject = async (
         throw error;
     }
 
-    // Verify workspace access
-    const membership = await prisma.workspace_members.findFirst({
-        where: {
-            workspace_id: project.workspace_id,
-            user_id: userId
-        }
-    });
-
-    if (!membership) {
-        const error = new Error("Project access denied");
-        error.statusCode = 403;
-        throw error;
-    }
+    // Enforce strict project access
+    await checkProjectAccess(project, userId);
 
     return project;
 };
@@ -223,7 +280,12 @@ const checkProjectManagementAccess = async (
         return;
     }
 
-    // Check project membership
+    // Project Manager can manage project
+    if (project.manager_id === userId) {
+        return;
+    }
+
+    // Check project membership for Project Manager role
     const projectMembership =
         await prisma.project_members.findUnique({
             where: {
@@ -237,23 +299,17 @@ const checkProjectManagementAccess = async (
             }
         });
 
-    const projectRole =
-        projectMembership?.roles?.role_name;
-
-    // Project Admin/Project Manager can manage project
-    if (
-        !canManageProject(
-            workspaceMembership.workspace_role,
-            projectRole
-        )
-    ) {
-        const error = new Error(
-            "Insufficient permissions to manage project"
-        );
-
-        error.statusCode = 403;
-        throw error;
+    const projectRole = (projectMembership?.roles?.role_name || "").toLowerCase();
+    if (projectRole === "project manager" || projectRole === "admin") {
+        return;
     }
+
+    const error = new Error(
+        "Only workspace Owner, Admin or Project Manager can manage this project"
+    );
+
+    error.statusCode = 403;
+    throw error;
 };
 
 
@@ -293,6 +349,30 @@ const updateProject = async (
         throw error;
     }
 
+    const resolvedManagerId = data.managerId || data.manager_id;
+    if (resolvedManagerId !== undefined) {
+        const targetManager = await prisma.users.findUnique({
+            where: { id: resolvedManagerId }
+        });
+        if (!targetManager) {
+            const error = new Error("Manager user not found");
+            error.statusCode = 400;
+            throw error;
+        }
+        const wsMember = await prisma.workspace_members.findFirst({
+            where: { workspace_id: project.workspace_id, user_id: resolvedManagerId }
+        });
+        if (!wsMember) {
+            const error = new Error("Manager must be a member of the workspace");
+            error.statusCode = 400;
+            throw error;
+        }
+    }
+
+    const isArchivedUpdate = data.status === "Archived"
+        ? true
+        : (data.status && data.status !== "Archived" && project.is_archived ? false : undefined);
+
     const updatedProject = await prisma.projects.update({
         where: {
             id: projectId
@@ -316,6 +396,14 @@ const updateProject = async (
 
             ...(data.status !== undefined && {
                 status: data.status
+            }),
+
+            ...(isArchivedUpdate !== undefined && {
+                is_archived: isArchivedUpdate
+            }),
+
+            ...(resolvedManagerId !== undefined && {
+                manager_id: resolvedManagerId
             }),
 
             ...(data.startDate !== undefined && {
@@ -633,23 +721,8 @@ const getProjectMembers = async (
     }
 
     // Check that the current user belongs
-    // to the project's workspace
-    const membership =
-        await prisma.workspace_members.findFirst({
-            where: {
-                workspace_id: project.workspace_id,
-                user_id: userId
-            }
-        });
-
-    if (!membership) {
-        const error = new Error(
-            "Project access denied"
-        );
-
-        error.statusCode = 403;
-        throw error;
-    }
+    // to the project's workspace and has project access
+    await checkProjectAccess(project, userId);
 
     // Get project members
     const members =
@@ -848,6 +921,41 @@ const removeProjectMember = async (
 };
 
 
+const deleteProject = async (
+    projectId,
+    userId
+) => {
+    const project = await prisma.projects.findUnique({
+        where: {
+            id: projectId
+        }
+    });
+
+    if (!project) {
+        const error = new Error("Project not found");
+        error.statusCode = 404;
+        throw error;
+    }
+
+    // Verify project management permission (Owner, Admin, or Project Manager)
+    await checkProjectManagementAccess(
+        project,
+        userId
+    );
+
+    // Delete project (cascades delete tasks, members, channels, etc.)
+    await prisma.projects.delete({
+        where: {
+            id: projectId
+        }
+    });
+
+    return {
+        id: projectId,
+        workspaceId: project.workspace_id
+    };
+};
+
 // ============================================================
 // EXPORTS
 // ============================================================
@@ -857,6 +965,7 @@ export {
     getWorkspaceProjects,
     getProject,
     updateProject,
+    deleteProject,
     archiveProject,
     restoreProject,
     addProjectMember,

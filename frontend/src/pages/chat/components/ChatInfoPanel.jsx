@@ -68,7 +68,7 @@ export default function ChatInfoPanel({
       conversationData?.members?.find((m) => (m.userId || m.user?.id) !== currentUserId)?.user
     : null;
 
-  const isOtherOnline = otherUser?.id && presenceMap[otherUser.id]?.status === "ONLINE";
+  const isOtherOnline = otherUser?.id && presenceMap[otherUser.id]?.status?.toUpperCase() === "ONLINE";
 
   return (
     <aside className="flex h-full w-72 md:w-80 shrink-0 flex-col border-l border-[var(--color-border)] bg-[var(--color-surface)] select-none">
@@ -202,7 +202,7 @@ export default function ChatInfoPanel({
                   [u.first_name, u.last_name].filter(Boolean).join(" ") ||
                   u.name ||
                   "Member";
-                const isOnline = uId && presenceMap[uId]?.status === "ONLINE";
+                const isOnline = uId && presenceMap[uId]?.status?.toUpperCase() === "ONLINE";
                 const initials = (
                   [u.first_name?.[0], u.last_name?.[0]].filter(Boolean).join("") || name[0] || "U"
                 ).toUpperCase();

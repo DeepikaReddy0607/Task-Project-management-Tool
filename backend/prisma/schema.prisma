@@ -195,11 +195,13 @@ model subtasks {
   description String?
   status      String    @default("To Do") @db.VarChar(20)
   due_date    DateTime? @db.Date
+  is_archived Boolean   @default(false)
   created_at  DateTime  @default(now()) @db.Timestamptz(6)
   tasks       tasks     @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_subtasks_task")
 
   @@index([due_date], map: "idx_subtasks_due_date")
   @@index([task_id], map: "idx_subtasks_task_id")
+  @@index([is_archived], map: "idx_subtasks_archived")
 }
 
 model task_dependencies {
@@ -271,6 +273,7 @@ model users {
   profile_picture                String?
   is_active                      Boolean             @default(true)
   has_completed_onboarding       Boolean             @default(false)
+  last_seen_at                   DateTime?           @db.Timestamptz(6)
   created_at                     DateTime            @default(now()) @db.Timestamptz(6)
   updated_at                     DateTime            @default(now()) @db.Timestamptz(6)
   activity_logs                  activity_logs[]
@@ -317,6 +320,7 @@ model workspaces {
   name              String              @db.VarChar(100)
   description       String?
   owner_id          String              @db.Uuid
+  is_archived       Boolean             @default(false)
   created_at        DateTime            @default(now()) @db.Timestamptz(6)
   updated_at        DateTime            @default(now()) @db.Timestamptz(6)
   activity_logs     activity_logs[]
@@ -328,6 +332,8 @@ model workspaces {
   user_preferences_default user_preferences[] @relation("default_workspace")
   user_preferences_last user_preferences[] @relation("last_workspace")
   users             users               @relation(fields: [owner_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_workspaces_owner")
+
+  @@index([is_archived], map: "idx_workspaces_archived")
 }
 
 model project_health_snapshots {

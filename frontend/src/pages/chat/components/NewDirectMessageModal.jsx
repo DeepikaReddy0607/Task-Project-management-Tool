@@ -141,7 +141,7 @@ export default function NewDirectMessageModal({
             </div>
           ) : (
             filteredMembers.map((member) => {
-              const isOnline = presenceMap[member.id]?.status === "ONLINE";
+              const isOnline = presenceMap[member.id]?.status?.toUpperCase() === "ONLINE";
               const initials = (
                 [member.firstName?.[0], member.lastName?.[0]].filter(Boolean).join("") ||
                 member.fullName[0] ||

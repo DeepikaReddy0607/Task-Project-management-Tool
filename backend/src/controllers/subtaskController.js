@@ -4,7 +4,9 @@ import {
     getSubtask,
     updateSubtask,
     updateSubtaskStatus,
-    deleteSubtask
+    deleteSubtask,
+    archiveSubtask,
+    restoreSubtask
 } from "../services/subtaskService.js";
 import { emitRealtimeEvent } from "../socket.js";
 
@@ -110,6 +112,11 @@ const getAll = async (req, res, next) => {
             taskId
         } = req.params;
 
+        const {
+            archived,
+            includeArchived
+        } = req.query;
+
         if (!taskId) {
             return res.status(400).json({
                 message: "Task ID is required"
@@ -118,7 +125,8 @@ const getAll = async (req, res, next) => {
 
         const subtasks = await getTaskSubtasks(
             taskId,
-            req.user.userId
+            req.user.userId,
+            { archived, includeArchived }
         );
 
         return res.status(200).json({
@@ -414,12 +422,82 @@ const remove = async (req, res, next) => {
             });
         }
 
-        if (error.message === "Workspace access denied") {
+        if (error.message === "Workspace access denied" || error.message === "Project access denied") {
             return res.status(403).json({
                 message: error.message
             });
         }
 
+        next(error);
+    }
+};
+
+const archive = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ message: "Subtask ID is required" });
+        }
+
+        const subtask = await archiveSubtask(id, req.user.userId);
+
+        emitRealtimeEvent({
+            type: "subtask.archived",
+            projectId: subtask.tasks?.project_id,
+            taskId: subtask.task_id,
+            userId: req.user.userId,
+            data: subtask
+        });
+
+        return res.status(200).json({
+            message: "Subtask archived successfully",
+            subtask
+        });
+    } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ message: error.message });
+        }
+        if (error.message === "Subtask not found") {
+            return res.status(404).json({ message: error.message });
+        }
+        if (error.message === "Workspace access denied" || error.message === "Project access denied") {
+            return res.status(403).json({ message: error.message });
+        }
+        next(error);
+    }
+};
+
+const restore = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ message: "Subtask ID is required" });
+        }
+
+        const subtask = await restoreSubtask(id, req.user.userId);
+
+        emitRealtimeEvent({
+            type: "subtask.restored",
+            projectId: subtask.tasks?.project_id,
+            taskId: subtask.task_id,
+            userId: req.user.userId,
+            data: subtask
+        });
+
+        return res.status(200).json({
+            message: "Subtask restored successfully",
+            subtask
+        });
+    } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ message: error.message });
+        }
+        if (error.message === "Subtask not found") {
+            return res.status(404).json({ message: error.message });
+        }
+        if (error.message === "Workspace access denied" || error.message === "Project access denied") {
+            return res.status(403).json({ message: error.message });
+        }
         next(error);
     }
 };
@@ -430,5 +508,7 @@ export {
     getOne,
     update,
     updateStatus,
-    remove
+    remove,
+    archive,
+    restore
 };

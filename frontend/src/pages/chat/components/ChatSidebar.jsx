@@ -192,7 +192,8 @@ export default function ChatSidebar({
                   {};
 
                 const isOnline =
-                  otherUser?.id && presenceMap[otherUser.id]?.status === "ONLINE";
+                  otherUser?.id &&
+                  presenceMap[otherUser.id]?.status?.toUpperCase() === "ONLINE";
 
                 const displayName =
                   conv.title ||

@@ -17,7 +17,9 @@ import {
     getAll, 
     getOne, 
     update, 
+    remove,
     archive, 
+    restore,
     addMember,
     getMembers,
     updateMemberRole,
@@ -422,17 +424,37 @@ router.patch(
     update
 );
 
-// Archive / Delete a project
+// Archive a project
 router.patch(
     "/projects/:id/archive",
     authMiddleware,
     archive
 );
 
+router.post(
+    "/projects/:id/archive",
+    authMiddleware,
+    archive
+);
+
+// Restore a project
+router.patch(
+    "/projects/:id/restore",
+    authMiddleware,
+    restore
+);
+
+router.post(
+    "/projects/:id/restore",
+    authMiddleware,
+    restore
+);
+
+// Permanently delete a project
 router.delete(
     "/projects/:id",
     authMiddleware,
-    archive
+    remove
 );
 
 // Add a member to a project

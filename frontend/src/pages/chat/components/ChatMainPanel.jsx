@@ -73,7 +73,8 @@ export default function ChatMainPanel({
       conversationData?.members?.find((m) => (m.userId || m.user?.id) !== currentUserId)?.user
     : null;
 
-  const isOtherOnline = otherUser?.id && presenceMap[otherUser.id]?.status === "ONLINE";
+  const isOtherOnline = otherUser?.id && presenceMap[otherUser.id]?.status?.toUpperCase() === "ONLINE";
+  const otherLastSeen = otherUser?.id && presenceMap[otherUser.id]?.lastSeen;
 
   // Typing text formatting
   const typingText =
@@ -136,7 +137,11 @@ export default function ChatMainPanel({
                   {targetName}
                 </h2>
                 <span className="block text-[11px] text-[var(--color-text-subtle)] leading-none">
-                  {isOtherOnline ? "Online" : "Offline"}
+                  {isOtherOnline
+                    ? "Online"
+                    : otherLastSeen
+                    ? `Offline · Last seen ${new Date(otherLastSeen).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                    : "Offline"}
                 </span>
               </div>
             </div>

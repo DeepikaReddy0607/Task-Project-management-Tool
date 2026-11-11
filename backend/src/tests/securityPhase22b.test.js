@@ -288,7 +288,8 @@ describe("PHASE 22B: Security Hardening Test Suite (Single-Use Tokens, Rate Limi
     });
 
     test("7. Registration rate limiting allows up to 30 requests and rejects the 31st with HTTP 429", async () => {
-        const clientIp = "192.168.1.102";
+        const clientIp = `192.168.1.${Math.floor(Math.random() * 150) + 105}`;
+        const runId = Date.now();
 
         for (let i = 0; i < 30; i++) {
             const res = await fetch(`${baseApiUrl}/auth/register`, {
@@ -300,7 +301,7 @@ describe("PHASE 22B: Security Hardening Test Suite (Single-Use Tokens, Rate Limi
                 body: JSON.stringify({
                     firstName: "Rate",
                     lastName: "Tester",
-                    email: `register_quota_${i}@test.com`,
+                    email: `reg_${runId}_${i}@test.com`,
                     password: "Password123!"
                 })
             });
@@ -317,7 +318,7 @@ describe("PHASE 22B: Security Hardening Test Suite (Single-Use Tokens, Rate Limi
             body: JSON.stringify({
                 firstName: "Rate",
                 lastName: "Tester",
-                email: "register_quota_31@test.com",
+                email: `reg_${runId}_31@test.com`,
                 password: "Password123!"
             })
         });

@@ -4,6 +4,7 @@ import {
     getTask,
     updateTask,
     assignTask,
+    deleteTask,
     archiveTask,
     restoreTask,
     duplicateTask,
@@ -30,7 +31,8 @@ const create = async (req, res, next) => {
             startDate,
             dueDate,
             estimatedHours,
-            assignedTo
+            assignedTo,
+            workspaceId
         } = req.body;
 
 
@@ -50,6 +52,8 @@ const create = async (req, res, next) => {
         }
 
 
+        const resolvedWorkspaceId = workspaceId || req.query.workspaceId || null;
+
         const task = await createTask(
             projectId,
             req.user.userId,
@@ -60,14 +64,15 @@ const create = async (req, res, next) => {
             startDate,
             dueDate,
             estimatedHours,
-            assignedTo
+            assignedTo,
+            resolvedWorkspaceId
         );
 
-        const workspaceId = task.projects?.workspace_id || task.workspace_id;
-        if (workspaceId) {
+        const eventWorkspaceId = task.projects?.workspace_id || task.workspace_id || resolvedWorkspaceId;
+        if (eventWorkspaceId) {
             try {
                 await createActivity({
-                    workspaceId,
+                    workspaceId: eventWorkspaceId,
                     userId: req.user.userId,
                     actionType: "TASK_CREATED",
                     entityType: "TASK",
@@ -81,7 +86,7 @@ const create = async (req, res, next) => {
 
         emitRealtimeEvent({
             type: "task.created",
-            workspaceId,
+            workspaceId: eventWorkspaceId,
             projectId: task.project_id || projectId,
             taskId: task.id,
             userId: task.assigned_to || req.user.userId,
@@ -160,7 +165,7 @@ const getAll = async (req, res, next) => {
         const tasks = await getProjectTasks(
             projectId,
             req.user.userId,
-            { page: req.query.page, limit: req.query.limit, archived: req.query.archived === "true" || req.query.isArchived === "true" }
+            { page: req.query.page, limit: req.query.limit, archived: req.query.archived === "true" || req.query.isArchived === "true", workspaceId: req.query.workspaceId }
         );
 
         return res.status(200).json({
@@ -607,6 +612,42 @@ const restore = async (req, res, next) => {
     }
 };
 
+const remove = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ message: "Task ID is required" });
+        }
+
+        const result = await deleteTask(id, req.user.userId);
+
+        emitRealtimeEvent({
+            type: "task.deleted",
+            workspaceId: result.workspaceId,
+            projectId: result.projectId,
+            taskId: id,
+            userId: req.user.userId,
+            data: result
+        });
+
+        return res.status(200).json({
+            message: "Task deleted successfully",
+            task: result
+        });
+    } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ message: error.message });
+        }
+        if (error.message === "Task not found") {
+            return res.status(404).json({ message: error.message });
+        }
+        if (error.message === "Project access denied" || error.message === "Workspace access denied") {
+            return res.status(403).json({ message: error.message });
+        }
+        next(error);
+    }
+};
+
 const duplicate = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -662,9 +703,11 @@ const duplicate = async (req, res, next) => {
 const getMine = async (req, res, next) => {
     try {
 
+        const { archived, workspaceId, projectId, assignedTo } = req.query;
+
         const tasks = await getMyTasks(
             req.user.userId,
-            { archived: req.query.archived }
+            { archived, workspaceId, projectId, assignedTo }
         );
 
         return res.status(200).json({
@@ -806,6 +849,7 @@ export {
     getOne,
     update,
     assign,
+    remove,
     archive,
     restore,
     duplicate,

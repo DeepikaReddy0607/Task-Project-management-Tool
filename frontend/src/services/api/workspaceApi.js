@@ -1,7 +1,7 @@
 import api from "./axios";
 
-export const getWorkspaces = async () => {
-  const response = await api.get("/workspaces");
+export const getWorkspaces = async (params = {}) => {
+  const response = await api.get("/workspaces", { params });
   return response.data;
 };
 
@@ -25,6 +25,16 @@ export const updateWorkspace = async (workspaceId, workspaceData) => {
 
 export const deleteWorkspace = async (workspaceId) => {
   const response = await api.delete(`/workspaces/${workspaceId}`);
+  return response.data;
+};
+
+export const archiveWorkspace = async (workspaceId) => {
+  const response = await api.patch(`/workspaces/${workspaceId}/archive`);
+  return response.data;
+};
+
+export const restoreWorkspace = async (workspaceId) => {
+  const response = await api.patch(`/workspaces/${workspaceId}/restore`);
   return response.data;
 };
 

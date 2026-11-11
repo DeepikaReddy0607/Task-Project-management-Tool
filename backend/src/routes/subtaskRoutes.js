@@ -8,7 +8,9 @@ import {
     getOne,
     update,
     updateStatus,
-    remove
+    remove,
+    archive,
+    restore
 } from "../controllers/subtaskController.js";
 
 
@@ -50,7 +52,31 @@ router.patch(
     updateStatus
 );
 
-// Delete a subtask
+// Archive a subtask
+router.patch(
+    "/subtasks/:id/archive",
+    authMiddleware,
+    archive
+);
+router.post(
+    "/subtasks/:id/archive",
+    authMiddleware,
+    archive
+);
+
+// Restore a subtask
+router.patch(
+    "/subtasks/:id/restore",
+    authMiddleware,
+    restore
+);
+router.post(
+    "/subtasks/:id/restore",
+    authMiddleware,
+    restore
+);
+
+// Delete a subtask (permanent)
 router.delete(
     "/subtasks/:id",
     authMiddleware,

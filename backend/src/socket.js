@@ -99,6 +99,90 @@ export const emitChatMessageCreated = (message, room) => {
 };
 
 /**
+ * Dispatch chat message to container room and individual user rooms for instant delivery and notifications.
+ */
+export const dispatchChatMessage = async (message, senderId) => {
+    if (!io || !message) return;
+    const room = message.channel_id ? `channel:${message.channel_id}` : `conversation:${message.conversation_id}`;
+    emitChatMessageCreated(message, room);
+
+    try {
+        let recipientUserIds = [];
+        let containerTitle = "Direct Message";
+
+        if (message.conversation_id) {
+            const conv = await prisma.conversations.findUnique({
+                where: { id: message.conversation_id },
+                include: {
+                    conversation_members: {
+                        select: { user_id: true },
+                    },
+                },
+            });
+            if (conv) {
+                containerTitle = conv.title || "Direct Message";
+                recipientUserIds = (conv.conversation_members || [])
+                    .map((m) => m.user_id)
+                    .filter((id) => id !== senderId);
+            }
+        } else if (message.channel_id) {
+            const chan = await prisma.channels.findUnique({
+                where: { id: message.channel_id },
+                include: {
+                    channel_members: {
+                        select: { user_id: true },
+                    },
+                },
+            });
+            if (chan) {
+                containerTitle = `#${chan.name}`;
+                recipientUserIds = (chan.channel_members || [])
+                    .map((m) => m.user_id)
+                    .filter((id) => id !== senderId);
+            }
+        }
+
+        const senderName =
+            [message.users?.first_name, message.users?.last_name].filter(Boolean).join(" ") ||
+            "Team Member";
+
+        const notificationPayload = {
+            id: message.id,
+            senderId,
+            senderName,
+            senderPicture: message.users?.profile_picture || null,
+            content: message.content,
+            preview: message.content.length > 100 ? `${message.content.slice(0, 100)}...` : message.content,
+            conversationId: message.conversation_id || null,
+            channelId: message.channel_id || null,
+            containerTitle,
+            createdAt: message.created_at,
+        };
+
+        for (const recipientId of recipientUserIds) {
+            // Deliver message to user's personal socket room so UI and unread count update in real-time
+            io.to(`user:${recipientId}`).emit("chat:message_created", message);
+            // Deliver popup notification
+            io.to(`user:${recipientId}`).emit("chat:notification", notificationPayload);
+        }
+
+        if (process.send && recipientUserIds.length > 0) {
+            try {
+                const userRooms = recipientUserIds.map((id) => `user:${id}`);
+                process.send({
+                    type: "TASKFLOW_SOCKET_BROADCAST",
+                    eventType: "chat:notification",
+                    targetRooms: userRooms,
+                    eventPayload: notificationPayload,
+                });
+            } catch {}
+        }
+    } catch (err) {
+        console.error("Failed to dispatch chat notification:", err);
+    }
+};
+
+/**
  * Broadcast chat message modification to room and cluster peer workers.
  */
 export const emitChatMessageUpdated = (message, room) => {
@@ -510,9 +594,8 @@ export const initSocket = (httpServer) => {
             try {
                 const { sendMessage } = await import("./services/chatService.js");
                 const message = await sendMessage(socket.user.userId, payload);
-                const room = message.channel_id ? `channel:${message.channel_id}` : `conversation:${message.conversation_id}`;
 
-                emitChatMessageCreated(message, room);
+                await dispatchChatMessage(message, socket.user.userId);
 
                 if (typeof callback === "function") callback({ success: true, message });
             } catch (err) {
@@ -584,12 +667,30 @@ export const initSocket = (httpServer) => {
         });
 
         // 9. Query Presence for Specific Users
-        socket.on("chat:get_presence", ({ userIds = [] } = {}, callback) => {
+        socket.on("chat:get_presence", async ({ userIds = [] } = {}, callback) => {
             const presence = {};
+            const missingIds = [];
             if (Array.isArray(userIds)) {
                 userIds.forEach((uId) => {
-                    presence[uId] = getUserPresence(uId);
+                    const p = getUserPresence(uId);
+                    presence[uId] = p;
+                    if (p.status === "offline" && !p.lastSeen) {
+                        missingIds.push(uId);
+                    }
                 });
+            }
+            if (missingIds.length > 0) {
+                try {
+                    const dbUsers = await prisma.users.findMany({
+                        where: { id: { in: missingIds } },
+                        select: { id: true, last_seen_at: true },
+                    });
+                    for (const u of dbUsers) {
+                        if (u.last_seen_at && presence[u.id]) {
+                            presence[u.id].lastSeen = u.last_seen_at.toISOString();
+                        }
+                    }
+                } catch {}
             }
             if (typeof callback === "function") callback({ success: true, presence });
         });
@@ -685,6 +786,10 @@ export const initSocket = (httpServer) => {
                     const nowIso = new Date().toISOString();
                     userLastSeen.set(userId, nowIso);
                     broadcastPresenceUpdate(userId, "offline", socket.workspaceIds, nowIso);
+                    prisma.users.update({
+                        where: { id: userId },
+                        data: { last_seen_at: new Date() },
+                    }).catch(() => {});
                 }
             }
         });

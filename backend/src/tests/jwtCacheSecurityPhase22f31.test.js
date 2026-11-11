@@ -286,23 +286,43 @@ describe("PHASE 22F.3.1: JWT Cache Security & Invalidation Suite", () => {
 
     test("12. Live DB Assignment: Task assignment verifies project membership live from DB", async () => {
         const { createTask } = await import("../services/taskService.js");
-        const wm = await prisma.workspace_members.findFirst({
-            where: {
-                workspaces: {
-                    projects: { some: {} }
-                }
-            },
-            include: {
-                workspaces: {
-                    include: {
-                        projects: { take: 1 }
+        let pm = await prisma.project_members.findFirst({
+            include: { projects: true }
+        });
+        let creatorId, projectId;
+        if (pm) {
+            creatorId = pm.user_id;
+            projectId = pm.project_id;
+        } else {
+            const wm = await prisma.workspace_members.findFirst({
+                where: {
+                    workspaces: {
+                        projects: { some: {} }
+                    }
+                },
+                include: {
+                    workspaces: {
+                        include: {
+                            projects: { take: 1 }
+                        }
                     }
                 }
-            }
-        });
-        assert.ok(wm, "Valid workspace member with projects must exist");
-        const creatorId = wm.user_id;
-        const projectId = wm.workspaces.projects[0].id;
+            });
+            assert.ok(wm, "Valid workspace member with projects must exist");
+            creatorId = wm.user_id;
+            projectId = wm.workspaces.projects[0].id;
+            await prisma.project_members.upsert({
+                where: {
+                    project_id_user_id: { project_id: projectId, user_id: creatorId }
+                },
+                update: {},
+                create: {
+                    project_id: projectId,
+                    user_id: creatorId,
+                    role: "Member"
+                }
+            });
+        }
 
         const nonMemberId = "00000000-0000-0000-0000-000000000000";
 

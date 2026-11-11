@@ -73,7 +73,7 @@ export const verifyProjectAccess = async (projectId, userId) => {
         return project;
     }
 
-    // 3. Workspace member access
+    // 3. Workspace Owner or Admin administrative access
     const workspaceMembership = await prisma.workspace_members.findFirst({
         where: {
             workspace_id: project.workspace_id,
@@ -81,7 +81,11 @@ export const verifyProjectAccess = async (projectId, userId) => {
         }
     });
 
-    if (workspaceMembership) {
+    if (
+        workspaceMembership &&
+        (workspaceMembership.workspace_role === "Owner" ||
+            workspaceMembership.workspace_role === "Admin")
+    ) {
         return project;
     }
 

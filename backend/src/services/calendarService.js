@@ -56,29 +56,36 @@ export const parseCalendarBounds = (startDate, endDate) => {
 export const getCalendarEvents = async (userId, { startDate, endDate } = {}) => {
     const { parsedStart, parsedEnd } = parseCalendarBounds(startDate, endDate);
 
-    // Get all projects where the user is an active member
-    const userMemberships = await prisma.project_members.findMany({
-        where: { user_id: userId },
-        select: { project_id: true },
+    // Resolve all projects where user has access (Manager, Member, or Workspace Owner/Admin)
+    const adminMemberships = await prisma.workspace_members.findMany({
+        where: {
+            user_id: userId,
+            workspace_role: { in: ["Owner", "Admin"] },
+        },
+        select: { workspace_id: true },
     });
-    const userProjectIds = userMemberships.map((m) => m.project_id);
+    const adminWorkspaceIds = adminMemberships.map((m) => m.workspace_id);
 
-    // Build task access filter: tasks assigned to user, created by user, OR in user's projects
-    const accessFilter = [
-        { assigned_to: userId },
-        { created_by: userId },
-    ];
-    if (userProjectIds.length > 0) {
-        accessFilter.push({ project_id: { in: userProjectIds } });
-    }
+    const authorizedProjects = await prisma.projects.findMany({
+        where: {
+            is_archived: false,
+            OR: [
+                { workspace_id: { in: adminWorkspaceIds } },
+                { manager_id: userId },
+                { project_members: { some: { user_id: userId } } },
+            ],
+        },
+        select: { id: true },
+    });
+    const authorizedProjectIds = authorizedProjects.map((p) => p.id);
 
-    // Filter tasks: must have non-null start_date or due_date
+    // Filter tasks: strictly scoped to authorized projects where all tasks are visible to members
     const taskWhere = {
         is_archived: false,
+        project_id: { in: authorizedProjectIds },
         projects: {
             is_archived: false,
         },
-        OR: accessFilter,
         AND: [
             {
                 OR: [
@@ -116,8 +123,9 @@ export const getCalendarEvents = async (userId, { startDate, endDate } = {}) => 
         taskWhere.AND.push({ OR: boundsOr });
     }
 
-    // Build project where clause: must have non-null start_date or end_date
+    // Build project where clause: strictly scoped to authorized projects with non-null dates
     const projectWhere = {
+        id: { in: authorizedProjectIds },
         is_archived: false,
         OR: [
             { start_date: { not: null } },

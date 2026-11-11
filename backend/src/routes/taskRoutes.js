@@ -8,6 +8,7 @@ import {
     getOne,
     update,
     assign,
+    remove,
     archive,
     restore,
     duplicate,
@@ -76,17 +77,24 @@ router.patch(
     assign
 );
 
-// Archive / Delete a task
+// Archive a task
 router.patch(
     "/tasks/:id/archive",
     authMiddleware,
     archive
 );
 
+router.post(
+    "/tasks/:id/archive",
+    authMiddleware,
+    archive
+);
+
+// Permanently delete a task
 router.delete(
     "/tasks/:id",
     authMiddleware,
-    archive
+    remove
 );
 
 router.patch(

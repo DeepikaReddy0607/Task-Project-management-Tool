@@ -24,6 +24,8 @@ const STATUSES = [
 ];
 
 function Kanban() {
+  const [workspaces, setWorkspaces] = useState([]);
+  const [workspaceId, setWorkspaceId] = useState("");
   const [projectId, setProjectId] = useState("all");
   const [query, setQuery] = useState("");
 
@@ -34,140 +36,133 @@ function Kanban() {
   const [error, setError] = useState("");
 
   /*
-   * Load all projects available to the logged-in user,
+   * Load projects for the selected workspace,
    * then load tasks belonging to those projects.
    */
-  const loadKanbanData = useCallback(async (silent = false) => {
+  const loadKanbanData = useCallback(async (silent = false, wsId = null) => {
     try {
       if (!silent) {
         setLoading(true);
         setError("");
       }
 
-        const workspaceResponse = await getWorkspaces();
+      const workspaceResponse = await getWorkspaces();
 
-        const workspaces =
-          workspaceResponse?.workspaces ||
-          workspaceResponse?.data ||
-          [];
+      const wsList =
+        workspaceResponse?.workspaces ||
+        workspaceResponse?.data ||
+        [];
 
-        const projectResults = await Promise.all(
-          workspaces.map(async (workspace) => {
-            const workspaceId = workspace.id;
+      setWorkspaces(wsList);
 
+      if (!wsList.length) {
+        setProjects([]);
+        setTasks([]);
+        return;
+      }
+
+      const activeWsId = wsId || workspaceId || wsList[0]?.id || "";
+      if (!workspaceId || wsId) {
+        setWorkspaceId(activeWsId);
+      }
+
+      // Load projects strictly for the active workspace
+      const projectResponse = await getProjects(activeWsId).catch(() => ({ projects: [] }));
+      const wsProjects =
+        projectResponse?.projects ||
+        projectResponse?.data ||
+        [];
+
+      setProjects(wsProjects);
+
+      /*
+       * Load tasks with bounded concurrency to eliminate N+1 connection spikes.
+       */
+      const targetProjects = projectId === "all"
+        ? wsProjects
+        : wsProjects.filter((p) => p.id === projectId);
+
+      const loadedTasks = [];
+      const BATCH_SIZE = 4;
+
+      for (let i = 0; i < targetProjects.length; i += BATCH_SIZE) {
+        const batch = targetProjects.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(
+          batch.map(async (project) => {
             try {
-              const projectResponse = await getProjects(workspaceId);
+              const taskResponse = await getProjectTasks(project.id);
+              const projectTasks =
+                taskResponse?.tasks ||
+                taskResponse?.data ||
+                [];
 
-              return (
-                projectResponse?.projects ||
-                projectResponse?.data ||
-                []
-              );
-            } catch (projectError) {
+              return projectTasks.map((task) => ({
+                ...task,
+                projectId: project.id,
+                projectName:
+                  project.title ||
+                  project.name ||
+                  "Untitled project",
+                assignee: (() => {
+                  const user =
+                    task.users_tasks_assigned_toTousers ||
+                    task.assignee ||
+                    null;
+                  if (!user) return "Unassigned";
+                  const first = user.first_name || user.firstName || "";
+                  const last = user.last_name || user.lastName || "";
+                  const full = `${first} ${last}`.trim();
+                  return full || user.name || user.email || "Unassigned";
+                })(),
+                dueDate: task.due_date
+                  ? (() => {
+                      const match = String(task.due_date).match(/^(\d{4})-(\d{2})-(\d{2})/);
+                      const d = match
+                        ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0)
+                        : new Date(task.due_date);
+                      return !Number.isNaN(d.getTime())
+                        ? d.toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                          })
+                        : "No due date";
+                    })()
+                  : "No due date",
+                subtasksCompleted:
+                  task.subtasksCompleted ??
+                  task.completedSubtasks ??
+                  0,
+                subtasksTotal:
+                  task.subtasksTotal ??
+                  task.totalSubtasks ??
+                  0,
+              }));
+            } catch (taskError) {
               console.error(
-                `Failed to load projects for workspace ${workspaceId}:`,
-                projectError
+                `Failed to load tasks for project ${project.id}:`,
+                taskError
               );
-
               return [];
             }
           })
         );
-
-        const allProjects = projectResults.flat();
-
-        setProjects(allProjects);
-
-        /*
-         * Load tasks with bounded concurrency to eliminate N+1 connection spikes.
-         */
-        const targetProjects = projectId === "all"
-          ? allProjects
-          : allProjects.filter((p) => p.id === projectId);
-
-        const loadedTasks = [];
-        const BATCH_SIZE = 4;
-
-        for (let i = 0; i < targetProjects.length; i += BATCH_SIZE) {
-          const batch = targetProjects.slice(i, i + BATCH_SIZE);
-          const batchResults = await Promise.all(
-            batch.map(async (project) => {
-              try {
-                const taskResponse = await getProjectTasks(project.id);
-                const projectTasks =
-                  taskResponse?.tasks ||
-                  taskResponse?.data ||
-                  [];
-
-                return projectTasks.map((task) => ({
-                  ...task,
-                  projectId: project.id,
-                  projectName:
-                    project.title ||
-                    project.name ||
-                    "Untitled project",
-                  assignee: (() => {
-                    const user =
-                      task.users_tasks_assigned_toTousers ||
-                      task.assignee ||
-                      null;
-                    if (!user) return "Unassigned";
-                    const first = user.first_name || user.firstName || "";
-                    const last = user.last_name || user.lastName || "";
-                    const full = `${first} ${last}`.trim();
-                    return full || user.name || user.email || "Unassigned";
-                  })(),
-                  dueDate: task.due_date
-                    ? (() => {
-                        const match = String(task.due_date).match(/^(\d{4})-(\d{2})-(\d{2})/);
-                        const d = match
-                          ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0)
-                          : new Date(task.due_date);
-                        return !Number.isNaN(d.getTime())
-                          ? d.toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                            })
-                          : "No due date";
-                      })()
-                    : "No due date",
-                  subtasksCompleted:
-                    task.subtasksCompleted ??
-                    task.completedSubtasks ??
-                    0,
-                  subtasksTotal:
-                    task.subtasksTotal ??
-                    task.totalSubtasks ??
-                    0,
-                }));
-              } catch (taskError) {
-                console.error(
-                  `Failed to load tasks for project ${project.id}:`,
-                  taskError
-                );
-                return [];
-              }
-            })
-          );
-          loadedTasks.push(...batchResults.flat());
-        }
-
-        setTasks(loadedTasks);
-      } catch (loadError) {
-        console.error("Failed to load Kanban:", loadError);
-
-        setError(
-          loadError?.response?.data?.message ||
-            "Failed to load Kanban data."
-        );
-      } finally {
-        if (!silent) {
-          setLoading(false);
-        }
+        loadedTasks.push(...batchResults.flat());
       }
-    },
-    [projectId]
-  );
+
+      setTasks(loadedTasks);
+    } catch (loadError) {
+      console.error("Failed to load Kanban:", loadError);
+
+      setError(
+        loadError?.response?.data?.message ||
+          "Failed to load Kanban data."
+      );
+    } finally {
+      if (!silent) {
+        setLoading(false);
+      }
+    }
+  }, [projectId, workspaceId]);
 
   useEffect(() => {
     void loadKanbanData();
@@ -301,7 +296,37 @@ function Kanban() {
         />
 
         <Card className="p-4 sm:p-5">
-          <div className="grid gap-4 sm:grid-cols-[minmax(12rem,0.8fr)_minmax(16rem,1.2fr)]">
+          <div className="grid gap-4 sm:grid-cols-[minmax(12rem,0.7fr)_minmax(12rem,0.7fr)_minmax(16rem,1.2fr)]">
+            <label
+              className="block text-sm font-medium text-[var(--color-text)]"
+              htmlFor="kanban-workspace"
+            >
+              <span className="mb-2 block">
+                Workspace
+              </span>
+
+              <select
+                id="kanban-workspace"
+                value={workspaceId}
+                onChange={(event) => {
+                  const newWs = event.target.value;
+                  setWorkspaceId(newWs);
+                  setProjectId("all");
+                  void loadKanbanData(false, newWs);
+                }}
+                className="w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2.5 text-sm text-[var(--color-text)] shadow-[var(--shadow-xs)] outline-none transition focus:border-[var(--color-brand)] focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-focus)_18%,transparent)]"
+              >
+                {workspaces.map((ws) => (
+                  <option
+                    key={ws.id}
+                    value={ws.id}
+                  >
+                    {ws.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <label
               className="block text-sm font-medium text-[var(--color-text)]"
               htmlFor="kanban-project"

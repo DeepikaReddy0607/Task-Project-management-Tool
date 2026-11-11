@@ -27,6 +27,7 @@ import TaskFlowMark from "../components/brand/TaskFlowMark";
 import NavItem from "../components/navigation/NavItem";
 import { logoutUser } from "../services/api/authApi";
 import { usePreferences } from "../context/PreferencesContext";
+import { useChatNotifications } from "../context/ChatNotificationContext";
 
 const coreNavigation = [
   { label: "Dashboard", icon: FiGrid, path: "/" },
@@ -57,6 +58,7 @@ function Sidebar({ isOpen = false, onClose }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { preferences, updatePreference } = usePreferences();
+  const { totalUnread } = useChatNotifications();
   const isCollapsed = Boolean(preferences.sidebarCollapsed);
 
   const navigateTo = (path) => {
@@ -138,6 +140,7 @@ function Sidebar({ isOpen = false, onClose }) {
                 {...item}
                 isCollapsed={isCollapsed}
                 active={location.pathname === item.path}
+                badge={item.path === "/chat" ? totalUnread : undefined}
                 onClick={() => navigateTo(item.path)}
               />
             ))}

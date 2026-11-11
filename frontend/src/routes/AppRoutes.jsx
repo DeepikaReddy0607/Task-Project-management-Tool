@@ -4,6 +4,7 @@ import ProtectedRoute from "../components/auth/ProtectedRoute";
 import { AssistantProvider } from "../context/AssistantContext";
 import { SocketProvider } from "../context/SocketContext";
 import { PreferencesProvider } from "../context/PreferencesContext";
+import { ChatNotificationProvider } from "../context/ChatNotificationContext";
 
 // Lazy-loaded routes for optimal bundle code-splitting
 const Dashboard = lazy(() => import("../pages/dashboard/Dashboard"));
@@ -48,10 +49,11 @@ function AppRoutes() {
   return (
     <BrowserRouter>
       <SocketProvider>
-        <PreferencesProvider>
-          <AssistantProvider>
-            <Suspense fallback={<PageLoader />}>
-              <Routes>
+        <ChatNotificationProvider>
+          <PreferencesProvider>
+            <AssistantProvider>
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
                 {/* Public Authentication Routes */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
@@ -99,8 +101,9 @@ function AppRoutes() {
             </Suspense>
           </AssistantProvider>
         </PreferencesProvider>
-      </SocketProvider>
-    </BrowserRouter>
+      </ChatNotificationProvider>
+    </SocketProvider>
+  </BrowserRouter>
   );
 }
 

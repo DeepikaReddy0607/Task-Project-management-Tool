@@ -126,10 +126,14 @@ export const getUserAccessibleScope = async (userId, userRole = null) => {
 
         const workspaceIds = [...new Set([...ownedWorkspaceIds, ...memberWorkspaceIds])];
 
-        // Accessible projects: in accessible workspaces OR explicit project member OR manager
+        const adminWorkspaceIds = inMemoryStore.workspaceMembers
+            .filter(wm => (wm.user_id || wm.userId) === userId && ["Owner", "Admin", "owner", "admin"].includes(wm.workspace_role || wm.role || ""))
+            .map(wm => wm.workspace_id || wm.workspaceId);
+
+        // Accessible projects: in admin workspaces OR explicit project member OR manager
         const accessibleProjects = inMemoryStore.projects.filter(p => {
             const pWsId = p.workspace_id || p.workspaceId;
-            if (workspaceIds.includes(pWsId)) return true;
+            if (adminWorkspaceIds.includes(pWsId)) return true;
             if ((p.manager_id || p.managerId) === userId) return true;
             const isProjMember = inMemoryStore.projectMembers.some(
                 pm => (pm.project_id || pm.projectId) === p.id && (pm.user_id || pm.userId) === userId
@@ -182,7 +186,15 @@ export const getUserAccessibleScope = async (userId, userRole = null) => {
             });
         }
 
-        // Consolidated queries: 2 queries instead of 5
+        const adminMemberships = await prisma.workspace_members.findMany({
+            where: {
+                user_id: userId,
+                workspace_role: { in: ["Owner", "Admin"] }
+            },
+            select: { workspace_id: true }
+        });
+        const adminWorkspaceIds = adminMemberships.map(m => m.workspace_id);
+
         const userWorkspaces = await prisma.workspaces.findMany({
             where: {
                 OR: [
@@ -197,7 +209,7 @@ export const getUserAccessibleScope = async (userId, userRole = null) => {
         const userProjects = await prisma.projects.findMany({
             where: {
                 OR: [
-                    { workspace_id: { in: workspaceIds } },
+                    { workspace_id: { in: adminWorkspaceIds } },
                     { manager_id: userId },
                     { project_members: { some: { user_id: userId } } }
                 ]

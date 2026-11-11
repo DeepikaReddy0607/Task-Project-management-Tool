@@ -19,9 +19,11 @@ import {
   markChannelRead,
   markConversationRead,
 } from "../../services/api/chatApi";
+import { useChatNotifications } from "../../context/ChatNotificationContext";
 
 export function useChatState() {
   const { socket, isConnected } = useSocket();
+  const { setActiveContainerId, markContainerAsRead: markGlobalContainerAsRead } = useChatNotifications();
 
   // User & Workspace State
   const [currentUser] = useState(() => {
@@ -180,6 +182,8 @@ export function useChatState() {
     setTypingUsers(new Map());
 
     // Clear unread badge for this target
+    setActiveContainerId(activeTarget.id);
+    markGlobalContainerAsRead(activeTarget.id);
     setUnreadCounts((prev) => ({
       ...prev,
       [activeTarget.id]: 0,
@@ -259,6 +263,7 @@ export function useChatState() {
 
     return () => {
       active = false;
+      setActiveContainerId(null);
       if (socket && isConnected) {
         if (activeTarget.type === "channel") {
           socket.emit("chat:leave_channel", { channelId: activeTarget.id });

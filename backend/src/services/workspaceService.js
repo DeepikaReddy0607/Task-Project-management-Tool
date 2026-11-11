@@ -45,12 +45,22 @@ const createWorkspace = async (userId, name, description) => {
     return workspace;
 };
 
-const getUserWorkspaces = async (userId) => {
+const getUserWorkspaces = async (userId, options = {}) => {
+    const isArchived = options?.archived === true || options?.archived === "true";
+    const includeAll = options?.archived === "all" || options?.includeArchived === true || options?.includeArchived === "true";
+
+    const where = {
+        user_id: userId,
+    };
+
+    if (!includeAll) {
+        where.workspaces = {
+            is_archived: isArchived
+        };
+    }
 
     const memberships = await prisma.workspace_members.findMany({
-        where: {
-            user_id: userId
-        },
+        where,
         include: {
             workspaces: true
         },
@@ -65,6 +75,7 @@ const getUserWorkspaces = async (userId) => {
         description: membership.workspaces.description,
         ownerId: membership.workspaces.owner_id,
         workspaceRole: membership.workspace_role,
+        isArchived: membership.workspaces.is_archived,
         createdAt: membership.workspaces.created_at,
         updatedAt: membership.workspaces.updated_at
     }));
@@ -107,6 +118,7 @@ const getWorkspaceById = async (workspaceId, userId) => {
         description: membership.workspaces.description,
         ownerId: membership.workspaces.owner_id,
         workspaceRole: membership.workspace_role,
+        isArchived: membership.workspaces.is_archived,
         createdAt: membership.workspaces.created_at,
         updatedAt: membership.workspaces.updated_at
     };
@@ -599,6 +611,110 @@ const deleteWorkspace = async (
     };
 };
 
+const archiveWorkspace = async (workspaceId, requesterId) => {
+    const workspace = await prisma.workspaces.findUnique({
+        where: { id: workspaceId }
+    });
+    if (!workspace) {
+        const error = new Error("Workspace not found");
+        error.statusCode = 404;
+        throw error;
+    }
+    const requesterMembership = await prisma.workspace_members.findUnique({
+        where: {
+            workspace_id_user_id: {
+                workspace_id: workspaceId,
+                user_id: requesterId
+            }
+        }
+    });
+    if (!requesterMembership) {
+        const error = new Error("Workspace access denied");
+        error.statusCode = 403;
+        throw error;
+    }
+    if (requesterMembership.workspace_role !== "Owner" && requesterMembership.workspace_role !== "Admin") {
+        const error = new Error("Only workspace Owner or Admin can archive workspace");
+        error.statusCode = 403;
+        throw error;
+    }
+    if (workspace.is_archived) {
+        const error = new Error("Workspace is already archived");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const updated = await prisma.workspaces.update({
+        where: { id: workspaceId },
+        data: {
+            is_archived: true,
+            updated_at: new Date()
+        }
+    });
+
+    return {
+        id: updated.id,
+        name: updated.name,
+        description: updated.description,
+        ownerId: updated.owner_id,
+        isArchived: updated.is_archived,
+        createdAt: updated.created_at,
+        updatedAt: updated.updated_at
+    };
+};
+
+const restoreWorkspace = async (workspaceId, requesterId) => {
+    const workspace = await prisma.workspaces.findUnique({
+        where: { id: workspaceId }
+    });
+    if (!workspace) {
+        const error = new Error("Workspace not found");
+        error.statusCode = 404;
+        throw error;
+    }
+    const requesterMembership = await prisma.workspace_members.findUnique({
+        where: {
+            workspace_id_user_id: {
+                workspace_id: workspaceId,
+                user_id: requesterId
+            }
+        }
+    });
+    if (!requesterMembership) {
+        const error = new Error("Workspace access denied");
+        error.statusCode = 403;
+        throw error;
+    }
+    if (requesterMembership.workspace_role !== "Owner" && requesterMembership.workspace_role !== "Admin") {
+        const error = new Error("Only workspace Owner or Admin can restore workspace");
+        error.statusCode = 403;
+        throw error;
+    }
+    if (!workspace.is_archived) {
+        const error = new Error("Workspace is not archived");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const updated = await prisma.workspaces.update({
+        where: { id: workspaceId },
+        data: {
+            is_archived: false,
+            updated_at: new Date()
+        }
+    });
+
+    return {
+        id: updated.id,
+        name: updated.name,
+        description: updated.description,
+        ownerId: updated.owner_id,
+        isArchived: updated.is_archived,
+        createdAt: updated.created_at,
+        updatedAt: updated.updated_at
+    };
+};
+
 export {
     createWorkspace,
     getUserWorkspaces,
@@ -608,5 +724,7 @@ export {
     removeWorkspaceMember,
     updateWorkspaceMemberRole,
     updateWorkspace,
-    deleteWorkspace
+    deleteWorkspace,
+    archiveWorkspace,
+    restoreWorkspace
 };

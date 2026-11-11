@@ -9,7 +9,9 @@ import {
     removeMember,
     updateMemberRole,
     update,
-    remove
+    remove,
+    archive,
+    restore
 } from "../controllers/workspaceController.js";
 
 const router = express.Router();
@@ -26,7 +28,15 @@ router.get("/:id", authMiddleware, getOne);
 // Update workspace details
 router.patch("/:id", authMiddleware, update);
 
-// Delete workspace
+// Archive workspace
+router.patch("/:id/archive", authMiddleware, archive);
+router.post("/:id/archive", authMiddleware, archive);
+
+// Restore workspace
+router.patch("/:id/restore", authMiddleware, restore);
+router.post("/:id/restore", authMiddleware, restore);
+
+// Delete workspace (permanent)
 router.delete("/:id", authMiddleware, remove);
 
 // Add a member to a workspace

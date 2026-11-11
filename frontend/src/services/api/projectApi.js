@@ -11,9 +11,10 @@ export const createProject = async (workspaceId, projectData) => {
 };
 
 // Get projects in workspace
-export const getProjects = async (workspaceId) => {
+export const getProjects = async (workspaceId, params = {}) => {
   const response = await api.get(
-    `/workspaces/${workspaceId}/projects`
+    `/workspaces/${workspaceId}/projects`,
+    { params }
   );
 
   return response.data;

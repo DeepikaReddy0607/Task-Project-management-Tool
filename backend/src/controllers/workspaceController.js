@@ -7,7 +7,9 @@ import {
     removeWorkspaceMember,
     updateWorkspaceMemberRole,
     updateWorkspace,
-    deleteWorkspace
+    deleteWorkspace,
+    archiveWorkspace,
+    restoreWorkspace
 } from "../services/workspaceService.js";
 import { emitRealtimeEvent } from "../socket.js";
 import { createActivity } from "../services/activityService.js";
@@ -47,9 +49,11 @@ const create = async (req, res, next) => {
 
 const getAll = async (req, res, next) => {
     try {
+        const { archived, includeArchived } = req.query;
 
         const workspaces = await getUserWorkspaces(
-            req.user.userId
+            req.user.userId,
+            { archived, includeArchived }
         );
 
         return res.status(200).json({
@@ -545,6 +549,100 @@ const remove = async (req, res, next) => {
     }
 };
 
+const archive = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({
+                message: "Workspace ID is required"
+            });
+        }
+
+        const workspace = await archiveWorkspace(id, req.user.userId);
+
+        await createActivity({
+            workspaceId: id,
+            userId: req.user.userId,
+            actionType: "WORKSPACE_ARCHIVED",
+            entityType: "WORKSPACE",
+            entityId: id,
+            description: `Archived workspace ${workspace.name}`
+        });
+
+        emitRealtimeEvent({
+            type: "workspace.archived",
+            workspaceId: id,
+            userId: req.user.userId,
+            data: workspace
+        });
+
+        return res.status(200).json({
+            message: "Workspace archived successfully",
+            workspace
+        });
+    } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+        if (error.message === "Workspace not found") {
+            return res.status(404).json({ message: error.message });
+        }
+        if (error.message === "Workspace access denied") {
+            return res.status(403).json({ message: error.message });
+        }
+        next(error);
+    }
+};
+
+const restore = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({
+                message: "Workspace ID is required"
+            });
+        }
+
+        const workspace = await restoreWorkspace(id, req.user.userId);
+
+        await createActivity({
+            workspaceId: id,
+            userId: req.user.userId,
+            actionType: "WORKSPACE_RESTORED",
+            entityType: "WORKSPACE",
+            entityId: id,
+            description: `Restored workspace ${workspace.name}`
+        });
+
+        emitRealtimeEvent({
+            type: "workspace.restored",
+            workspaceId: id,
+            userId: req.user.userId,
+            data: workspace
+        });
+
+        return res.status(200).json({
+            message: "Workspace restored successfully",
+            workspace
+        });
+    } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                message: error.message
+            });
+        }
+        if (error.message === "Workspace not found") {
+            return res.status(404).json({ message: error.message });
+        }
+        if (error.message === "Workspace access denied") {
+            return res.status(403).json({ message: error.message });
+        }
+        next(error);
+    }
+};
+
 export {
     create,
     getAll,
@@ -554,5 +652,7 @@ export {
     removeMember,
     updateMemberRole,
     update,
-    remove
+    remove,
+    archive,
+    restore
 };

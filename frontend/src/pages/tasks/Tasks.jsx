@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   FiAlertCircle,
   FiArchive,
@@ -8,11 +9,13 @@ import {
   FiClock,
   FiEdit2,
   FiFilter,
+  FiLayers,
   FiPlus,
   FiSearch,
   FiX,
   FiCopy,
   FiRotateCcw,
+  FiTrash2,
 } from "react-icons/fi";
 
 import Quackie from "../../components/brand/Quackie";
@@ -30,6 +33,7 @@ import {
   getMyTasks,
   createTask,
   updateTask,
+  deleteTask,
   archiveTask,
   restoreTask,
   duplicateTask,
@@ -310,14 +314,20 @@ const normalizeTask = (task) => {
 ============================================================ */
 
 function Tasks() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+
   const [tasks, setTasks] = useState([]);
 
   const [projects, setProjects] = useState([]);
 
+  const [workspaces, setWorkspaces] = useState([]);
+
   const [membersByProject, setMembersByProject] = useState({});
 
-  const [selectedWorkspaceId, setSelectedWorkspaceId] =
-    useState("");
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(
+    () => searchParams.get("workspaceId") || ""
+  );
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -514,6 +524,11 @@ function Tasks() {
     [tasks, selectedTaskId]
   );
 
+  const currentWorkspace = useMemo(
+    () => workspaces.find((w) => w.id === selectedWorkspaceId) || null,
+    [workspaces, selectedWorkspaceId]
+  );
+
   const { setPageContext } = useAssistantContext();
 
   useEffect(() => {
@@ -636,20 +651,7 @@ function Tasks() {
   };
 
 
-  useEffect(() => {
-    if (activeTab === "Archived") {
-      getMyTasks({ archived: true })
-        .then((response) => {
-          const archivedTasks = (response.tasks || []).map(normalizeTask);
-          setTasks((current) => {
-            const existingIds = new Set(current.map((t) => t.id));
-            const newArchived = archivedTasks.filter((t) => !existingIds.has(t.id));
-            return [...current, ...newArchived];
-          });
-        })
-        .catch(() => {});
-    }
-  }, [activeTab]);
+
 
   /* ==========================================================
      FILTERING
@@ -839,86 +841,86 @@ function Tasks() {
      LOAD WORKSPACES / PROJECTS / MEMBERS
   ========================================================== */
 
-  const loadTaskMetadata =
-    async () => {
-      try {
-        setIsMetaLoading(true);
+  const loadTaskMetadata = async (wsId = null) => {
+    try {
+      setIsMetaLoading(true);
 
-        const workspaceResponse =
-          await getWorkspaces();
+      const workspaceResponse = await getWorkspaces();
 
-        const workspaceList =
-          workspaceResponse.workspaces ||
-          workspaceResponse.data ||
-          workspaceResponse ||
-          [];
+      const workspaceList =
+        workspaceResponse.workspaces ||
+        workspaceResponse.data ||
+        workspaceResponse ||
+        [];
 
-        if (!workspaceList.length) {
-          setProjects([]);
-          setSelectedWorkspaceId("");
-          setMembersByProject({});
-          return;
-        }
+      setWorkspaces(workspaceList);
 
-        const workspace =
-          workspaceList.find(
-            (item) =>
-              item.id ===
-              selectedWorkspaceId
-          ) ||
-          workspaceList[0];
-
-        setSelectedWorkspaceId(
-          workspace.id
-        );
-
-        const projectResponse =
-          await getProjects(
-            workspace.id
-          );
-
-        const rawProjects =
-          projectResponse.projects ||
-          projectResponse.data ||
-          projectResponse ||
-          [];
-
-        const normalizedProjects =
-          rawProjects
-            .map(normalizeProject)
-            .filter(Boolean);
-
-        setProjects(
-          normalizedProjects
-        );
-
-        await loadProjectMembers(
-          normalizedProjects
-        );
-      } catch (error) {
-        console.error(
-          "Failed to load task metadata:",
-          error
-        );
-
+      if (!workspaceList.length) {
         setProjects([]);
+        setSelectedWorkspaceId("");
         setMembersByProject({});
-
-        setFormError(
-          error.response?.data
-            ?.message ||
-            "Failed to load workspaces and projects."
-        );
-      } finally {
-        setIsMetaLoading(false);
+        return "";
       }
-    };
+
+      const requestedWsId = wsId || searchParams.get("workspaceId") || selectedWorkspaceId;
+      const targetWorkspace =
+        workspaceList.find((item) => item.id === requestedWsId) ||
+        workspaceList[0];
+
+      const activeWsId = targetWorkspace.id;
+      setSelectedWorkspaceId(activeWsId);
+
+      // Fetch projects ONLY for the active workspace to guarantee isolation
+      const projectResponse = await getProjects(activeWsId).catch(() => ({ projects: [] }));
+      const rawProjects = projectResponse.projects || projectResponse.data || projectResponse || [];
+      const normalizedProjects = rawProjects.map(normalizeProject).filter(Boolean);
+
+      setProjects(normalizedProjects);
+
+      await loadProjectMembers(normalizedProjects);
+
+      // Check if guided flow requested auto-opening the create dialog
+      const openCreate = searchParams.get("openCreate") === "true";
+      if (openCreate && normalizedProjects.length > 0) {
+        const queryProjectId = searchParams.get("projectId");
+        const matchingProject =
+          normalizedProjects.find((p) => p.id === queryProjectId) ||
+          normalizedProjects[0];
+        setForm({
+          ...emptyForm,
+          projectId: matchingProject.id,
+          assignedTo: "",
+        });
+        setEditingTaskId(null);
+        setSelectedTaskId(null);
+        setDialog("create");
+      }
+
+      return activeWsId;
+    } catch (error) {
+      console.error(
+        "Failed to load task metadata:",
+        error
+      );
+
+      setProjects([]);
+      setMembersByProject({});
+
+      setFormError(
+        error.response?.data?.message ||
+          "Failed to load workspaces and projects."
+      );
+      return "";
+    } finally {
+      setIsMetaLoading(false);
+    }
+  };
 
   /* ==========================================================
      LOAD TASKS
   ========================================================== */
 
-  const loadTasks = async (silent = false) => {
+  const loadTasks = async (silent = false, wsId = null) => {
     try {
       if (!silent) {
         setIsLoading(true);
@@ -926,22 +928,21 @@ function Tasks() {
         setFormError("");
       }
 
-      const response =
-        await getMyTasks();
+      const activeWsId = wsId !== null ? wsId : selectedWorkspaceId;
+      const params = {};
+      if (activeWsId) params.workspaceId = activeWsId;
+      if (projectFilter && projectFilter !== "All") params.projectId = projectFilter;
+      if (activeTab === "Archived") params.archived = true;
 
-      const normalizedTasks =
-        (
-          response.tasks || []
-        ).map(normalizeTask);
+      const response = await getMyTasks(params);
 
-      setTasks(
-        normalizedTasks
-      );
+      const normalizedTasks = (response.tasks || []).map(normalizeTask);
+
+      setTasks(normalizedTasks);
     } catch (error) {
       if (!silent) {
         setFormError(
-          error.response?.data
-            ?.message ||
+          error.response?.data?.message ||
             "Failed to load tasks."
         );
       }
@@ -950,6 +951,38 @@ function Tasks() {
         setIsLoading(false);
       }
     }
+  };
+
+  const handleWorkspaceChange = async (newWsId) => {
+    setSelectedWorkspaceId(newWsId);
+    setProjectFilter("All");
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("workspaceId", newWsId);
+        next.delete("projectId");
+        next.delete("openCreate");
+        return next;
+      },
+      { replace: true }
+    );
+
+    setIsMetaLoading(true);
+    try {
+      const projectResponse = await getProjects(newWsId).catch(() => ({ projects: [] }));
+      const rawProjects = projectResponse.projects || projectResponse.data || projectResponse || [];
+      const normalizedProjects = rawProjects.map(normalizeProject).filter(Boolean);
+      setProjects(normalizedProjects);
+      await loadProjectMembers(normalizedProjects);
+    } catch (err) {
+      console.error("Failed to load projects on workspace change:", err);
+      setProjects([]);
+      setMembersByProject({});
+    } finally {
+      setIsMetaLoading(false);
+    }
+
+    await loadTasks(false, newWsId);
   };
 
   /* ==========================================================
@@ -1014,16 +1047,19 @@ function Tasks() {
   ========================================================== */
 
   useEffect(() => {
-    const loadPage =
-      async () => {
-        await Promise.all([
-          loadTasks(),
-          loadTaskMetadata(),
-        ]);
-      };
+    const loadPage = async () => {
+      const activeWsId = await loadTaskMetadata();
+      await loadTasks(false, activeWsId);
+    };
 
     void loadPage();
   }, []);
+
+  useEffect(() => {
+    if (selectedWorkspaceId) {
+      loadTasks(true, selectedWorkspaceId);
+    }
+  }, [activeTab, projectFilter]);
 
   /* ==========================================================
      SAVE TASK
@@ -1081,6 +1117,7 @@ function Tasks() {
           ? null
           : Number(form.estimatedHours),
       assignedTo: form.assignedTo || null,
+      workspaceId: selectedWorkspaceId || undefined,
     };
 
     /* =========================
@@ -1309,6 +1346,25 @@ function Tasks() {
     };
 
   /* ==========================================================
+     PERMANENT DELETE
+  ========================================================== */
+
+  const handleDeleteTask = async () => {
+    if (!selectedTask) return;
+    try {
+      await deleteTask(selectedTask.id);
+      setTasks((current) => current.filter((item) => item.id !== selectedTask.id));
+      setSelectedTaskId(null);
+      closeDialog();
+      setNotice("Task permanently deleted.");
+    } catch (error) {
+      setNotice(
+        error.response?.data?.message || "Failed to permanently delete task."
+      );
+    }
+  };
+
+  /* ==========================================================
      RESET FILTERS
   ========================================================== */
 
@@ -1357,6 +1413,58 @@ function Tasks() {
             </Button>
           }
         />
+
+        {/* WORKSPACE SELECTOR */}
+        <section className="flex flex-col gap-4 rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[color-mix(in_srgb,var(--color-surface)_78%,transparent)] p-4 shadow-[var(--shadow-xs)] sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--color-text-subtle)]">
+              Workspace
+            </p>
+            <h2 className="mt-1 font-[var(--font-display)] text-lg font-semibold text-[var(--color-text)]">
+              {currentWorkspace?.name || "Workspace"}
+            </h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="sr-only" htmlFor="task-workspace-select">
+              Select workspace
+            </label>
+            <select
+              id="task-workspace-select"
+              value={selectedWorkspaceId}
+              onChange={(e) => handleWorkspaceChange(e.target.value)}
+              className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-medium text-[var(--color-text)] outline-none focus:border-[var(--color-brand)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--color-focus)_15%,transparent)]"
+            >
+              {workspaces.map((ws) => (
+                <option key={ws.id} value={ws.id}>
+                  {ws.name}
+                </option>
+              ))}
+            </select>
+            {currentWorkspace?.workspaceRole && (
+              <span className="rounded-full bg-[var(--color-info-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--color-info)]">
+                {currentWorkspace.workspaceRole}
+              </span>
+            )}
+          </div>
+        </section>
+
+        {/* EMPTY WORKSPACE STATE */}
+        {!isMetaLoading && projects.length === 0 && (
+          <Card className="py-12 text-center">
+            <FiLayers className="mx-auto text-[var(--color-brand)]" size={32} />
+            <h2 className="mt-4 font-[var(--font-display)] text-xl font-semibold text-[var(--color-text)]">
+              No projects in this workspace yet
+            </h2>
+            <p className="mx-auto mt-2 max-w-md text-sm text-[var(--color-text-muted)]">
+              Create a project in {currentWorkspace?.name || "this workspace"} to start organizing and assigning tasks.
+            </p>
+            <div className="mt-6 flex justify-center">
+              <Button onClick={() => navigate(`/projects?workspaceId=${selectedWorkspaceId}&openCreate=true`)}>
+                <FiPlus size={16} /> Add Project
+              </Button>
+            </div>
+          </Card>
+        )}
 
         {/* NOTICE */}
 
@@ -2376,14 +2484,26 @@ function Tasks() {
 
               <div className="flex flex-wrap gap-2">
                 {selectedTask.isArchived ? (
-                  <Button
-                    variant="secondary"
-                    onClick={() => handleRestoreTask(selectedTask.id)}
-                    className="text-[var(--color-brand)] hover:text-[var(--color-brand)]"
-                  >
-                    <FiRotateCcw size={16} />
-                    Restore
-                  </Button>
+                  <>
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleRestoreTask(selectedTask.id)}
+                      className="text-[var(--color-brand)] hover:text-[var(--color-brand)]"
+                    >
+                      <FiRotateCcw size={16} />
+                      Restore
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      onClick={() => setDialog("delete")}
+                      className="text-rose-600 hover:text-rose-700"
+                      title="Permanently delete task"
+                    >
+                      <FiTrash2 size={16} />
+                      Delete
+                    </Button>
+                  </>
                 ) : (
                   <>
                     <Button
@@ -2423,6 +2543,16 @@ function Tasks() {
                         size={16}
                       />
                       Archive
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      onClick={() => setDialog("delete")}
+                      className="text-rose-600 hover:text-rose-700"
+                      title="Permanently delete task"
+                    >
+                      <FiTrash2 size={16} />
+                      Delete
                     </Button>
                   </>
                 )}
@@ -2662,6 +2792,42 @@ function Tasks() {
                 className="bg-[var(--color-danger)] hover:bg-[var(--color-danger)]"
               >
                 Archive task
+              </Button>
+            </div>
+          </Dialog>
+        )}
+
+        {/* DELETE DIALOG */}
+        {dialog === "delete" && (
+          <Dialog
+            title="Delete task permanently"
+            onClose={closeDialog}
+          >
+            <div className="flex gap-3 rounded-[var(--radius-md)] bg-[var(--color-danger-soft)] p-4 text-sm text-[var(--color-text)]">
+              <FiAlertCircle
+                className="mt-0.5 shrink-0 text-[var(--color-danger)]"
+                size={19}
+              />
+
+              <p>
+                Are you sure you want to permanently delete{" "}
+                <strong>{selectedTask?.title}</strong>? This action cannot be undone.
+              </p>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={closeDialog}
+              >
+                Cancel
+              </Button>
+
+              <Button
+                onClick={handleDeleteTask}
+                className="bg-[var(--color-danger)] hover:bg-rose-700 text-white"
+              >
+                Delete permanently
               </Button>
             </div>
           </Dialog>

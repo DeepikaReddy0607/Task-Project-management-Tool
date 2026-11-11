@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useSocketEvent } from "../../context/SocketContext";
-import { FiActivity, FiAlertTriangle, FiArchive, FiRotateCcw, FiArrowDown, FiArrowUp, FiCheck, FiChevronRight, FiEdit2, FiFolder, FiLayers, FiPlus, FiShield, FiUserMinus, FiUserPlus, FiX, FiZap, FiPaperclip, FiCpu } from "react-icons/fi";
+import { FiActivity, FiAlertTriangle, FiArchive, FiRotateCcw, FiTrash2, FiArrowDown, FiArrowUp, FiCheck, FiChevronRight, FiEdit2, FiFolder, FiLayers, FiPlus, FiShield, FiUserMinus, FiUserPlus, FiX, FiZap, FiPaperclip, FiCpu } from "react-icons/fi";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
@@ -15,6 +15,7 @@ import {
   getProjects,
   createProject as createProjectApi,
   updateProject as updateProjectApi,
+  deleteProject as deleteProjectApi,
   archiveProject as archiveProjectApi,
   restoreProject as restoreProjectApi,
   addProjectMember as addProjectMemberApi,
@@ -39,7 +40,7 @@ const formatDate = (value) => new Intl.DateTimeFormat("en", { month: "short", da
 
 const PROJECT_CATEGORIES = ["Product", "Design", "Engineering", "Marketing", "Operations", "Personal"];
 const PROJECT_PRIORITIES = ["Low", "Medium", "High", "Critical"];
-const PROJECT_STATUSES = ["Planning", "In Progress", "On Track", "At Risk", "Complete"];
+const PROJECT_STATUSES = ["Planning", "Active", "In Progress", "On Track", "On Hold", "At Risk", "Completed", "Complete", "Archived"];
 
 const emptyProjectForm = { title: "", description: "", category: "Product", priority: "Medium", status: "Planning", startDate: "", endDate: "" };
 const emptyRiskForm = { title: "", description: "", severity: "Medium", probability: "Medium", ownerId: "", mitigationPlan: "" };
@@ -102,13 +103,22 @@ function Projects() {
   useEffect(() => {
     const urlProjectId = searchParams.get("projectId");
     const urlTab = searchParams.get("tab");
+    const urlWsId = searchParams.get("workspaceId");
+    const openCreate = searchParams.get("openCreate");
+
+    if (urlWsId && urlWsId !== workspaceId) {
+      setWorkspaceId(urlWsId);
+    }
     if (urlProjectId && urlProjectId !== selectedProjectId) {
       setSelectedProjectId(urlProjectId);
     }
     if ((urlTab === "intelligence" || urlTab === "xray" || urlTab === "details") && urlTab !== projectModalTab) {
       setProjectModalTab(urlTab);
     }
-  }, [searchParams, selectedProjectId, projectModalTab]);
+    if (openCreate === "true") {
+      openProjectForm("create");
+    }
+  }, [searchParams, selectedProjectId, projectModalTab, workspaceId]);
 
   const workspace = workspaces.find((item) => item.id === workspaceId);
   const selectedProject = projects.find((project) => project.id === selectedProjectId);
@@ -290,6 +300,18 @@ function Projects() {
       setFormError(error.response?.data?.message || "Failed to archive project.");
     }
   };
+
+  const deleteProject = async () => {
+    if (!selectedProject) return;
+    try {
+      await deleteProjectApi(selectedProject.id);
+      setProjects((current) => current.filter((project) => project.id !== selectedProject.id));
+      setSelectedProjectId(null);
+      closeDialog();
+    } catch (error) {
+      setFormError(error.response?.data?.message || "Failed to permanently delete project.");
+    }
+  };
   const updateSelectedProject = (updater) => setProjects((current) => current.map((project) => project.id === selectedProject.id ? updater(project) : project));
   const addMember = async () => {
     if (!memberUserId) {
@@ -353,9 +375,12 @@ function Projects() {
   const loadWorkspaces = async () => {
     try {
       const response = await getWorkspaces();
-      setWorkspaces(response.workspaces || []);
-      if (response.workspaces?.length > 0) {
-        setWorkspaceId(response.workspaces[0].id);
+      const wsList = response.workspaces || [];
+      setWorkspaces(wsList);
+      if (wsList.length > 0) {
+        const queryWsId = searchParams.get("workspaceId");
+        const found = wsList.find((w) => w.id === queryWsId);
+        setWorkspaceId(found ? found.id : wsList[0].id);
       }
     } catch (error) {
       console.error("Failed to load workspaces:", error);
@@ -497,7 +522,7 @@ function Projects() {
   }
   return <MainLayout><div className="space-y-6 sm:space-y-8"><PageHeader title="Projects" description="Plan focused work, keep collaborators aligned, and surface risks before they slow the team down." actions={canManage && <Button onClick={() => openProjectForm("create")}><FiPlus size={17} /> Create project</Button>} />
     <section className="flex flex-col gap-4 rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[color-mix(in_srgb,var(--color-surface)_78%,transparent)] p-4 shadow-[var(--shadow-xs)] sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--color-text-subtle)]">Workspace</p><h2 className="mt-1 font-[var(--font-display)] text-lg font-semibold text-[var(--color-text)]">{workspace.name || "Loading workspace"}</h2></div><div className="flex flex-wrap items-center gap-3"><label className="sr-only" htmlFor="project-workspace">Select workspace</label><select id="project-workspace" value={workspaceId} onChange={(event) => { setWorkspaceId(event.target.value); setSelectedProjectId(null); }} className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-medium text-[var(--color-text)] outline-none focus:border-[var(--color-brand)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--color-focus)_15%,transparent)]">{workspaces.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-[var(--color-text-muted)]"><input type="checkbox" checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} className="h-4 w-4 accent-[var(--color-brand)]" /> Show archived</label><span className="rounded-full bg-[var(--color-info-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--color-info)]">{workspace.workspaceRole} preview</span></div></section>
-    {visibleProjects.length ? <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{visibleProjects.map((project) => { const manager = getUser(project.managerId); return <Card key={project.id} hoverable className="flex min-h-[16rem] cursor-pointer flex-col p-5" onClick={() => setSelectedProjectId(project.id)}><div className="flex items-start justify-between gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-surface-sage)] text-[var(--color-brand)]"><FiFolder size={19} /></span><div className="flex flex-wrap justify-end gap-1.5"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${priorityClasses[project.priority]}`}>{project.priority}</span>{project.isArchived && <span className="rounded-full bg-[var(--color-surface-muted)] px-2 py-1 text-xs font-semibold text-[var(--color-text-muted)]">Archived</span>}</div></div><h2 className="mt-5 font-[var(--font-display)] text-xl font-semibold tracking-[-0.02em] text-[var(--color-text)]">{project.title}</h2><p className="mt-2 line-clamp-2 text-sm leading-relaxed text-[var(--color-text-muted)]">{project.description || "No project description yet."}</p><div className="mt-auto pt-5"><div className="flex items-center justify-between gap-3 text-xs text-[var(--color-text-subtle)]"><span>{project.category}</span><span>{project.startDate ? `${formatDate(project.startDate)} – ${formatDate(project.endDate)}` : "Dates to be planned"}</span></div><div className="mt-3 flex items-center justify-between"><div className="flex items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClasses[project.status]}`}>{project.status}</span><button type="button" onClick={(e) => { e.stopPropagation(); setSelectedProjectId(project.id); setProjectModalTab("intelligence"); }} className="inline-flex items-center gap-1 rounded-full bg-[var(--color-brand-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--color-brand-hover)] transition hover:bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)]" title="Open Project Intelligence (Critical Path & Bottlenecks)"><FiZap size={12} /><span>Intelligence</span></button><button type="button" onClick={(e) => { e.stopPropagation(); setSelectedProjectId(project.id); setProjectModalTab("xray"); }} className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-sage)] px-2 py-0.5 text-xs font-semibold text-[var(--color-brand-hover)] transition hover:bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)]" title="Open Project X-Ray Diagnostic"><FiActivity size={12} /><span>X-Ray</span></button></div><span className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">{manager?.name}<FiChevronRight size={15} /></span></div></div></Card>; })}</section> : <Card className="py-14 text-center"><FiFolder className="mx-auto text-[var(--color-brand)]" size={32} /><h2 className="mt-4 font-[var(--font-display)] text-xl font-semibold text-[var(--color-text)]">No active projects yet</h2><p className="mx-auto mt-2 max-w-md text-sm text-[var(--color-text-muted)]">Create a project to bring plans, people, and risks into one clear place.</p>{canManage && <Button className="mt-6" onClick={() => openProjectForm("create")}><FiPlus size={16} /> Create project</Button>}</Card>}
+    {visibleProjects.length ? <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{visibleProjects.map((project) => { const manager = getUser(project.managerId); return <Card key={project.id} hoverable className="flex min-h-[16rem] cursor-pointer flex-col p-5" onClick={() => setSelectedProjectId(project.id)}><div className="flex items-start justify-between gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-surface-sage)] text-[var(--color-brand)]"><FiFolder size={19} /></span><div className="flex flex-wrap justify-end gap-1.5"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${priorityClasses[project.priority]}`}>{project.priority}</span>{project.isArchived && <span className="rounded-full bg-[var(--color-surface-muted)] px-2 py-1 text-xs font-semibold text-[var(--color-text-muted)]">Archived</span>}</div></div><h2 className="mt-5 font-[var(--font-display)] text-xl font-semibold tracking-[-0.02em] text-[var(--color-text)]">{project.title}</h2><p className="mt-2 line-clamp-2 text-sm leading-relaxed text-[var(--color-text-muted)]">{project.description || "No project description yet."}</p><div className="mt-auto pt-5"><div className="flex items-center justify-between gap-3 text-xs text-[var(--color-text-subtle)]"><span>{project.category}</span><span>{project.startDate ? `${formatDate(project.startDate)} – ${formatDate(project.endDate)}` : "Dates to be planned"}</span></div><div className="mt-3 flex items-center justify-between"><div className="flex items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClasses[project.status]}`}>{project.status}</span><button type="button" onClick={(e) => { e.stopPropagation(); setSelectedProjectId(project.id); setProjectModalTab("intelligence"); }} className="inline-flex items-center gap-1 rounded-full bg-[var(--color-brand-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--color-brand-hover)] transition hover:bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)]" title="Open Project Intelligence (Critical Path & Bottlenecks)"><FiZap size={12} /><span>Intelligence</span></button><button type="button" onClick={(e) => { e.stopPropagation(); setSelectedProjectId(project.id); setProjectModalTab("xray"); }} className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-sage)] px-2 py-0.5 text-xs font-semibold text-[var(--color-brand-hover)] transition hover:bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)]" title="Open Project X-Ray Diagnostic"><FiActivity size={12} /><span>X-Ray</span></button><button type="button" onClick={(e) => { e.stopPropagation(); navigate(`/tasks?workspaceId=${workspaceId}&projectId=${project.id}`); }} className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-sage)] px-2 py-0.5 text-xs font-semibold text-[var(--color-brand-hover)] transition hover:bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)]" title="View tasks for this project"><FiCheck size={12} /><span>Tasks</span></button></div><span className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">{manager?.name}<FiChevronRight size={15} /></span></div></div></Card>; })}</section> : <Card className="py-14 text-center"><FiFolder className="mx-auto text-[var(--color-brand)]" size={32} /><h2 className="mt-4 font-[var(--font-display)] text-xl font-semibold text-[var(--color-text)]">No active projects yet</h2><p className="mx-auto mt-2 max-w-md text-sm text-[var(--color-text-muted)]">Create a project to bring plans, people, and risks into one clear place.</p>{canManage && <Button className="mt-6" onClick={() => openProjectForm("create")}><FiPlus size={16} /> Create project</Button>}</Card>}
   </div>
 
   {(dialog === "create" || dialog === "edit")   && <Dialog topmost={dialog === "edit"} title={dialog === "create" ? "Create project" : "Edit project"} onClose={closeDialog}><form onSubmit={saveProject} className="space-y-4"><Input id="project-title" label="Project title" value={projectForm.title} onChange={(event) => updateProjectForm("title", event.target.value)} error={formError} autoFocus /><label className="block text-sm font-medium text-[var(--color-text)]">Description<textarea value={projectForm.description} onChange={(event) => updateProjectForm("description", event.target.value)} rows={3} className="mt-2 w-full resize-y rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--color-focus)_18%,transparent)]" /></label><div className="grid gap-4 sm:grid-cols-3"><FieldSelect id="project-category" label="Category" value={projectForm.category} onChange={(event) => updateProjectForm("category", event.target.value)}>{PROJECT_CATEGORIES.map((item) => <option key={item}>{item}</option>)}</FieldSelect><FieldSelect id="project-priority" label="Priority" value={projectForm.priority} onChange={(event) => updateProjectForm("priority", event.target.value)}>{PROJECT_PRIORITIES.map((item) => <option key={item}>{item}</option>)}</FieldSelect><FieldSelect id="project-status" label="Status" value={projectForm.status} onChange={(event) => updateProjectForm("status", event.target.value)}>{PROJECT_STATUSES.map((item) => <option key={item}>{item}</option>)}</FieldSelect></div><div className="grid gap-4 sm:grid-cols-2"><Input id="project-start" label="Start date" type="date" value={projectForm.startDate} onChange={(event) => updateProjectForm("startDate", event.target.value)} /><Input id="project-end" label="End date" type="date" value={projectForm.endDate} onChange={(event) => updateProjectForm("endDate", event.target.value)} /></div><div className="flex justify-end gap-2 pt-2"><Button variant="secondary" onClick={closeDialog}>Cancel</Button><Button type="submit"><FiCheck size={16} /> {dialog === "create" ? "Create project" : "Save changes"}</Button></div></form></Dialog>}
@@ -517,6 +542,19 @@ function Projects() {
 
       <div className="flex shrink-0 flex-wrap gap-2">
         <Button
+          onClick={() => navigate(`/tasks?workspaceId=${workspaceId}&projectId=${selectedProject.id}&openCreate=true`)}
+          title="Add a new task to this project"
+        >
+          <FiPlus size={16} /> Add Task
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => navigate(`/tasks?workspaceId=${workspaceId}&projectId=${selectedProject.id}`)}
+          title="View tasks in this project"
+        >
+          <FiCheck size={16} /> View Tasks
+        </Button>
+        <Button
           variant="secondary"
           onClick={() => navigate(`/command-center?projectId=${selectedProject.id}`)}
           title="Launch simulations (Chaos Lab, Red Team, Shockwave, Counterfactual, Replay, Decision Log)"
@@ -526,13 +564,23 @@ function Projects() {
 
 
         {canManage && selectedProject.isArchived && (
-          <Button
-            variant="secondary"
-            onClick={restoreProject}
-            className="text-[var(--color-brand)] hover:text-[var(--color-brand)]"
-          >
-            <FiRotateCcw size={16} /> Restore Project
-          </Button>
+          <>
+            <Button
+              variant="secondary"
+              onClick={restoreProject}
+              className="text-[var(--color-brand)] hover:text-[var(--color-brand)]"
+            >
+              <FiRotateCcw size={16} /> Restore Project
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setDialog("delete")}
+              className="text-rose-600 hover:text-rose-700"
+              title="Permanently delete project"
+            >
+              <FiTrash2 size={16} /> Delete
+            </Button>
+          </>
         )}
         {canManage && !selectedProject.isArchived && (
           <>
@@ -545,6 +593,14 @@ function Projects() {
               className="text-[var(--color-danger)] hover:text-[var(--color-danger)]"
             >
               <FiArchive size={16} /> Archive
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setDialog("delete")}
+              className="text-rose-600 hover:text-rose-700"
+              title="Permanently delete project"
+            >
+              <FiTrash2 size={16} /> Delete
             </Button>
           </>
         )}
@@ -573,6 +629,7 @@ function Projects() {
     )}
   </Dialog>}
   {dialog === "archive" && <Dialog title="Archive project" onClose={closeDialog}><div className="flex gap-3 rounded-[var(--radius-md)] bg-[var(--color-danger-soft)] p-4 text-sm text-[var(--color-text)]"><FiAlertTriangle className="mt-0.5 shrink-0 text-[var(--color-danger)]" size={19} /><p>Archive <strong>{selectedProject?.title}</strong>? It will be removed from the active project list in this local session.</p></div><div className="mt-6 flex justify-end gap-2"><Button variant="secondary" onClick={closeDialog}>Cancel</Button><Button onClick={archiveProject} className="bg-[var(--color-danger)] hover:bg-[var(--color-danger)]"><FiArchive size={16} /> Archive project</Button></div></Dialog>}
+  {dialog === "delete" && <Dialog title="Delete project permanently" onClose={closeDialog}><div className="flex gap-3 rounded-[var(--radius-md)] bg-[var(--color-danger-soft)] p-4 text-sm text-[var(--color-text)]"><FiAlertTriangle className="mt-0.5 shrink-0 text-[var(--color-danger)]" size={19} /><p>Are you sure you want to permanently delete <strong>{selectedProject?.title}</strong>? All associated tasks, files, and intelligence records will be permanently removed. This action cannot be undone.</p></div><div className="mt-6 flex justify-end gap-2"><Button variant="secondary" onClick={closeDialog}>Cancel</Button><Button onClick={deleteProject} className="bg-rose-600 hover:bg-rose-700 text-white"><FiTrash2 size={16} /> Delete permanently</Button></div></Dialog>}
   {dialog === "addMember" && <Dialog title="Add project member" onClose={closeDialog}><p className="text-sm text-[var(--color-text-muted)]">Choose a workspace teammate to add as a project contributor.</p>{formError && <p className="mt-2 text-xs text-[var(--color-danger)]">{formError}</p>}<FieldSelect id="project-member" label="Teammate" value={memberUserId} onChange={(event) => setMemberUserId(event.target.value)}>{addableUsers.map((user) => { const name = `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.name || user.email; return <option key={user.id} value={user.id}>{name} — {user.email}</option>; })}</FieldSelect><div className="mt-6 flex justify-end gap-2"><Button variant="secondary" onClick={closeDialog}>Cancel</Button><Button onClick={addMember} disabled={!memberUserId}><FiUserPlus size={16} /> Add member</Button></div></Dialog>}
   {dialog?.type === "removeMember" && <Dialog title="Remove project member" onClose={closeDialog}><div className="flex gap-3 rounded-[var(--radius-md)] bg-[var(--color-danger-soft)] p-4 text-sm text-[var(--color-text)]"><FiAlertTriangle className="mt-0.5 shrink-0 text-[var(--color-danger)]" size={19} /><p>Remove <strong>{dialog.user?.name}</strong> from this project?</p></div><div className="mt-6 flex justify-end gap-2"><Button variant="secondary" onClick={closeDialog}>Cancel</Button><Button onClick={() => removeMember(dialog.memberId || dialog.member.userId || dialog.member.user_id)} className="bg-[var(--color-danger)] hover:bg-[var(--color-danger)]">Remove member</Button></div></Dialog>}
   {(dialog === "createRisk" || dialog?.type === "editRisk") && <Dialog title={dialog === "createRisk" ? "Add risk" : "Edit risk"} onClose={closeDialog}><form onSubmit={dialog === "createRisk" ? saveRisk : updateRisk} className="space-y-4"><Input id="risk-title" label="Risk title" value={riskForm.title} onChange={(event) => setRiskForm((current) => ({ ...current, title: event.target.value }))} error={formError} autoFocus /><label className="block text-sm font-medium text-[var(--color-text)]">Description<textarea value={riskForm.description} onChange={(event) => setRiskForm((current) => ({ ...current, description: event.target.value }))} rows={3} className="mt-2 w-full resize-y rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--color-focus)_18%,transparent)]" /></label><div className="grid gap-4 sm:grid-cols-3"><FieldSelect id="risk-severity" label="Severity" value={riskForm.severity} onChange={(event) => setRiskForm((current) => ({ ...current, severity: event.target.value }))}>{["Low", "Medium", "High", "Critical"].map((item) => <option key={item}>{item}</option>)}</FieldSelect><FieldSelect id="risk-probability" label="Probability" value={riskForm.probability} onChange={(event) => setRiskForm((current) => ({ ...current, probability: event.target.value }))}>{["Low", "Medium", "High"].map((item) => <option key={item}>{item}</option>)}</FieldSelect><FieldSelect id="risk-owner" label="Owner" value={riskForm.ownerId} onChange={(event) => setRiskForm((current) => ({ ...current, ownerId: event.target.value }))}>{workspaceMembers.length > 0 ? workspaceMembers.map((member) => { const name = `${member.firstName || ""} ${member.lastName || ""}`.trim() || member.name || member.email; return <option key={member.id} value={member.id}>{name}</option>; }) : <option value="">No workspace members</option>}</FieldSelect></div><label className="block text-sm font-medium text-[var(--color-text)]">Mitigation plan<textarea value={riskForm.mitigationPlan} onChange={(event) => setRiskForm((current) => ({ ...current, mitigationPlan: event.target.value }))} rows={3} className="mt-2 w-full resize-y rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--color-focus)_18%,transparent)]" /></label><div className="flex justify-end gap-2 pt-2"><Button variant="secondary" onClick={closeDialog}>Cancel</Button><Button type="submit"><FiCheck size={16} /> {dialog === "createRisk" ? "Add risk" : "Save risk"}</Button></div></form></Dialog>}

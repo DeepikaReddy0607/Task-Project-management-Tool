@@ -11,9 +11,10 @@ export const createTask = async (projectId, taskData) => {
 };
 
 // Get all active tasks for a project
-export const getProjectTasks = async (projectId) => {
+export const getProjectTasks = async (projectId, params = {}) => {
   const response = await api.get(
-    `/projects/${projectId}/tasks`
+    `/projects/${projectId}/tasks`,
+    { params }
   );
 
   return response.data;

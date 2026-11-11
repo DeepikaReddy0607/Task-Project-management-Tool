@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   FiAlertTriangle,
   FiCheck,
@@ -8,6 +9,8 @@ import {
   FiPlus,
   FiSearch,
   FiTrash2,
+  FiArchive,
+  FiRotateCcw,
   FiUserMinus,
   FiUserPlus,
   FiUsers,
@@ -27,6 +30,8 @@ import {
   createWorkspace,
   updateWorkspace,
   deleteWorkspace as deleteWorkspaceApi,
+  archiveWorkspace as archiveWorkspaceApi,
+  restoreWorkspace as restoreWorkspaceApi,
   addWorkspaceMember,
   updateWorkspaceMemberRole,
   removeWorkspaceMember,
@@ -113,6 +118,7 @@ function Dialog({ children, onClose, title }) {
 }
 
 function Workspaces() {
+  const navigate = useNavigate();
   const [workspaces, setWorkspaces] = useState([]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] =
     useState("");
@@ -339,6 +345,12 @@ function Workspaces() {
           setSelectedWorkspaceId(
             createdWorkspace.id
           );
+
+          if (formValues.addProjectNow) {
+            closeDialog();
+            navigate(`/projects?workspaceId=${createdWorkspace.id}&openCreate=true`);
+            return;
+          }
         }
       } else if (
         dialog === "edit" &&
@@ -400,6 +412,44 @@ function Workspaces() {
       setFormError(
         error.response?.data?.message ||
           "Failed to delete workspace."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  /* ==========================================================
+     ARCHIVE & RESTORE WORKSPACE
+  ========================================================== */
+
+  const handleArchiveWorkspace = async () => {
+    if (!selectedWorkspace) return;
+    try {
+      setIsSubmitting(true);
+      setFormError("");
+      await archiveWorkspaceApi(selectedWorkspace.id);
+      closeDialog();
+      await loadWorkspaces();
+    } catch (error) {
+      setFormError(
+        error.response?.data?.message || "Failed to archive workspace."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRestoreWorkspace = async () => {
+    if (!selectedWorkspace) return;
+    try {
+      setIsSubmitting(true);
+      setFormError("");
+      await restoreWorkspaceApi(selectedWorkspace.id);
+      closeDialog();
+      await loadWorkspaces();
+    } catch (error) {
+      setFormError(
+        error.response?.data?.message || "Failed to restore workspace."
       );
     } finally {
       setIsSubmitting(false);
@@ -864,6 +914,27 @@ function Workspaces() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={() =>
+                        navigate(`/projects?workspaceId=${selectedWorkspace.id}&openCreate=true`)
+                      }
+                      title="Create a project in this workspace"
+                    >
+                      <FiPlus size={16} />
+                      Add Project
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        navigate(`/projects?workspaceId=${selectedWorkspace.id}`)
+                      }
+                      title="View all projects in this workspace"
+                    >
+                      <FiLayers size={16} />
+                      View Projects
+                    </Button>
+
                     {canEditWorkspace && (
                       <Button
                         variant="secondary"
@@ -875,6 +946,31 @@ function Workspaces() {
                       >
                         <FiEdit2 size={16} />
                         Edit
+                      </Button>
+                    )}
+
+                    {canEditWorkspace && selectedWorkspace.is_archived && (
+                      <Button
+                        variant="secondary"
+                        onClick={handleRestoreWorkspace}
+                        disabled={isSubmitting}
+                        className="text-[var(--color-brand)] hover:text-[var(--color-brand)]"
+                      >
+                        <FiRotateCcw size={16} />
+                        Restore
+                      </Button>
+                    )}
+
+                    {canEditWorkspace && !selectedWorkspace.is_archived && (
+                      <Button
+                        variant="secondary"
+                        onClick={() =>
+                          setDialog("archive")
+                        }
+                        className="text-[var(--color-danger)] hover:text-[var(--color-danger)]"
+                      >
+                        <FiArchive size={16} />
+                        Archive
                       </Button>
                     )}
 
@@ -1194,6 +1290,23 @@ function Workspaces() {
               />
             </div>
 
+            {dialog === "create" && (
+              <label className="flex items-center gap-2 pt-1 text-sm text-[var(--color-text-muted)] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(formValues.addProjectNow)}
+                  onChange={(event) =>
+                    setFormValues((current) => ({
+                      ...current,
+                      addProjectNow: event.target.checked,
+                    }))
+                  }
+                  className="h-4 w-4 rounded accent-[var(--color-brand)]"
+                />
+                <span>Add a project immediately after creating</span>
+              </label>
+            )}
+
             <div className="flex justify-end gap-2 pt-2">
               <Button
                 type="button"
@@ -1463,6 +1576,58 @@ function Workspaces() {
               {isSubmitting
                 ? "Removing..."
                 : "Remove member"}
+            </Button>
+          </div>
+        </Dialog>
+      )}
+
+      {/* ======================================================
+          ARCHIVE WORKSPACE
+      ====================================================== */}
+
+      {dialog === "archive" && (
+        <Dialog
+          title="Archive workspace"
+          onClose={closeDialog}
+        >
+          <div className="flex gap-3 rounded-[var(--radius-md)] bg-[var(--color-danger-soft)] p-4 text-sm text-[var(--color-text)]">
+            <FiAlertTriangle
+              className="mt-0.5 shrink-0 text-[var(--color-danger)]"
+              size={19}
+            />
+
+            <p>
+              Archive <strong>{selectedWorkspace.name}</strong>? It will be archived and hidden from active workspace listings.
+            </p>
+          </div>
+
+          {formError && (
+            <p className="mt-4 text-sm text-[var(--color-danger)]">
+              {formError}
+            </p>
+          )}
+
+          <div className="mt-6 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={closeDialog}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              type="button"
+              onClick={handleArchiveWorkspace}
+              disabled={isSubmitting}
+              className="bg-[var(--color-danger)] hover:bg-[var(--color-danger)]"
+            >
+              <FiArchive size={16} />
+
+              {isSubmitting
+                ? "Archiving..."
+                : "Archive workspace"}
             </Button>
           </div>
         </Dialog>

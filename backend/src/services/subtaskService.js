@@ -1,4 +1,5 @@
 import prisma from "../config/prisma.js";
+import { checkProjectAccess } from "./projectService.js";
 
 const VALID_SUBTASK_STATUSES = [
     "To Do",
@@ -36,20 +37,14 @@ const createSubtask = async (
         throw new Error("Task not found");
     }
 
-    // Check workspace access
-    const workspaceMembership =
-        await prisma.workspace_members.findUnique({
-            where: {
-                workspace_id_user_id: {
-                    workspace_id: task.projects.workspace_id,
-                    user_id: userId
-                }
-            }
-        });
-
-    if (!workspaceMembership) {
-        throw new Error("Workspace access denied");
+    if (task.is_archived) {
+        const error = new Error("Cannot add a subtask to an archived task");
+        error.statusCode = 400;
+        throw error;
     }
+
+    // Check project access
+    await checkProjectAccess(task.projects, userId);
 
     // If assigning the subtask, verify that the user
     // belongs to the same project
@@ -88,6 +83,7 @@ const createSubtask = async (
             due_date: dueDate
                 ? new Date(dueDate)
                 : null,
+            is_archived: false,
         },
         include: {
             tasks: {
@@ -105,7 +101,8 @@ const createSubtask = async (
 
 const getTaskSubtasks = async (
     taskId,
-    userId
+    userId,
+    options = {}
 ) => {
 
     // Find the parent task and its project/workspace
@@ -114,12 +111,7 @@ const getTaskSubtasks = async (
             id: taskId
         },
         include: {
-            projects: {
-                select: {
-                    id: true,
-                    workspace_id: true
-                }
-            }
+            projects: true
         }
     });
 
@@ -127,30 +119,33 @@ const getTaskSubtasks = async (
         throw new Error("Task not found");
     }
 
-    // Check workspace access
-    const workspaceMembership =
-        await prisma.workspace_members.findUnique({
-            where: {
-                workspace_id_user_id: {
-                    workspace_id: task.projects.workspace_id,
-                    user_id: userId
-                }
-            }
-        });
-
-    if (!workspaceMembership) {
-        throw new Error("Workspace access denied");
+    if (task.is_archived) {
+        const error = new Error("Cannot add a subtask to an archived task");
+        error.statusCode = 400;
+        throw error;
     }
 
-    // Get all subtasks belonging to the task
-    const subtasks = await prisma.subtasks.findMany({
-    where: {
+    // Check project access
+    await checkProjectAccess(task.projects, userId);
+
+    const isArchived = options?.archived === true || options?.archived === "true";
+    const includeAll = options?.archived === "all" || options?.includeArchived === true || options?.includeArchived === "true";
+
+    const where = {
         task_id: taskId
-    },
-    orderBy: {
-        created_at: "asc"
+    };
+
+    if (!includeAll) {
+        where.is_archived = isArchived;
     }
-});
+
+    // Get subtasks belonging to the task
+    const subtasks = await prisma.subtasks.findMany({
+        where,
+        orderBy: {
+            created_at: "asc"
+        }
+    });
 
     return subtasks;
 };
@@ -168,12 +163,7 @@ const getSubtask = async (
         include: {
             tasks: {
                 include: {
-                    projects: {
-                        select: {
-                            id: true,
-                            workspace_id: true
-                        }
-                    }
+                    projects: true
                 }
             },
         }
@@ -183,20 +173,8 @@ const getSubtask = async (
         throw new Error("Subtask not found");
     }
 
-    // Check workspace access
-    const workspaceMembership =
-        await prisma.workspace_members.findUnique({
-            where: {
-                workspace_id_user_id: {
-                    workspace_id: subtask.tasks.projects.workspace_id,
-                    user_id: userId
-                }
-            }
-        });
-
-    if (!workspaceMembership) {
-        throw new Error("Workspace access denied");
-    }
+    // Check project access
+    await checkProjectAccess(subtask.tasks.projects, userId);
 
     return subtask;
 };
@@ -215,12 +193,7 @@ const updateSubtask = async (
         include: {
             tasks: {
                 include: {
-                    projects: {
-                        select: {
-                            id: true,
-                            workspace_id: true
-                        }
-                    }
+                    projects: true
                 }
             }
         }
@@ -230,21 +203,8 @@ const updateSubtask = async (
         throw new Error("Subtask not found");
     }
 
-    // Check workspace access
-    const workspaceMembership =
-        await prisma.workspace_members.findUnique({
-            where: {
-                workspace_id_user_id: {
-                    workspace_id:
-                        existingSubtask.tasks.projects.workspace_id,
-                    user_id: userId
-                }
-            }
-        });
-
-    if (!workspaceMembership) {
-        throw new Error("Workspace access denied");
-    }
+    // Check project access
+    await checkProjectAccess(existingSubtask.tasks.projects, userId);
 
     // If assigning the subtask, verify project membership
     if (data.assignedTo !== undefined && data.assignedTo !== null) {
@@ -331,12 +291,7 @@ const updateSubtaskStatus = async (
         include: {
             tasks: {
                 include: {
-                    projects: {
-                        select: {
-                            id: true,
-                            workspace_id: true
-                        }
-                    }
+                    projects: true
                 }
             }
         }
@@ -346,21 +301,8 @@ const updateSubtaskStatus = async (
         throw new Error("Subtask not found");
     }
 
-    // Check workspace access
-    const workspaceMembership =
-        await prisma.workspace_members.findUnique({
-            where: {
-                workspace_id_user_id: {
-                    workspace_id:
-                        existingSubtask.tasks.projects.workspace_id,
-                    user_id: userId
-                }
-            }
-        });
-
-    if (!workspaceMembership) {
-        throw new Error("Workspace access denied");
-    }
+    // Check project access
+    await checkProjectAccess(existingSubtask.tasks.projects, userId);
 
     const subtask = await prisma.subtasks.update({
         where: {
@@ -396,12 +338,7 @@ const deleteSubtask = async (
         include: {
             tasks: {
                 include: {
-                    projects: {
-                        select: {
-                            id: true,
-                            workspace_id: true
-                        }
-                    }
+                    projects: true
                 }
             }
         }
@@ -411,21 +348,8 @@ const deleteSubtask = async (
         throw new Error("Subtask not found");
     }
 
-    // Check workspace access
-    const workspaceMembership =
-        await prisma.workspace_members.findUnique({
-            where: {
-                workspace_id_user_id: {
-                    workspace_id:
-                        existingSubtask.tasks.projects.workspace_id,
-                    user_id: userId
-                }
-            }
-        });
-
-    if (!workspaceMembership) {
-        throw new Error("Workspace access denied");
-    }
+    // Check project access
+    await checkProjectAccess(existingSubtask.tasks.projects, userId);
 
     await prisma.subtasks.delete({
         where: {
@@ -441,6 +365,86 @@ const deleteSubtask = async (
     };
 };
 
+const archiveSubtask = async (subtaskId, userId) => {
+    const existingSubtask = await prisma.subtasks.findUnique({
+        where: { id: subtaskId },
+        include: {
+            tasks: {
+                include: { projects: true }
+            }
+        }
+    });
+
+    if (!existingSubtask) {
+        const error = new Error("Subtask not found");
+        error.statusCode = 404;
+        throw error;
+    }
+
+    await checkProjectAccess(existingSubtask.tasks.projects, userId);
+
+    if (existingSubtask.is_archived) {
+        const error = new Error("Subtask is already archived");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const subtask = await prisma.subtasks.update({
+        where: { id: subtaskId },
+        data: { is_archived: true },
+        include: {
+            tasks: {
+                select: { id: true, title: true, project_id: true }
+            }
+        }
+    });
+
+    return subtask;
+};
+
+const restoreSubtask = async (subtaskId, userId) => {
+    const existingSubtask = await prisma.subtasks.findUnique({
+        where: { id: subtaskId },
+        include: {
+            tasks: {
+                include: { projects: true }
+            }
+        }
+    });
+
+    if (!existingSubtask) {
+        const error = new Error("Subtask not found");
+        error.statusCode = 404;
+        throw error;
+    }
+
+    await checkProjectAccess(existingSubtask.tasks.projects, userId);
+
+    if (!existingSubtask.is_archived) {
+        const error = new Error("Subtask is not archived");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    if (existingSubtask.tasks?.is_archived) {
+        const error = new Error("Cannot restore subtask while its parent task is archived. Please restore the task first.");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const subtask = await prisma.subtasks.update({
+        where: { id: subtaskId },
+        data: { is_archived: false },
+        include: {
+            tasks: {
+                select: { id: true, title: true, project_id: true }
+            }
+        }
+    });
+
+    return subtask;
+};
+
 export {
     VALID_SUBTASK_STATUSES,
     createSubtask,
@@ -448,5 +452,7 @@ export {
     getSubtask,
     updateSubtask,
     updateSubtaskStatus,
-    deleteSubtask
+    deleteSubtask,
+    archiveSubtask,
+    restoreSubtask
 };

@@ -1,6 +1,8 @@
 import prisma from "../config/prisma.js";
 import { createNotification } from "./notificationService.js";
 import sendEmail from "./emailService.js";
+import { checkProjectAccess } from "./projectService.js";
+import { createActivity } from "./activityService.js";
 
 const VALID_TASK_PRIORITIES = [
     "Low",
@@ -46,12 +48,17 @@ const calculateSubtaskProgress = (subtasks) => {
         return 0;
     }
 
-    const completedSubtasks = subtasks.filter(
+    const activeSubtasks = subtasks.filter((s) => !s.is_archived);
+    if (activeSubtasks.length === 0) {
+        return 0;
+    }
+
+    const completedSubtasks = activeSubtasks.filter(
         (subtask) => subtask.status === "Done" || subtask.status === "Completed"
     ).length;
 
     return Math.round(
-        (completedSubtasks / subtasks.length) * 100
+        (completedSubtasks / activeSubtasks.length) * 100
     );
 };
 
@@ -65,7 +72,8 @@ const createTask = async (
     startDate,
     dueDate,
     estimatedHours,
-    assignedTo
+    assignedTo,
+    workspaceId = null
 ) => {
 
     // Check whether project exists
@@ -79,20 +87,15 @@ const createTask = async (
         throw new Error("Project not found");
     }
 
-    // Check whether creator has access to the workspace
-    const workspaceMembership =
-        await prisma.workspace_members.findUnique({
-            where: {
-                workspace_id_user_id: {
-                    workspace_id: project.workspace_id,
-                    user_id: userId
-                }
-            }
-        });
-
-    if (!workspaceMembership) {
-        throw new Error("Workspace access denied");
+    // Validate workspace and project ID association
+    if (workspaceId && project.workspace_id !== workspaceId) {
+        const error = new Error("Project does not belong to the specified workspace");
+        error.statusCode = 400;
+        throw error;
     }
+
+    // Verify creator has project access (Workspace Owner/Admin, Manager, or Project Member)
+    await checkProjectAccess(project, userId);
 
     // If assigning task to someone, verify that user
     // is a member of the project or manager of the project
@@ -199,33 +202,27 @@ const createTask = async (
 const getProjectTasks = async (
     projectId,
     userId,
-    { page, limit, archived } = {}
+    { page, limit, archived, workspaceId } = {}
 ) => {
 
     // Check whether project exists and resolve workspace
-    const workspaceId = await getProjectWorkspaceId(projectId);
+    const project = await prisma.projects.findUnique({
+        where: { id: projectId },
+        select: { id: true, workspace_id: true, manager_id: true }
+    });
 
-    if (!workspaceId) {
+    if (!project) {
         throw new Error("Project not found");
     }
 
-    // Check whether user has workspace access
-    const workspaceMembership =
-        await prisma.workspace_members.findUnique({
-            where: {
-                workspace_id_user_id: {
-                    workspace_id: workspaceId,
-                    user_id: userId
-                }
-            },
-            select: {
-                id: true
-            }
-        });
-
-    if (!workspaceMembership) {
-        throw new Error("Workspace access denied");
+    if (workspaceId && project.workspace_id !== workspaceId) {
+        const error = new Error("Project does not belong to the specified workspace");
+        error.statusCode = 400;
+        throw error;
     }
+
+    // Check project access (Workspace Owner/Admin, Manager, or Project Member)
+    await checkProjectAccess(project, userId);
 
     const isPaginated = page !== undefined || limit !== undefined;
     let pageNum = 1;
@@ -294,6 +291,8 @@ const getProjectTasks = async (
 
     tasks.forEach((task) => {
         task.progress = calculateSubtaskProgress(task.subtasks);
+    task.subtask_progress = task.progress;
+        task.subtask_progress = task.progress;
     });
 
     const pagination = isPaginated
@@ -362,22 +361,11 @@ const getTask = async (
         throw new Error("Task not found");
     }
 
-    // Check workspace access
-    const workspaceMembership =
-        await prisma.workspace_members.findUnique({
-            where: {
-                workspace_id_user_id: {
-                    workspace_id: task.projects.workspace_id,
-                    user_id: userId
-                }
-            }
-        });
-
-    if (!workspaceMembership) {
-        throw new Error("Workspace access denied");
-    }
+    // Check project access
+    await checkProjectAccess(task.projects, userId);
 
     task.progress = calculateSubtaskProgress(task.subtasks);
+    task.subtask_progress = task.progress;
 
     return task;
 };
@@ -406,20 +394,8 @@ const updateTask = async (
         throw new Error("Task not found");
     }
 
-    // Check workspace access
-    const workspaceMembership =
-        await prisma.workspace_members.findUnique({
-            where: {
-                workspace_id_user_id: {
-                    workspace_id: existingTask.projects.workspace_id,
-                    user_id: userId
-                }
-            }
-        });
-
-    if (!workspaceMembership) {
-        throw new Error("Workspace access denied");
-    }
+    // Check project access
+    await checkProjectAccess(existingTask.projects, userId);
 
     // Build update object
     const updateData = {};
@@ -593,51 +569,43 @@ const assignTask = async (
         throw new Error("Task not found");
     }
 
-    // Check whether current user has workspace access
-    const workspaceMembership =
-        await prisma.workspace_members.findUnique({
+    // Check project access
+    await checkProjectAccess(task.projects, currentUserId);
+
+    if (assignedTo) {
+        // Check that assigned user exists
+        const user = await prisma.users.findUnique({
             where: {
-                workspace_id_user_id: {
-                    workspace_id: task.projects.workspace_id,
-                    user_id: currentUserId
-                }
+                id: assignedTo
             }
         });
 
-    if (!workspaceMembership) {
-        throw new Error("Workspace access denied");
-    }
-
-    // Check that assigned user exists
-    const user = await prisma.users.findUnique({
-        where: {
-            id: assignedTo
-        }
-    });
-
-    if (!user) {
-        throw new Error("User not found");
-    }
-
-    // Check that assigned user belongs to this project or is project manager
-    const isManager = task.projects?.manager_id === assignedTo;
-    if (!isManager) {
-        const projectMembership =
-            await prisma.project_members.findUnique({
-                where: {
-                    project_id_user_id: {
-                        project_id: task.project_id,
-                        user_id: assignedTo
-                    }
-                }
-            });
-
-        if (!projectMembership) {
-            const error = new Error(
-                "Assigned user is not a member of the project"
-            );
-            error.statusCode = 400;
+        if (!user) {
+            const error = new Error("User not found");
+            error.statusCode = 404;
             throw error;
+        }
+
+        // Check that assigned user belongs to this project or is project manager
+        const isManager = task.projects?.manager_id === assignedTo;
+        if (!isManager) {
+            const projectMembership =
+                await prisma.project_members.findUnique({
+                    where: {
+                        project_id_user_id: {
+                            project_id: task.project_id,
+                            user_id: assignedTo
+                        }
+                    }
+                });
+
+            if (!projectMembership) {
+                const error = new Error(
+                    "Assigned user is not a member of the project"
+                );
+                error.statusCode = 400;
+                throw error;
+            }
         }
     }
 
@@ -709,11 +677,7 @@ const archiveTask = async (
             id: taskId
         },
         include: {
-            projects: {
-                select: {
-                    workspace_id: true
-                }
-            }
+            projects: true
         }
     });
 
@@ -721,20 +685,8 @@ const archiveTask = async (
         throw new Error("Task not found");
     }
 
-    // Check workspace access
-    const workspaceMembership =
-        await prisma.workspace_members.findUnique({
-            where: {
-                workspace_id_user_id: {
-                    workspace_id: task.projects.workspace_id,
-                    user_id: userId
-                }
-            }
-        });
-
-    if (!workspaceMembership) {
-        throw new Error("Workspace access denied");
-    }
+    // Check project access
+    await checkProjectAccess(task.projects, userId);
 
     // Check if already archived
     if (task.is_archived) {
@@ -768,12 +720,7 @@ const restoreTask = async (taskId, userId) => {
     const task = await prisma.tasks.findUnique({
         where: { id: taskId },
         include: {
-            projects: {
-                select: {
-                    workspace_id: true,
-                    is_archived: true
-                }
-            }
+            projects: true
         }
     });
 
@@ -783,20 +730,8 @@ const restoreTask = async (taskId, userId) => {
         throw error;
     }
 
-    const workspaceMembership = await prisma.workspace_members.findUnique({
-        where: {
-            workspace_id_user_id: {
-                workspace_id: task.projects.workspace_id,
-                user_id: userId
-            }
-        }
-    });
-
-    if (!workspaceMembership) {
-        const error = new Error("Workspace access denied");
-        error.statusCode = 403;
-        throw error;
-    }
+    // Check project access
+    await checkProjectAccess(task.projects, userId);
 
     if (!task.is_archived) {
         const error = new Error("Task is not archived");
@@ -834,12 +769,7 @@ const duplicateTask = async (taskId, userId) => {
     const task = await prisma.tasks.findUnique({
         where: { id: taskId },
         include: {
-            projects: {
-                select: {
-                    workspace_id: true,
-                    is_archived: true
-                }
-            },
+            projects: true,
             subtasks: true
         }
     });
@@ -850,20 +780,8 @@ const duplicateTask = async (taskId, userId) => {
         throw error;
     }
 
-    const workspaceMembership = await prisma.workspace_members.findUnique({
-        where: {
-            workspace_id_user_id: {
-                workspace_id: task.projects.workspace_id,
-                user_id: userId
-            }
-        }
-    });
-
-    if (!workspaceMembership) {
-        const error = new Error("Workspace access denied");
-        error.statusCode = 403;
-        throw error;
-    }
+    // Check project access
+    await checkProjectAccess(task.projects, userId);
 
     return await prisma.$transaction(async (tx) => {
         const duplicated = await tx.tasks.create({
@@ -899,7 +817,8 @@ const duplicateTask = async (taskId, userId) => {
                         title: sub.title,
                         description: sub.description,
                         status: "To Do",
-                        due_date: sub.due_date
+                        due_date: sub.due_date,
+                        is_archived: false
                     }
                 });
             }
@@ -915,20 +834,130 @@ const duplicateTask = async (taskId, userId) => {
                         workspace_id: true
                     }
                 },
+                users_tasks_created_byTousers: {
+                    select: {
+                        id: true,
+                        first_name: true,
+                        last_name: true,
+                        email: true
+                    }
+                },
+                users_tasks_assigned_toTousers: {
+                    select: {
+                        id: true,
+                        first_name: true,
+                        last_name: true,
+                        email: true
+                    }
+                },
                 subtasks: true
             }
         });
     });
 };
 
+const deleteTask = async (taskId, userId) => {
+    const task = await prisma.tasks.findUnique({
+        where: { id: taskId },
+        include: {
+            projects: true
+        }
+    });
 
-const getMyTasks = async (userId, { archived } = {}) => {
+    if (!task) {
+        const error = new Error("Task not found");
+        error.statusCode = 404;
+        throw error;
+    }
+
+    await checkProjectAccess(task.projects, userId);
+
+    await prisma.tasks.delete({
+        where: { id: taskId }
+    });
+
+    try {
+        await createActivity({
+            workspaceId: task.projects.workspace_id,
+            userId,
+            actionType: "TASK_DELETED",
+            entityType: "TASK",
+            entityId: taskId,
+            description: `Permanently deleted task "${task.title}"`
+        });
+    } catch (actErr) {
+        console.warn("Task delete activity logging failed:", actErr.message);
+    }
+
+    return {
+        id: taskId,
+        projectId: task.project_id,
+        workspaceId: task.projects.workspace_id
+    };
+};
+
+
+const getMyTasks = async (userId, { archived, workspaceId, projectId, assignedTo } = {}) => {
     const isArchived = archived === "true" || archived === true;
-    const tasks = await prisma.tasks.findMany({
+
+    // Resolve all workspaces where user is Owner or Admin
+    const adminMemberships = await prisma.workspace_members.findMany({
         where: {
-            assigned_to: userId,
-            is_archived: isArchived
+            user_id: userId,
+            workspace_role: { in: ["Owner", "Admin"] },
+            workspaces: { is_archived: false }
         },
+        select: { workspace_id: true }
+    });
+    const adminWorkspaceIds = adminMemberships.map((m) => m.workspace_id);
+
+    // Build project scope filter
+    const projectWhere = {
+        is_archived: false,
+        OR: [
+            { workspace_id: { in: adminWorkspaceIds } },
+            { manager_id: userId },
+            { project_members: { some: { user_id: userId } } }
+        ]
+    };
+
+    if (workspaceId) {
+        projectWhere.workspace_id = workspaceId;
+    }
+
+    if (projectId) {
+        projectWhere.id = projectId;
+    }
+
+    if (isArchived) {
+        delete projectWhere.is_archived;
+    }
+
+    const authorizedProjects = await prisma.projects.findMany({
+        where: projectWhere,
+        select: { id: true }
+    });
+    const authorizedProjectIds = authorizedProjects.map((p) => p.id);
+
+    if (authorizedProjectIds.length === 0) {
+        return [];
+    }
+
+    const taskWhere = {
+        project_id: { in: authorizedProjectIds },
+        is_archived: isArchived
+    };
+
+    if (assignedTo === "me") {
+        taskWhere.assigned_to = userId;
+    } else if (assignedTo === "unassigned") {
+        taskWhere.assigned_to = null;
+    } else if (assignedTo) {
+        taskWhere.assigned_to = assignedTo;
+    }
+
+    const tasks = await prisma.tasks.findMany({
+        where: taskWhere,
         orderBy: [
             {
                 due_date: "asc"
@@ -941,7 +970,8 @@ const getMyTasks = async (userId, { archived } = {}) => {
             projects: {
                 select: {
                     id: true,
-                    title: true
+                    title: true,
+                    workspace_id: true
                 }
             },
             users_tasks_created_byTousers: {
@@ -959,8 +989,14 @@ const getMyTasks = async (userId, { archived } = {}) => {
                     last_name: true,
                     email: true
                 }
-            }
+            },
+            subtasks: true
         }
+    });
+
+    tasks.forEach((task) => {
+        task.progress = calculateSubtaskProgress(task.subtasks);
+        task.subtask_progress = task.progress;
     });
 
     return tasks;
@@ -1116,6 +1152,7 @@ export {
     getTask,
     updateTask,
     assignTask,
+    deleteTask,
     archiveTask,
     restoreTask,
     duplicateTask,
