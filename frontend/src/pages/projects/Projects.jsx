@@ -136,7 +136,36 @@ function Projects() {
   }, [selectedProjectId, selectedProject?.title, setPageContext]);
   const canManage = workspace?.workspaceRole === "Owner" || workspace?.workspaceRole === "Admin";
   const visibleProjects = projects.filter((project) => project.workspaceId === workspaceId && (includeArchived || !project.isArchived));
-  const getUser = (id) => projectUsers.find((user) => user.id === id);
+  const getUser = useCallback((id) => {
+    if (!id) return { id: null, name: "Unassigned", email: "" };
+
+    const wsMember = workspaceMembers.find((m) => (m.id || m.user_id) === id);
+    if (wsMember) {
+      const fullName = `${wsMember.firstName || wsMember.first_name || ""} ${wsMember.lastName || wsMember.last_name || ""}`.trim();
+      return {
+        id,
+        name: fullName || wsMember.name || wsMember.email || "Unassigned",
+        email: wsMember.email || ""
+      };
+    }
+
+    if (selectedProject?.members) {
+      const pm = selectedProject.members.find(
+        (m) => (m.userId || m.user_id || m.id || m.users?.id) === id
+      );
+      if (pm) {
+        const u = pm.users || pm;
+        const fullName = `${u.firstName || u.first_name || ""} ${u.lastName || u.last_name || ""}`.trim();
+        return {
+          id,
+          name: fullName || u.name || u.email || "Unassigned",
+          email: u.email || ""
+        };
+      }
+    }
+
+    return { id, name: "Unassigned", email: "" };
+  }, [workspaceMembers, selectedProject?.members]);
   const closeDialog = () => { setDialog(null); setFormError(""); };
   const openProjectForm = (mode) => { setProjectForm(mode === "edit" ? { title: selectedProject.title, description: selectedProject.description, category: selectedProject.category, priority: selectedProject.priority, status: selectedProject.status, startDate: selectedProject.startDate, endDate: selectedProject.endDate } : emptyProjectForm); setFormError(""); setDialog(mode); };
   const updateProjectForm = (field, value) => setProjectForm((current) => ({ ...current, [field]: value }));
