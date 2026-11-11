@@ -1,14 +1,29 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
+export const RESEND_TIMEOUT_MS = 10000; // 10s maximum timeout for Resend API calls
+
+// Backward compatibility stubs for legacy references
 export const SMTP_TIMEOUTS = {
-    connectionTimeout: 10000, // 10s to establish connection
-    greetingTimeout: 10000,   // 10s to receive greeting
-    socketTimeout: 15000      // 15s of socket inactivity
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000
+};
+export const transporter = null;
+
+/**
+ * Detects whether execution is running inside automated test suites.
+ */
+export const isTestRunner = () => {
+    return Boolean(
+        process.env.NODE_ENV === "test" ||
+        process.execArgv.includes("--test") ||
+        process.argv.some((a) => typeof a === "string" && (a.includes(".test.") || a.includes("--test")))
+    );
 };
 
 /**
  * Sanitizes error messages for safe logging without exposing passwords,
- * OTP codes, credentials, or personal secrets.
+ * OTP codes, API keys, credentials, or personal secrets.
  */
 export const sanitizeErrorMessage = (message) => {
     if (!message || typeof message !== "string") return "Unknown error";
@@ -17,46 +32,106 @@ export const sanitizeErrorMessage = (message) => {
             const maskedUser = user.length > 2 ? `${user[0]}***${user[user.length - 1]}` : "***";
             return `${maskedUser}@${host}.${ext}`;
         })
-        .replace(/(?:pass(?:word)?|auth|secret|token|key)\s*[:=]\s*\S+/gi, "credential=[REDACTED]")
+        .replace(/re_[a-zA-Z0-9_]{15,}/g, "re_[REDACTED_API_KEY]")
+        .replace(/(?:pass(?:word)?|auth|secret|token)\s*[:=]\s*\S+/gi, "credential=[REDACTED]")
         .replace(/\b\d{6}\b/g, "[REDACTED_OTP]");
 };
 
-const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true,
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_APP_PASSWORD
-    },
-    ...SMTP_TIMEOUTS
-});
-
-transporter.verify()
-    .then(() => {
-        console.log("[EMAIL] Gmail SMTP connection verified successfully.");
-    })
-    .catch((error) => {
-        const errCode = error?.code || error?.responseCode || "EUNKNOWN";
-        console.error(`[EMAIL] Gmail SMTP verification failed [${errCode}]:`, sanitizeErrorMessage(error?.message));
-    });
+/**
+ * Resolves the sender email address from environment variables.
+ * Defaults to 'onboarding@resend.dev' if not configured.
+ */
+export const getSenderEmail = () => {
+    const fromEnv = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+    if (fromEnv.includes("<") && fromEnv.includes(">")) {
+        return fromEnv;
+    }
+    return `TaskFlow <${fromEnv}>`;
+};
 
 let mailMock = null;
+let resendClientOverride = null;
+let cachedClient = null;
+let cachedApiKey = null;
 
 export const setMailMock = (mockFn) => {
     mailMock = mockFn;
 };
 
-const sendPasswordResetEmail = async (email, resetLink) => {
+export const setResendClientOverride = (client) => {
+    resendClientOverride = client;
+};
+
+export const getResendClient = () => {
+    if (resendClientOverride) {
+        return resendClientOverride;
+    }
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+        return null;
+    }
+    if (cachedClient && cachedApiKey === apiKey) {
+        return cachedClient;
+    }
+    cachedApiKey = apiKey;
+    cachedClient = new Resend(apiKey);
+    return cachedClient;
+};
+
+/**
+ * Determines whether real network delivery should be skipped.
+ * In automated test suites, real external email delivery is prevented unless
+ * an explicit mock has been configured via setResendClientOverride.
+ */
+export const shouldSkipLiveDelivery = () => {
+    if (isTestRunner() && !resendClientOverride) {
+        return true;
+    }
+    return !process.env.RESEND_API_KEY;
+};
+
+/**
+ * Executes a promise with an enforced timeout.
+ */
+export const sendWithTimeout = async (promise, timeoutMs = RESEND_TIMEOUT_MS) => {
+    let timer;
+    const timeoutPromise = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+            const timeoutError = new Error(`Email delivery timed out after ${timeoutMs}ms`);
+            timeoutError.code = "ETIMEDOUT";
+            reject(timeoutError);
+        }, timeoutMs);
+    });
+
+    try {
+        return await Promise.race([promise, timeoutPromise]);
+    } finally {
+        clearTimeout(timer);
+    }
+};
+
+// Log initialization status on startup in non-test environments
+if (!isTestRunner()) {
+    if (process.env.RESEND_API_KEY) {
+        console.log(`[EMAIL] Resend email provider initialized (Sender: ${getSenderEmail()}).`);
+    } else {
+        console.warn("[EMAIL] RESEND_API_KEY is not configured. Email delivery will use dev fallback.");
+    }
+}
+
+/**
+ * Sends a password reset email using the Resend API.
+ */
+export const sendPasswordResetEmail = async (email, resetLink) => {
     try {
         if (mailMock) {
             return await mailMock({ type: "PASSWORD_RESET", email, resetLink });
         }
 
-        if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASSWORD) {
+        if (shouldSkipLiveDelivery()) {
             if (process.env.NODE_ENV === "production") {
                 const err = new Error("Email service is temporarily unavailable. Please try again later.");
-                err.code = "ESMTPUNAVAILABLE";
+                err.code = "ERESENDUNAVAILABLE";
                 throw err;
             }
             if (process.env.LOG_DEV_AUTH_TOKENS === "true") {
@@ -64,11 +139,14 @@ const sendPasswordResetEmail = async (email, resetLink) => {
             } else {
                 console.log(`[AUTH] Password reset instructions dispatched for ${email}`);
             }
-            return;
+            return { id: "dev-test-mock-id" };
         }
 
-        await transporter.sendMail({
-            from: `"TaskFlow" <${process.env.EMAIL_USER}>`,
+        const client = getResendClient();
+        const from = getSenderEmail();
+
+        const sendPromise = client.emails.send({
+            from,
             to: email,
             subject: "TaskFlow Password Reset",
             html: `
@@ -107,26 +185,42 @@ const sendPasswordResetEmail = async (email, resetLink) => {
                 </div>
             `
         });
+
+        const result = await sendWithTimeout(sendPromise, RESEND_TIMEOUT_MS);
+        if (result?.error) {
+            const err = new Error(result.error.message || "Failed to send password reset email");
+            err.code = result.error.name || "ERESENDFAILED";
+            err.statusCode = result.error.statusCode;
+            throw err;
+        }
+
+        return result?.data;
     } catch (error) {
-        const errCode = error?.code || error?.responseCode || "ESMTPFAILED";
+        const errCode = error?.code || error?.statusCode || "ERESENDFAILED";
         console.error(`[AUTH] Failed to send password reset email [${errCode}]:`, sanitizeErrorMessage(error?.message));
 
         if (process.env.NODE_ENV !== "production" && process.env.LOG_DEV_AUTH_TOKENS === "true") {
             console.log(`[AUTH DEV] Password reset link for ${email}: ${resetLink}`);
         }
+        if (!error.code) {
+            error.code = errCode;
+        }
     }
 };
 
-const sendRegistrationOtpEmail = async (email, otp, firstName) => {
+/**
+ * Sends a registration OTP verification email using the Resend API.
+ */
+export const sendRegistrationOtpEmail = async (email, otp, firstName) => {
     try {
         if (mailMock) {
             return await mailMock({ type: "OTP", email, otp, firstName });
         }
 
-        if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASSWORD) {
+        if (shouldSkipLiveDelivery()) {
             if (process.env.NODE_ENV === "production") {
                 const err = new Error("Email service is temporarily unavailable. Please try again later.");
-                err.code = "ESMTPUNAVAILABLE";
+                err.code = "ERESENDUNAVAILABLE";
                 throw err;
             }
             if (process.env.LOG_DEV_AUTH_TOKENS === "true") {
@@ -134,11 +228,14 @@ const sendRegistrationOtpEmail = async (email, otp, firstName) => {
             } else {
                 console.log(`[AUTH] Verification OTP email dispatched for ${email}`);
             }
-            return;
+            return { id: "dev-test-mock-id" };
         }
 
-        await transporter.sendMail({
-            from: `"TaskFlow" <${process.env.EMAIL_USER}>`,
+        const client = getResendClient();
+        const from = getSenderEmail();
+
+        const sendPromise = client.emails.send({
+            from,
             to: email,
             subject: `${otp} is your TaskFlow verification code`,
             html: `
@@ -173,18 +270,22 @@ const sendRegistrationOtpEmail = async (email, otp, firstName) => {
                 </div>
             `
         });
+
+        const result = await sendWithTimeout(sendPromise, RESEND_TIMEOUT_MS);
+        if (result?.error) {
+            const err = new Error(result.error.message || "Failed to send registration OTP email");
+            err.code = result.error.name || "ERESENDFAILED";
+            err.statusCode = result.error.statusCode;
+            throw err;
+        }
+
+        return result?.data;
     } catch (error) {
-        const errCode = error?.code || error?.responseCode || "ESMTPFAILED";
+        const errCode = error?.code || error?.statusCode || "ERESENDFAILED";
         console.error(`[AUTH] Failed to send registration OTP email [${errCode}]:`, sanitizeErrorMessage(error?.message));
         if (!error.code) {
             error.code = errCode;
         }
         throw error;
     }
-};
-
-export {
-    transporter,
-    sendPasswordResetEmail,
-    sendRegistrationOtpEmail
 };

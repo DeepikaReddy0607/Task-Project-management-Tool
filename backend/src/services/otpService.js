@@ -124,7 +124,7 @@ export const initiateRegistration = async (data) => {
     try {
         await sendRegistrationOtpEmail(normalizedEmail, otp, firstName.trim());
     } catch (mailError) {
-        const errCode = mailError.code || mailError.responseCode || "ESMTPFAILED";
+        const errCode = mailError.code || mailError.responseCode || "ERESENDFAILED";
         console.error(
             `[REGISTRATION] Email dispatch failure [${errCode}]:`,
             mailError.message ? mailError.message.replace(/\b\d{6}\b/g, "[REDACTED_OTP]") : "No message"
@@ -403,7 +403,7 @@ export const resendRegistrationOtp = async ({ email }) => {
     try {
         await sendRegistrationOtpEmail(normalizedEmail, newOtp, pending.first_name);
     } catch (mailError) {
-        const errCode = mailError.code || mailError.responseCode || "ESMTPFAILED";
+        const errCode = mailError.code || mailError.responseCode || "ERESENDFAILED";
         console.error(
             `[RESEND_OTP] Email dispatch failure [${errCode}]:`,
             mailError.message ? mailError.message.replace(/\b\d{6}\b/g, "[REDACTED_OTP]") : "No message"

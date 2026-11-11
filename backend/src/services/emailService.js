@@ -1,29 +1,43 @@
 import nodemailer from "nodemailer";
 
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "localhost",
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === "true",
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-    }
-});
+const sendEmail = async ({ to, subject, text, html }) => {
+    const environment = process.env.NODE_ENV;
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
 
-const sendEmail = async ({
-    to,
-    subject,
-    text,
-    html
-}) => {
-    // If SMTP credentials or host are not configured, do not attempt blocking network calls
-    if (!process.env.SMTP_HOST && !process.env.SMTP_USER) {
-        console.log(`[EMAIL DEV MOCK] Skipped sending email to ${to} (no SMTP configured): ${subject}`);
-        return { messageId: "dev-mock-id" };
+    // SMTP host is mandatory for real email delivery.
+    if (!smtpHost) {
+        // Mock delivery is permitted only in development and test.
+        if (environment === "development" || environment === "test") {
+            console.log(
+                `[EMAIL DEV MOCK] Skipped sending email to ${to}: ${subject}`
+            );
+
+            return { messageId: "dev-mock-id" };
+        }
+
+        throw new Error(
+            "Email delivery configuration error: SMTP_HOST is not configured."
+        );
     }
+
+    const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: Number(process.env.SMTP_PORT) || 587,
+        secure: process.env.SMTP_SECURE === "true",
+        ...(smtpUser && smtpPass
+            ? {
+                auth: {
+                    user: smtpUser,
+                    pass: smtpPass
+                }
+            }
+            : {})
+    });
 
     const mailOptions = {
-        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        from: process.env.SMTP_FROM || smtpUser,
         to,
         subject,
         text,
@@ -32,9 +46,7 @@ const sendEmail = async ({
 
     const info = await transporter.sendMail(mailOptions);
 
-    console.log(
-        `Email sent to ${to}: ${info.messageId}`
-    );
+    console.log(`Email sent to ${to}: ${info.messageId}`);
 
     return info;
 };

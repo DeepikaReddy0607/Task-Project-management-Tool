@@ -30,3 +30,22 @@ Every metric in these documents is backed by executed automated tests:
 - **Frontend Automated Tests:** **45 passed / 45 total** across 8 Vitest suites (`npm test` in `frontend/`).
 - **Selenium / E2E Journeys:** **17 passed / 17 total** across production authentication, onboarding, workspaces, projects, Kanban, and RBAC (`python tests/selenium/run_all_tests.py`).
 - **Total Verified Tests:** **1,116 passed tests with 100% pass rate**.
+
+---
+
+## ⚙️ ENVIRONMENT VARIABLES REFERENCE
+
+### Backend (`backend/.env`)
+
+| Variable | Description | Example / Default | Required in Production |
+|---|---|---|:---:|
+| `PORT` | Backend Express server port | `5000` | No (defaults to 5000) |
+| `DATABASE_URL` | PostgreSQL connection pool URL | `postgresql://...` | **Yes** |
+| `DIRECT_URL` | Direct PostgreSQL connection URL for migrations | `postgresql://...` | **Yes** |
+| `JWT_SECRET` | Secret key for signing user session JWTs | `min_32_characters` | **Yes** |
+| `RESET_PASSWORD_SECRET` | Secret key for single-use password reset tokens | `min_32_characters` | **Yes** |
+| `OTP_SECRET` | HMAC-SHA256 secret for keyed OTP hashing | `min_32_characters` | **Yes** |
+| `FRONTEND_URL` | Primary client URL for CORS and password reset links | `https://chipmunks-taskflow.vercel.app` | **Yes** |
+| `ALLOWED_ORIGINS` | Comma-separated list of allowed CORS origins | `http://localhost:5173,https://...` | **Yes** |
+| `RESEND_API_KEY` | Resend API key for OTP and password-reset email delivery | `re_...` | **Yes** |
+| `RESEND_FROM_EMAIL` | Sender email address for outbound emails | `onboarding@resend.dev` | **Yes** |
